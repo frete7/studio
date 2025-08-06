@@ -987,7 +987,7 @@ function SummaryView({ data }: { data: FormData }) {
             <div className="space-y-1">
                 <h3 className="font-semibold text-base">Origem</h3>
                 <p><strong>Local:</strong> {origin.city}, {origin.state} (Bairro: {origin.neighborhood})</p>
-                <p><strong>Data:</strong> {format(origin.dateTime, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</p>
+                <p><strong>Data:</strong> {origin.dateTime ? format(origin.dateTime, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : 'N/A'}</p>
                 <p><strong>Detalhes:</strong> {origin.locationType}, {origin.floor}, Acesso por {origin.accessType || 'N/A'}, Dist. {origin.distance}</p>
             </div>
             <Separator />
@@ -1172,9 +1172,9 @@ export default function RequestFreightPage() {
                         <DialogContent className="sm:max-w-2xl">
                              <DialogHeader>
                                 <DialogTitle className="text-2xl">Confirme sua Solicitação</DialogTitle>
-                                <FormDescription>
+                                <p className="text-sm text-muted-foreground">
                                     Por favor, revise todos os dados antes de finalizar.
-                                </FormDescription>
+                                </p>
                              </DialogHeader>
                              <SummaryView data={getValues()} />
                              <DialogFooter>

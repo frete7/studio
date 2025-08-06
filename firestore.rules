@@ -1,66 +1,50 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+  
+    // =================================================================
+    // Security Rules for Frete7 Connector
+    // =================================================================
 
-    // Helper functions
-    function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-
-    // Regras para Usuários
+    // Users Collection:
+    // 1. Read: Any authenticated user can read any user profile.
+    // 2. Create: Anyone can create a new user document (for sign-ups).
+    // 3. Update: A user can only update their own document. Admins can update any.
+    // 4. Delete: Only admins can delete user documents.
     match /users/{userId} {
-      // Qualquer usuário autenticado pode criar seu próprio perfil.
-      allow create: if request.auth != null && request.auth.uid == userId;
-      // Usuários podem ler seus próprios dados, e administradores podem ler qualquer perfil.
-      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
-      // Usuários podem atualizar seus próprios dados, e administradores podem atualizar qualquer perfil.
-      allow update: if request.auth != null && (request.auth.uid == userId || isAdmin());
-      // Apenas administradores podem deletar usuários.
-      allow delete: if isAdmin();
-    }
-
-    // Regras para Fretes
-    match /freights/{freightId} {
-      // Qualquer pessoa (mesmo não autenticada) pode criar uma solicitação de frete.
+      allow read: if request.auth != null;
       allow create: if true;
-      // Apenas administradores podem ler os detalhes de todos os fretes.
-      allow read: if isAdmin();
-      // Apenas administradores podem atualizar ou deletar fretes.
-      allow update, delete: if isAdmin();
+      allow update: if request.auth.uid == userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Regras para Categorias de Veículos
-    match /vehicle_categories/{categoryId} {
-      // Apenas administradores podem gerenciar categorias.
-      allow read, write: if isAdmin();
+    // Freights Collection:
+    // 1. Read: Only admins can read the full list of freights.
+    // 2. Get: (Future rule) Authenticated companies/drivers might be able to get specific freight details.
+    // 3. Create: Anyone (including unauthenticated users) can create a new freight request.
+    // 4. Update/Delete: Only admins can modify or delete freights.
+    match /freights/{freightId} {
+      allow list: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow get: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow create: if true;
+      allow update, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Regras para Tipos de Veículos
-    match /vehicle_types/{typeId} {
-      // Apenas administradores podem gerenciar tipos de veículos.
-      allow read, write: if isAdmin();
-    }
-
-    // Regras para Veículos
-    match /vehicles/{vehicleId} {
-        // Apenas administradores podem ler todos os veículos.
-        // Motoristas poderão ler seus veículos associados (regra a ser adicionada).
-      allow read, write: if isAdmin();
+    // Vehicle Related Collections (vehicle_types, vehicle_categories, vehicles, body_types):
+    // 1. Read: Any authenticated user can read these lists (needed for forms, etc.).
+    // 2. Create, Update, Delete: Only admins can manage these core data collections.
+    match /{collection}/{docId} where collection in ['vehicle_types', 'vehicle_categories', 'vehicles', 'body_types'] {
+      allow read: if request.auth != null;
+      allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
     
-    // Regras para Tipos de Carroceria
-    match /body_types/{bodyTypeId} {
-      allow read, write: if isAdmin();
-    }
-
-    // Regras para Planos
+    // Plans Collection:
+    // 1. Read: Any authenticated user can read the list of plans.
+    // 2. Write (Create, Update, Delete): Only admins can manage plans.
     match /plans/{planId} {
-       // Todos podem ler os planos disponíveis.
-       allow read: if true;
-       // Apenas administradores podem criar, editar ou deletar planos.
-       allow write: if isAdmin();
+        allow read: if request.auth != null;
+        allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
   }
 }
