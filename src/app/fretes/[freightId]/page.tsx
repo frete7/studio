@@ -89,7 +89,7 @@ export default function FreightDetailsPage() {
                 <MapPin className="h-4 w-4 flex-shrink-0" />
                 <span><strong>Endereço:</strong> {location?.city}, {location?.state} (Bairro: {location?.neighborhood})</span>
             </div>
-            {location?.dateTime && (
+            {location?.dateTime?.seconds && (
                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
                     <Clock className="h-4 w-4 flex-shrink-0" />
                     <span><strong>Data:</strong> {format(new Date(location.dateTime.seconds * 1000), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
