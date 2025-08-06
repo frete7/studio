@@ -45,11 +45,12 @@ export async function updateDocumentStatus(userId: string, docField: 'responsibl
         const userData = userDoc.data();
         const updatePayload: { [key: string]: any } = {};
 
-        // Use dot notation to update nested fields directly.
+        // Use dot notation for precise updates
         if (docField === 'responsible.document') {
-            const documentData = (typeof userData.responsible?.document === 'string') 
-                ? { url: userData.responsible.document, status: 'pending' } 
-                : (userData.responsible?.document || {});
+            const responsibleData = userData.responsible || {};
+            const documentData = (typeof responsibleData.document === 'string') 
+                ? { url: responsibleData.document, status: 'pending' } 
+                : (responsibleData.document || {});
             
             updatePayload['responsible.document'] = { ...documentData, status: docStatus };
 
@@ -62,7 +63,6 @@ export async function updateDocumentStatus(userId: string, docField: 'responsibl
         }
 
         // If any document is rejected, set main user status to 'incomplete'
-        // to signal that action is required.
         if (docStatus === 'rejected') {
             updatePayload['status'] = 'incomplete';
         }
@@ -105,7 +105,7 @@ export async function updateUserByAdmin(userId: string, data: any): Promise<void
             throw new Error("Usuário não encontrado.");
         }
         
-        // Initialize responsible if it doesn't exist
+        // Ensure 'responsible' object exists before trying to update its properties
         const responsibleData = userData.responsible || {};
 
         const updateData: any = {
@@ -114,16 +114,16 @@ export async function updateUserByAdmin(userId: string, data: any): Promise<void
             cnpj: data.cnpj,
             address: data.address,
             responsible: {
-                ...responsibleData,
+                ...responsibleData, // Spread existing responsible data
                 name: data.responsibleName,
                 cpf: data.responsibleCpf,
             }
         };
-
-        // Migrate old document format to new one if necessary
-        if (typeof userData.responsible?.document === 'string') {
-            updateData.responsible.document = {
-                url: userData.responsible.document,
+        
+        // This logic handles migration of old data format to new, if needed
+        if (typeof responsibleData.document === 'string') {
+             updateData.responsible.document = {
+                url: responsibleData.document,
                 status: 'pending'
             };
         }
@@ -133,6 +133,7 @@ export async function updateUserByAdmin(userId: string, data: any): Promise<void
                 status: 'pending'
             };
         }
+
 
         await updateDoc(userDocRef, updateData);
     } catch (error) {
