@@ -27,7 +27,7 @@ const companyFormSchema = z.object({
   numero: z.string().min(1, 'Número é obrigatório.'),
   complemento: z.string().optional(),
   bairro: z.string().min(1, 'Bairro é obrigatório.'),
-  cidade: z.string().min(1, 'Cidade é obrigatória.'),
+  cidade: z.string().min(1, 'Cidade é obrigatório.'),
   uf: z.string().min(2, 'UF é obrigatório.'),
   email: z.string().email('Email inválido.'),
   password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres.'),
@@ -158,7 +158,7 @@ export default function CompanyRegisterPage() {
         },
         email: data.email,
         role: 'company',
-        status: 'pending',
+        status: 'incomplete', // Changed from 'pending' to 'incomplete'
         createdAt: serverTimestamp(),
       });
       
