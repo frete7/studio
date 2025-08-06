@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils';
 // =================================================================
 
 function validateCPF(cpf: string) {
+    if (!cpf) return false;
     cpf = cpf.replace(/[^\d]+/g, '');
     if (cpf.length !== 11 || !!cpf.match(/(\d)\1{10}/)) return false;
     const digits = cpf.split('').map(Number);
@@ -52,8 +53,8 @@ const profileSchema = z.object({
     cidade: z.string().min(1, 'Cidade é obrigatória.'),
     uf: z.string().min(2, 'UF é obrigatório.'),
     // Etapa 3
-    companyLogo: z.any().refine((file) => file?.length == 1 ? ACCEPTED_IMAGE_TYPES.includes(file?.[0]?.type) : true, "Apenas .jpg, .jpeg, .png and .webp são aceitos.")
-        .refine((file) => file?.length == 1 ? file[0]?.size <= MAX_FILE_SIZE : true, `Tamanho máximo é 5MB.`),
+    companyLogo: z.any().optional().refine((files) => !files || files.length === 0 || files?.[0]?.size <= MAX_FILE_SIZE, `Tamanho máximo é 5MB.`)
+      .refine((files) => !files || files.length === 0 || ACCEPTED_IMAGE_TYPES.includes(files?.[0]?.type), "Apenas .jpg, .jpeg, .png and .webp são aceitos."),
     // Etapa 4
     responsibleName: z.string().min(3, "Nome do responsável é obrigatório."),
     responsibleCpf: z.string().refine(validateCPF, "CPF inválido."),
@@ -71,7 +72,7 @@ type ProfileFormData = z.infer<typeof profileSchema>;
 
 const steps = [
     { id: 1, name: 'Dados da Empresa', fields: ['razaoSocial', 'nomeFantasia'] },
-    { id: 2, name: 'Endereço', fields: ['cep', 'logradouro', 'numero', 'bairro', 'cidade', 'uf'] },
+    { id: 2, name: 'Endereço', fields: ['cep', 'logradouro', 'numero', 'bairro', 'cidade', 'uf', 'complemento'] },
     { id: 3, name: 'Identidade Visual', fields: ['companyLogo'] },
     { id: 4, name: 'Documentos', fields: ['responsibleName', 'responsibleCpf', 'responsibleDocument', 'cnpjCard'] },
     { id: 5, name: 'Finalização', fields: ['isCarrier'] },
@@ -100,6 +101,12 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
             bairro: profile.addressDetails?.bairro || '',
             cidade: profile.addressDetails?.cidade || '',
             uf: profile.addressDetails?.uf || '',
+            companyLogo: null,
+            responsibleName: profile.responsible?.name || '',
+            responsibleCpf: profile.responsible?.cpf || '',
+            responsibleDocument: null,
+            cnpjCard: null,
+            isCarrier: profile.isCarrier ? 'yes' : 'no',
         }
     });
 
@@ -311,7 +318,7 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
                             />
                         </div>
                          {/* ETAPA 3 */}
-                        <div className={cn(currentStep !== 2 && "hidden")}>
+                        <div className={cn("space-y-6", currentStep !== 2 && "hidden")}>
                             <FileInput name="companyLogo" label="Logo da Empresa (Opcional)" description="PNG, JPG, WEBP (MAX. 5MB)" existingImageUrl={profile.photoURL} />
                         </div>
                          {/* ETAPA 4 */}
@@ -332,7 +339,7 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
                              <FileInput name="cnpjCard" label="Cartão CNPJ" description="Cartão CNPJ da empresa. PNG, JPG, PDF (MAX. 5MB)" />
                         </div>
                         {/* ETAPA 5 */}
-                         <div className={cn(currentStep !== 4 && "hidden")}>
+                         <div className={cn("space-y-6", currentStep !== 4 && "hidden")}>
                              <FormField
                                 control={control}
                                 name="isCarrier"
@@ -379,5 +386,3 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
         </Card>
     );
 }
-
-    
