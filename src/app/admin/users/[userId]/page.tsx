@@ -1,14 +1,18 @@
+
+'use client';
+
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { notFound } from 'next/navigation';
+import { db, auth } from '@/lib/firebase';
+import { notFound, useRouter } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Mail, Phone, Calendar, User, ShieldCheck, Truck, FileText } from 'lucide-react';
+import { Mail, Phone, Calendar, User, ShieldCheck, Truck, FileText, ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
 
 type UserPageProps = {
   params: {
@@ -67,15 +71,50 @@ const getStatusLabel = (status?: string): string => {
 }
 
 
-export default async function UserDetailsPage({ params }: UserPageProps) {
-  const userDocRef = doc(db, 'users', params.userId);
-  const userDoc = await getDoc(userDocRef);
+export default function UserDetailsPage({ params }: UserPageProps) {
+  const [user, setUser] = useState<UserData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
 
-  if (!userDoc.exists()) {
-    notFound();
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (!currentUser) {
+        router.push('/login');
+        return;
+      }
+      // First, verify if the logged-in user is an admin
+      const adminDocRef = doc(db, 'users', currentUser.uid);
+      const adminDoc = await getDoc(adminDocRef);
+
+      if (!adminDoc.exists() || adminDoc.data().role !== 'admin') {
+        router.push('/'); // Redirect if not admin
+        return;
+      }
+
+      // If admin, fetch the user data for the page
+      const userDocRef = doc(db, 'users', params.userId);
+      const userDoc = await getDoc(userDocRef);
+
+      if (userDoc.exists()) {
+        setUser(userDoc.data() as UserData);
+      } else {
+        notFound();
+      }
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [params.userId, router]);
+
+
+  if (isLoading || !user) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
   }
 
-  const user = userDoc.data() as UserData;
 
   return (
     <div className="space-y-6">

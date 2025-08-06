@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -38,17 +39,18 @@ export default function AdminDashboardPage() {
 
       if (userDoc.exists() && userDoc.data().role === 'admin') {
         setUser(userDoc.data() as UserData);
-        fetchDashboardData();
+        await fetchDashboardData();
       } else {
         router.push('/');
       }
+      
+      setIsLoading(false);
     });
 
     return () => unsubscribe();
   }, [router]);
   
   const fetchDashboardData = async () => {
-      setIsLoading(true);
       try {
           const usersCollection = collection(db, 'users');
           const totalUsersSnapshot = await getCountFromServer(usersCollection);
@@ -62,7 +64,11 @@ export default function AdminDashboardPage() {
           const newUsersSnapshot = await getCountFromServer(newUsersQuery);
           const newUsersToday = newUsersSnapshot.data().count;
           
-          const pendingVerifications = 0; // Placeholder
+          // Placeholder for pending verifications logic
+          const pendingVerificationsQuery = query(usersCollection, where('status', '==', 'pending'));
+          const pendingVerificationsSnapshot = await getCountFromServer(pendingVerificationsQuery);
+          const pendingVerifications = pendingVerificationsSnapshot.data().count;
+
 
           setStats({
               totalUsers,
@@ -72,13 +78,12 @@ export default function AdminDashboardPage() {
 
       } catch (error) {
           console.error("Error fetching dashboard data: ", error);
-      } finally {
-          setIsLoading(false);
+          // Handle error gracefully, maybe show a toast
       }
   };
 
 
-  if (isLoading && !stats) {
+  if (isLoading || !stats) {
     return (
       <div className="flex h-[calc(100vh-12rem)] items-center justify-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -99,7 +104,7 @@ export default function AdminDashboardPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalUsers ?? <Loader2 className="h-6 w-6 animate-spin" />}</div>
+            <div className="text-2xl font-bold">{stats.totalUsers}</div>
             <p className="text-xs text-muted-foreground">Total de usuários cadastrados</p>
           </CardContent>
         </Card>
@@ -109,7 +114,7 @@ export default function AdminDashboardPage() {
             <User className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">+{stats?.newUsersToday ?? <Loader2 className="h-6 w-6 animate-spin" />}</div>
+            <div className="text-2xl font-bold">+{stats.newUsersToday}</div>
              <p className="text-xs text-muted-foreground">Usuários cadastrados hoje</p>
           </CardContent>
         </Card>
@@ -119,7 +124,7 @@ export default function AdminDashboardPage() {
             <ShieldCheck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.pendingVerifications ?? <Loader2 className="h-6 w-6 animate-spin" />}</div>
+            <div className="text-2xl font-bold">{stats.pendingVerifications}</div>
              <p className="text-xs text-muted-foreground">Perfis aguardando aprovação</p>
           </CardContent>
         </Card>
