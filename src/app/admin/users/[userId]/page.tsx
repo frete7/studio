@@ -1,7 +1,7 @@
 
 'use client';
 
-import { collection, doc, getDoc, getCountFromServer, query, updateDoc, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getCountFromServer, query, updateDoc, where, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { notFound, useRouter, useParams } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -133,7 +133,7 @@ export default function UserDetailsPage() {
         }
     }
 
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const authUnsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
         router.push('/login');
         return;
@@ -146,22 +146,27 @@ export default function UserDetailsPage() {
         return;
       }
 
+      // If user is admin, set up the listener for the user's document
       const userDocRef = doc(db, 'users', userId);
-      const userDoc = await getDoc(userDocRef);
-
-      if (userDoc.exists()) {
-        const userData = { ...userDoc.data(), uid: userDoc.id } as UserData;
-        setUser(userData);
-        if (userData.role === 'company') {
-            fetchCompanyStats(userData.uid);
+      const userUnsubscribe = onSnapshot(userDocRef, (doc) => {
+         if (doc.exists()) {
+            const userData = { ...doc.data(), uid: doc.id } as UserData;
+            setUser(userData);
+            if (userData.role === 'company') {
+                fetchCompanyStats(userData.uid);
+            }
+        } else {
+            notFound();
         }
-      } else {
-        notFound();
-      }
-      setIsLoading(false);
+        setIsLoading(false);
+      });
+      
+      // Return cleanup function for user listener
+      return () => userUnsubscribe();
     });
 
-    return () => unsubscribe();
+    // Return cleanup function for auth listener
+    return () => authUnsubscribe();
   }, [userId, router, toast]);
   
   const handleStatusChange = async (newStatus: UserData['status']) => {
@@ -169,7 +174,7 @@ export default function UserDetailsPage() {
 
     try {
         await updateUserStatus(user.uid, newStatus);
-        setUser(prevUser => prevUser ? { ...prevUser, status: newStatus } : null);
+        // The onSnapshot listener will update the UI automatically
         toast({
             title: "Sucesso!",
             description: `Status do usuário atualizado para ${getStatusLabel(newStatus)}.`,

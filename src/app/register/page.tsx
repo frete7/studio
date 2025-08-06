@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -44,12 +45,13 @@ export default function RegisterPage() {
         name: name,
         email: email,
         role: role,
+        status: 'pending', // Default status for new users
         createdAt: serverTimestamp(),
       });
       
       toast({
-        title: "Sucesso!",
-        description: "Sua conta foi criada. Você será redirecionado.",
+        title: "Cadastro recebido!",
+        description: "Sua conta foi criada e está aguardando aprovação. Você será redirecionado.",
       });
       router.push('/'); 
     } catch (error: any) {
@@ -117,4 +119,3 @@ export default function RegisterPage() {
     </div>
   );
 }
-
