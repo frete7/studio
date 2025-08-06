@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Mail, Phone, Calendar, User, ShieldCheck, Truck, FileText, ArrowLeft, Loader2, MoreVertical } from 'lucide-react';
+import { Mail, Phone, Calendar, User, ShieldCheck, Truck, FileText, ArrowLeft, Loader2, MoreVertical, Building, Landmark, CaseSensitive } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState } from 'react';
@@ -32,9 +32,15 @@ type UserData = {
     status?: 'active' | 'pending' | 'blocked' | 'suspended';
     createdAt: any;
     photoURL?: string;
+    // Driver fields
     birthDate?: string;
     cnh?: string;
     cnhCategory?: string;
+    // Company fields
+    cnpj?: string;
+    foundationDate?: string;
+    tradingName?: string;
+    address?: string;
 };
 
 const getInitials = (name: string) => {
@@ -74,7 +80,7 @@ const getStatusLabel = (status?: string): string => {
     }
 }
 
-const userStatuses: UserData['status'][] = ['active', 'pending', 'blocked', 'suspended'];
+const userStatuses: (UserData['status'])[] = ['active', 'pending', 'blocked', 'suspended'];
 
 
 export default function UserDetailsPage() {
@@ -145,6 +151,8 @@ export default function UserDetailsPage() {
     );
   }
 
+  const isCompany = user.role === 'company';
+
 
   return (
     <div className="space-y-6">
@@ -188,47 +196,82 @@ export default function UserDetailsPage() {
                     </Avatar>
                     <div className="flex-1">
                         <div className="flex items-center gap-4">
-                            <CardTitle className="text-3xl">{user.name}</CardTitle>
+                            <CardTitle className="text-3xl">{isCompany ? user.tradingName || user.name : user.name}</CardTitle>
                             <Badge variant={getStatusVariant(user.status)} className="text-sm">
                                 {getStatusLabel(user.status)}
                             </Badge>
                         </div>
-                        <p className="text-muted-foreground capitalize">{user.role}</p>
+                         <p className="text-muted-foreground capitalize">{isCompany ? 'Empresa' : 'Motorista'}</p>
+                        {isCompany && <p className="text-sm text-muted-foreground">{user.name}</p>}
                     </div>
                 </div>
             </CardHeader>
             <CardContent className="space-y-6">
                 <Separator />
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <div className="flex items-center gap-3">
-                        <User className="h-5 w-5 text-muted-foreground" />
-                        <span><span className="font-semibold">Nome:</span> {user.name}</span>
+                {isCompany ? (
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="flex items-center gap-3">
+                            <CaseSensitive className="h-5 w-5 text-muted-foreground" />
+                            <span><span className="font-semibold">Nome Fantasia:</span> {user.tradingName || 'Não informado'}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <Landmark className="h-5 w-5 text-muted-foreground" />
+                            <span><span className="font-semibold">Razão Social:</span> {user.name}</span>
+                        </div>
+                         <div className="flex items-center gap-3">
+                            <FileText className="h-5 w-5 text-muted-foreground" />
+                            <span><span className="font-semibold">CNPJ:</span> {user.cnpj ?? 'Não informado'}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <Mail className="h-5 w-5 text-muted-foreground" />
+                            <span><span className="font-semibold">Email:</span> {user.email}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <Calendar className="h-5 w-5 text-muted-foreground" />
+                            <span><span className="font-semibold">Data de Fundação:</span> {user.foundationDate ? new Date(user.foundationDate).toLocaleDateString('pt-BR') : 'Não informado'}</span>
+                        </div>
+                         <div className="flex items-center gap-3 col-span-full">
+                            <Building className="h-5 w-5 text-muted-foreground" />
+                            <span><span className="font-semibold">Endereço:</span> {user.address ?? 'Não informado'}</span>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                        <Mail className="h-5 w-5 text-muted-foreground" />
-                        <span><span className="font-semibold">Email:</span> {user.email}</span>
+                ) : (
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="flex items-center gap-3">
+                            <User className="h-5 w-5 text-muted-foreground" />
+                            <span><span className="font-semibold">Nome:</span> {user.name}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <Mail className="h-5 w-5 text-muted-foreground" />
+                            <span><span className="font-semibold">Email:</span> {user.email}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <Calendar className="h-5 w-5 text-muted-foreground" />
+                            <span><span className="font-semibold">Data de Nasc.:</span> {user.birthDate ? `${new Date(user.birthDate).toLocaleDateString('pt-BR')} ${calculateAge(user.birthDate)}` : 'Não informado'}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <ShieldCheck className="h-5 w-5 text-muted-foreground" />
+                            <span><span className="font-semibold">CNH:</span> {user.cnh ?? 'Não informado'}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <ShieldCheck className="h-5 w-5 text-muted-foreground" />
+                            <span><span className="font-semibold">Categoria CNH:</span> {user.cnhCategory ?? 'Não informado'}</span>
+                        </div>
                     </div>
-                     <div className="flex items-center gap-3">
-                        <Calendar className="h-5 w-5 text-muted-foreground" />
-                        <span><span className="font-semibold">Data de Nasc.:</span> {user.birthDate ? `${new Date(user.birthDate).toLocaleDateString('pt-BR')} ${calculateAge(user.birthDate)}` : 'Não informado'}</span>
+                )}
+                
+                {!isCompany && (
+                  <>
+                    <Separator />
+                    <div className="space-y-4">
+                        <h3 className="text-lg font-semibold flex items-center gap-2">
+                            <Truck className="h-5 w-5" /> Veículos
+                        </h3>
+                        <p className="text-muted-foreground">Nenhum veículo cadastrado.</p>
+                        {/* Futuramente, listar os veículos aqui */}
                     </div>
-                     <div className="flex items-center gap-3">
-                        <ShieldCheck className="h-5 w-5 text-muted-foreground" />
-                        <span><span className="font-semibold">CNH:</span> {user.cnh ?? 'Não informado'}</span>
-                    </div>
-                     <div className="flex items-center gap-3">
-                        <ShieldCheck className="h-5 w-5 text-muted-foreground" />
-                        <span><span className="font-semibold">Categoria CNH:</span> {user.cnhCategory ?? 'Não informado'}</span>
-                    </div>
-                </div>
-                <Separator />
-                 <div className="space-y-4">
-                    <h3 className="text-lg font-semibold flex items-center gap-2">
-                        <Truck className="h-5 w-5" /> Veículos
-                    </h3>
-                    <p className="text-muted-foreground">Nenhum veículo cadastrado.</p>
-                    {/* Futuramente, listar os veículos aqui */}
-                </div>
+                  </>
+                )}
                 <Separator />
                  <div className="space-y-4">
                     <h3 className="text-lg font-semibold flex items-center gap-2">
