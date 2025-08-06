@@ -221,6 +221,7 @@ export type Plan = {
     durationDays: number;
     pricePix: number;
     priceCard: number;
+    userType: 'driver' | 'company';
 };
 
 export async function getPlans(): Promise<Plan[]> {

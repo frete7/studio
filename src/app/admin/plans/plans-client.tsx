@@ -19,6 +19,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Loader2, PlusCircle, Trash2, Edit } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Badge } from '@/components/ui/badge';
 
 const formSchema = z.object({
   name: z.string().min(2, { message: 'O nome deve ter pelo menos 2 caracteres.' }),
@@ -26,6 +28,7 @@ const formSchema = z.object({
   durationDays: z.coerce.number().int().positive({ message: 'A duração deve ser um número positivo.' }),
   pricePix: z.coerce.number().positive({ message: 'O preço para PIX deve ser positivo.' }),
   priceCard: z.coerce.number().positive({ message: 'O preço para Cartão deve ser positivo.' }),
+  userType: z.enum(['driver', 'company'], { required_error: 'Selecione o tipo de usuário.' }),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -70,6 +73,7 @@ export default function PlansClient() {
       durationDays: 30,
       pricePix: 0,
       priceCard: 0,
+      userType: 'driver',
     },
   });
 
@@ -81,6 +85,7 @@ export default function PlansClient() {
         durationDays: plan.durationDays,
         pricePix: plan.pricePix,
         priceCard: plan.priceCard,
+        userType: plan.userType,
     });
     setIsDialogOpen(true);
   };
@@ -93,6 +98,7 @@ export default function PlansClient() {
       durationDays: 30,
       pricePix: 0,
       priceCard: 0,
+      userType: 'driver',
     });
     setIsDialogOpen(true);
   }
@@ -158,6 +164,7 @@ export default function PlansClient() {
         <TableHeader>
           <TableRow>
             <TableHead>Nome</TableHead>
+            <TableHead>Tipo de Usuário</TableHead>
             <TableHead>Duração</TableHead>
             <TableHead>Valor PIX</TableHead>
             <TableHead>Valor Cartão</TableHead>
@@ -168,6 +175,11 @@ export default function PlansClient() {
           {plans.map((plan) => (
             <TableRow key={plan.id}>
               <TableCell className="font-medium">{plan.name}</TableCell>
+              <TableCell>
+                 <Badge variant={plan.userType === 'driver' ? 'secondary' : 'outline'} className="capitalize">
+                    {plan.userType === 'driver' ? 'Motorista' : 'Empresa'}
+                 </Badge>
+              </TableCell>
               <TableCell>{plan.durationDays} dias</TableCell>
               <TableCell>{formatCurrency(plan.pricePix)}</TableCell>
               <TableCell>{formatCurrency(plan.priceCard)}</TableCell>
@@ -249,6 +261,36 @@ export default function PlansClient() {
                             </FormItem>
                         )}
                     />
+                     <FormField
+                        control={form.control}
+                        name="userType"
+                        render={({ field }) => (
+                            <FormItem className="space-y-3">
+                            <FormLabel>Este plano é para qual tipo de usuário?</FormLabel>
+                            <FormControl>
+                                <RadioGroup
+                                onValueChange={field.onChange}
+                                defaultValue={field.value}
+                                className="flex space-x-4"
+                                >
+                                <FormItem className="flex items-center space-x-2">
+                                    <FormControl>
+                                    <RadioGroupItem value="driver" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">Motorista</FormLabel>
+                                </FormItem>
+                                <FormItem className="flex items-center space-x-2">
+                                    <FormControl>
+                                    <RadioGroupItem value="company" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">Empresa</FormLabel>
+                                </FormItem>
+                                </RadioGroup>
+                            </FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                     />
                     <div className="grid grid-cols-3 gap-4">
                         <FormField
                             control={form.control}
@@ -310,4 +352,3 @@ export default function PlansClient() {
     </Card>
   );
 }
-
