@@ -1,13 +1,13 @@
 'use client';
 
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getCountFromServer, query, updateDoc, where } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { notFound, useRouter, useParams } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Mail, Phone, Calendar, User, ShieldCheck, Truck, FileText, ArrowLeft, Loader2, MoreVertical, Building, Landmark, CaseSensitive } from 'lucide-react';
+import { Mail, Phone, Calendar, User, ShieldCheck, Truck, FileText, ArrowLeft, Loader2, MoreVertical, Building, Landmark, CaseSensitive, Package, PackageSearch, PackageCheck, CreditCard } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState } from 'react';
@@ -41,7 +41,15 @@ type UserData = {
     foundationDate?: string;
     tradingName?: string;
     address?: string;
+    activePlan?: string;
 };
+
+type CompanyStats = {
+    activeFreights: number;
+    requestedFreights: number;
+    completedFreights: number;
+};
+
 
 const getInitials = (name: string) => {
     if (!name) return '';
@@ -85,6 +93,7 @@ const userStatuses: (UserData['status'])[] = ['active', 'pending', 'blocked', 's
 
 export default function UserDetailsPage() {
   const [user, setUser] = useState<UserData | null>(null);
+  const [companyStats, setCompanyStats] = useState<CompanyStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const params = useParams();
@@ -95,6 +104,34 @@ export default function UserDetailsPage() {
   useEffect(() => {
     if (!userId) return;
     
+    const fetchCompanyStats = async (companyId: string) => {
+        try {
+            const freightsCollection = collection(db, 'freights');
+            
+            const activeQuery = query(freightsCollection, where('companyId', '==', companyId), where('status', '==', 'active'));
+            const activeSnapshot = await getCountFromServer(activeQuery);
+            
+            const requestedQuery = query(freightsCollection, where('companyId', '==', companyId), where('status', '==', 'requested'));
+            const requestedSnapshot = await getCountFromServer(requestedQuery);
+            
+            const completedQuery = query(freightsCollection, where('companyId', '==', companyId), where('status', '==', 'completed'));
+            const completedSnapshot = await getCountFromServer(completedQuery);
+
+            setCompanyStats({
+                activeFreights: activeSnapshot.data().count,
+                requestedFreights: requestedSnapshot.data().count,
+                completedFreights: completedSnapshot.data().count,
+            });
+        } catch (error) {
+            console.error("Error fetching company freight stats:", error);
+            toast({
+                variant: 'destructive',
+                title: 'Erro ao buscar dados',
+                description: 'Não foi possível carregar as estatísticas de fretes da empresa.'
+            })
+        }
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
         router.push('/login');
@@ -112,7 +149,11 @@ export default function UserDetailsPage() {
       const userDoc = await getDoc(userDocRef);
 
       if (userDoc.exists()) {
-        setUser({ ...userDoc.data(), uid: userDoc.id } as UserData);
+        const userData = { ...userDoc.data(), uid: userDoc.id } as UserData;
+        setUser(userData);
+        if (userData.role === 'company') {
+            fetchCompanyStats(userData.uid);
+        }
       } else {
         notFound();
       }
@@ -120,7 +161,7 @@ export default function UserDetailsPage() {
     });
 
     return () => unsubscribe();
-  }, [userId, router]);
+  }, [userId, router, toast]);
   
   const handleStatusChange = async (newStatus: UserData['status']) => {
     if (!user || !newStatus) return;
@@ -209,6 +250,7 @@ export default function UserDetailsPage() {
             <CardContent className="space-y-6">
                 <Separator />
                 {isCompany ? (
+                    <>
                     <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                         <div className="flex items-center gap-3">
                             <CaseSensitive className="h-5 w-5 text-muted-foreground" />
@@ -230,11 +272,57 @@ export default function UserDetailsPage() {
                             <Calendar className="h-5 w-5 text-muted-foreground" />
                             <span><span className="font-semibold">Data de Fundação:</span> {user.foundationDate ? new Date(user.foundationDate).toLocaleDateString('pt-BR') : 'Não informado'}</span>
                         </div>
+                         <div className="flex items-center gap-3">
+                            <CreditCard className="h-5 w-5 text-muted-foreground" />
+                            <span><span className="font-semibold">Plano Ativo:</span> {user.activePlan || 'Básico'}</span>
+                        </div>
                          <div className="flex items-center gap-3 col-span-full">
                             <Building className="h-5 w-5 text-muted-foreground" />
                             <span><span className="font-semibold">Endereço:</span> {user.address ?? 'Não informado'}</span>
                         </div>
                     </div>
+                    <Separator />
+                    <div className="space-y-4">
+                        <h3 className="text-lg font-semibold flex items-center gap-2">
+                           Atividade de Fretes
+                        </h3>
+                        {companyStats === null ? (
+                             <div className="flex justify-center items-center h-24">
+                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                             </div>
+                        ) : (
+                            <div className="grid gap-4 md:grid-cols-3">
+                                <Card>
+                                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                        <CardTitle className="text-sm font-medium">Fretes Ativos</CardTitle>
+                                        <Package className="h-4 w-4 text-muted-foreground" />
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="text-2xl font-bold">{companyStats.activeFreights}</div>
+                                    </CardContent>
+                                </Card>
+                                 <Card>
+                                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                        <CardTitle className="text-sm font-medium">Solicitados</CardTitle>
+                                        <PackageSearch className="h-4 w-4 text-muted-foreground" />
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="text-2xl font-bold">{companyStats.requestedFreights}</div>
+                                    </CardContent>
+                                </Card>
+                                <Card>
+                                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                        <CardTitle className="text-sm font-medium">Concluídos</CardTitle>
+                                        <PackageCheck className="h-4 w-4 text-muted-foreground" />
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="text-2xl font-bold">{companyStats.completedFreights}</div>
+                                    </CardContent>
+                                </Card>
+                            </div>
+                        )}
+                    </div>
+                    </>
                 ) : (
                     <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                         <div className="flex items-center gap-3">
