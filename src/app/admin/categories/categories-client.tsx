@@ -1,11 +1,13 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useRouter } from 'next/navigation';
+import { collection, onSnapshot, query } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 import {
   addVehicleCategory,
@@ -46,7 +48,6 @@ import {
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Loader2, PlusCircle, Trash2, Edit } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
 
 const formSchema = z.object({
   name: z.string().min(2, { message: 'O nome deve ter pelo menos 2 caracteres.' }),
@@ -54,11 +55,9 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-interface CategoriesClientProps {
-    initialData: VehicleCategory[];
-}
-
-export default function CategoriesClient({ initialData }: CategoriesClientProps) {
+export default function CategoriesClient() {
+  const [categories, setCategories] = useState<VehicleCategory[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<VehicleCategory | null>(null);
@@ -73,6 +72,32 @@ export default function CategoriesClient({ initialData }: CategoriesClientProps)
       name: '',
     },
   });
+
+  useEffect(() => {
+    setIsLoading(true);
+    const q = query(collection(db, 'vehicle_categories'));
+    const unsubscribe = onSnapshot(q, 
+        (querySnapshot) => {
+            const categoriesData: VehicleCategory[] = [];
+            querySnapshot.forEach((doc) => {
+                categoriesData.push({ ...doc.data(), id: doc.id } as VehicleCategory);
+            });
+            setCategories(categoriesData);
+            setIsLoading(false);
+        },
+        (error) => {
+            console.error("Error fetching categories: ", error);
+            toast({
+                variant: 'destructive',
+                title: 'Erro ao carregar categorias',
+                description: 'Verifique suas permissões e a conexão com o Firebase.'
+            });
+            setIsLoading(false);
+        }
+    );
+
+    return () => unsubscribe();
+}, [toast]);
 
   const handleEditClick = (category: VehicleCategory) => {
     setEditingCategory(category);
@@ -99,12 +124,12 @@ export default function CategoriesClient({ initialData }: CategoriesClientProps)
       form.reset();
       setIsDialogOpen(false);
       setEditingCategory(null);
-      router.refresh();
+      // No need to call router.refresh() because onSnapshot will update the state
     } catch (error) {
       toast({
         variant: 'destructive',
-        title: 'Erro',
-        description: error instanceof Error ? error.message : 'Ocorreu um erro.',
+        title: 'Erro ao salvar',
+        description: error instanceof Error ? error.message : 'Ocorreu um erro. Verifique se você tem permissão.',
       });
     } finally {
       setIsSubmitting(false);
@@ -115,14 +140,72 @@ export default function CategoriesClient({ initialData }: CategoriesClientProps)
     try {
         await deleteVehicleCategory(id);
         toast({ title: 'Sucesso!', description: 'Categoria removida.' });
-        router.refresh();
+        // No need to call router.refresh()
     } catch (error) {
          toast({
             variant: 'destructive',
-            title: 'Erro',
-            description: error instanceof Error ? error.message : 'Ocorreu um erro ao remover.',
+            title: 'Erro ao remover',
+            description: error instanceof Error ? error.message : 'Ocorreu um erro.',
         });
     }
+  }
+
+  const renderContent = () => {
+    if (isLoading) {
+        return (
+            <div className="flex justify-center items-center h-48">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        );
+    }
+    if (categories.length === 0) {
+        return <p className="text-center text-muted-foreground py-8">Nenhuma categoria de veículo cadastrada.</p>;
+    }
+    return (
+        <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nome</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {categories.map((category) => (
+                <TableRow key={category.id}>
+                  <TableCell className="font-medium">{category.name}</TableCell>
+                  <TableCell className="text-right space-x-2">
+                     <Button variant="outline" size="icon" onClick={() => handleEditClick(category)}>
+                        <Edit className="h-4 w-4" />
+                        <span className="sr-only">Editar</span>
+                    </Button>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                             <Button variant="destructive" size="icon">
+                                <Trash2 className="h-4 w-4" />
+                                <span className="sr-only">Remover</span>
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Esta ação não pode ser desfeita. Isso irá remover permanentemente a categoria.
+                            </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDelete(category.id)}>
+                                Sim, remover
+                            </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+    );
   }
 
 
@@ -158,53 +241,7 @@ export default function CategoriesClient({ initialData }: CategoriesClientProps)
         </Dialog>
       </CardHeader>
       <CardContent>
-        {initialData.length > 0 ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {initialData.map((category) => (
-                <TableRow key={category.id}>
-                  <TableCell className="font-medium">{category.name}</TableCell>
-                  <TableCell className="text-right space-x-2">
-                     <Button variant="outline" size="icon" onClick={() => handleEditClick(category)}>
-                        <Edit className="h-4 w-4" />
-                        <span className="sr-only">Editar</span>
-                    </Button>
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                             <Button variant="destructive" size="icon">
-                                <Trash2 className="h-4 w-4" />
-                                <span className="sr-only">Remover</span>
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                Esta ação não pode ser desfeita. Isso irá remover permanentemente a categoria.
-                            </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDelete(category.id)}>
-                                Sim, remover
-                            </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : (
-          <p className="text-center text-muted-foreground py-8">Nenhuma categoria de veículo cadastrada.</p>
-        )}
+        {renderContent()}
       </CardContent>
     </Card>
   );
