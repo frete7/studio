@@ -160,6 +160,8 @@ export default function CompanyRegisterPage() {
         role: 'company',
         status: 'incomplete', // Changed from 'pending' to 'incomplete'
         createdAt: serverTimestamp(),
+        responsible: null,
+        cnpjCard: null,
       });
       
       toast({

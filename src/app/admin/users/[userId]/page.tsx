@@ -10,11 +10,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Mail, Phone, Calendar, User, ShieldCheck, Truck, FileText, ArrowLeft, Loader2, MoreVertical, Building, Landmark, CaseSensitive, Package, PackageSearch, PackageCheck, CreditCard, Pencil, ExternalLink, ThumbsUp, ThumbsDown, CircleHelp } from 'lucide-react';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useForm, FormProvider } from 'react-hook-form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 
 import {
   DropdownMenu,
@@ -27,7 +32,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger
 } from "@/components/ui/dropdown-menu"
-import { updateUserStatus, assignPlanToUser, getPlans, type Plan, updateDocumentStatus } from '@/app/actions';
+import { updateUserStatus, assignPlanToUser, getPlans, type Plan, updateDocumentStatus, updateUserByAdmin } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -37,7 +42,7 @@ type DocumentData = {
     status: 'pending' | 'approved' | 'rejected';
 }
 
-type UserData = {
+type UserProfile = {
     uid: string;
     name: string;
     email: string;
@@ -59,10 +64,22 @@ type UserData = {
     responsible?: {
         name: string;
         cpf: string;
-        document?: DocumentData;
+        document?: DocumentData | string; // Can be old format
     };
-    cnpjCard?: DocumentData;
+    cnpjCard?: DocumentData | string; // Can be old format
 };
+
+const editFormSchema = z.object({
+    name: z.string().min(3, "Razão Social é obrigatória."),
+    tradingName: z.string().min(3, "Nome Fantasia é obrigatório."),
+    cnpj: z.string().optional(),
+    address: z.string().optional(),
+    responsibleName: z.string().min(3, "Nome do responsável é obrigatório."),
+    responsibleCpf: z.string().min(11, "CPF do responsável é obrigatório.")
+});
+
+type EditFormData = z.infer<typeof editFormSchema>;
+
 
 type CompanyStats = {
     activeFreights: number;
@@ -128,21 +145,27 @@ const getDocStatusIcon = (status?: string) => {
     }
 };
 
-const userStatuses: (UserData['status'])[] = ['active', 'pending', 'blocked', 'suspended'];
+const userStatuses: (UserProfile['status'])[] = ['active', 'pending', 'blocked', 'suspended'];
 
 
 export default function UserDetailsPage() {
-  const [user, setUser] = useState<UserData | null>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [companyStats, setCompanyStats] = useState<CompanyStats | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string>('');
   const [isSubmittingPlan, setIsSubmittingPlan] = useState(false);
   const [isPlanDialogOpen, setIsPlanDialogOpen] = useState(false);
+  const [isEditUserDialogOpen, setIsEditUserDialogOpen] = useState(false);
+  const [isSubmittingEditUser, setIsSubmittingEditUser] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const params = useParams();
   const userId = params.userId as string;
   const { toast } = useToast();
+
+  const form = useForm<EditFormData>({
+    resolver: zodResolver(editFormSchema)
+  });
 
 
   useEffect(() => {
@@ -203,9 +226,17 @@ export default function UserDetailsPage() {
       const userDocRef = doc(db, 'users', userId);
       const userUnsubscribe = onSnapshot(userDocRef, (doc) => {
          if (doc.exists()) {
-            const userData = { ...doc.data(), uid: doc.id } as UserData;
+            const userData = { ...doc.data(), uid: doc.id } as UserProfile;
             setUser(userData);
             setSelectedPlanId(userData.activePlanId || '');
+            form.reset({
+                name: userData.name,
+                tradingName: userData.tradingName,
+                cnpj: userData.cnpj,
+                address: userData.address,
+                responsibleName: userData.responsible?.name || '',
+                responsibleCpf: userData.responsible?.cpf || '',
+            });
             if (userData.role === 'company') {
                 fetchCompanyStats(userData.uid);
             }
@@ -222,9 +253,9 @@ export default function UserDetailsPage() {
 
     // Return cleanup function for auth listener
     return () => authUnsubscribe();
-  }, [userId, router, toast]);
+  }, [userId, router, toast, form]);
   
-  const handleStatusChange = async (newStatus: UserData['status']) => {
+  const handleStatusChange = async (newStatus: UserProfile['status']) => {
     if (!user || !newStatus) return;
 
     try {
@@ -284,6 +315,23 @@ export default function UserDetailsPage() {
       }
   }
 
+  const handleUpdateUser = async (data: EditFormData) => {
+    if(!user) return;
+    setIsSubmittingEditUser(true);
+    try {
+        await updateUserByAdmin(user.uid, data);
+        toast({ title: "Sucesso!", description: "Dados do usuário atualizados."});
+        setIsEditUserDialogOpen(false);
+    } catch (error) {
+        toast({
+            variant: 'destructive',
+            title: 'Erro ao atualizar usuário',
+            description: error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.',
+        });
+    } finally {
+        setIsSubmittingEditUser(false);
+    }
+  }
 
   if (isLoading || !user) {
     return (
@@ -294,6 +342,16 @@ export default function UserDetailsPage() {
   }
 
   const isCompany = user.role === 'company';
+  
+  const getDocumentProps = (docData: DocumentData | string | undefined) => {
+      if (typeof docData === 'string') {
+          return { url: docData, status: 'pending' };
+      }
+      return { url: docData?.url, status: docData?.status || 'pending' };
+  }
+  
+  const responsibleDocumentProps = getDocumentProps(user.responsible?.document);
+  const cnpjCardProps = getDocumentProps(user.cnpjCard);
 
 
   return (
@@ -307,27 +365,116 @@ export default function UserDetailsPage() {
                 </Button>
                 <h1 className="text-2xl font-bold">Detalhes do Usuário</h1>
             </div>
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="outline">
-                        <ShieldCheck className="mr-2 h-4 w-4" />
-                        Moderar Usuário
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Alterar Status Geral</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    {userStatuses.map(status => (
-                        <DropdownMenuItem
-                            key={status}
-                            disabled={user.status === status}
-                            onSelect={() => handleStatusChange(status)}
-                        >
-                            Mudar para {getStatusLabel(status)}
-                        </DropdownMenuItem>
-                    ))}
-                </DropdownMenuContent>
-            </DropdownMenu>
+            <div className='flex items-center gap-2'>
+                <Dialog open={isEditUserDialogOpen} onOpenChange={setIsEditUserDialogOpen}>
+                    <DialogTrigger asChild>
+                        <Button variant="outline"><Pencil className="mr-2 h-4 w-4" /> Editar Perfil</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Editar Dados do Usuário</DialogTitle>
+                        </DialogHeader>
+                        <FormProvider {...form}>
+                            <form onSubmit={form.handleSubmit(handleUpdateUser)} className="space-y-4">
+                               <FormField
+                                    control={form.control}
+                                    name="tradingName"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Nome Fantasia</FormLabel>
+                                            <FormControl><Input {...field} /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                 <FormField
+                                    control={form.control}
+                                    name="name"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Razão Social</FormLabel>
+                                            <FormControl><Input {...field} /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="cnpj"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>CNPJ</FormLabel>
+                                            <FormControl><Input {...field} /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="responsibleName"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Nome do Responsável</FormLabel>
+                                            <FormControl><Input {...field} /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                 <FormField
+                                    control={form.control}
+                                    name="responsibleCpf"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>CPF do Responsável</FormLabel>
+                                            <FormControl><Input {...field} /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                 <FormField
+                                    control={form.control}
+                                    name="address"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Endereço</FormLabel>
+                                            <FormControl><Input {...field} /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <DialogFooter>
+                                    <DialogClose asChild><Button type="button" variant="secondary">Cancelar</Button></DialogClose>
+                                    <Button type="submit" disabled={isSubmittingEditUser}>
+                                        {isSubmittingEditUser && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                                        Salvar
+                                    </Button>
+                                </DialogFooter>
+                            </form>
+                        </FormProvider>
+                    </DialogContent>
+                </Dialog>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="outline">
+                            <ShieldCheck className="mr-2 h-4 w-4" />
+                            Moderar
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Alterar Status Geral</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {userStatuses.map(status => (
+                            <DropdownMenuItem
+                                key={status}
+                                disabled={user.status === status}
+                                onSelect={() => handleStatusChange(status)}
+                            >
+                                Mudar para {getStatusLabel(status)}
+                            </DropdownMenuItem>
+                        ))}
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </div>
         </div>
 
         <Card>
@@ -531,24 +678,24 @@ export default function UserDetailsPage() {
                         <FileText className="h-5 w-5" /> Documentos Enviados
                     </h3>
                     <div className="space-y-4">
-                        {user.responsible?.document?.url ? (
+                        {responsibleDocumentProps.url ? (
                              <div className="flex flex-wrap items-center justify-between gap-2 p-3 border rounded-md">
                                 <div className='flex items-center gap-2'>
-                                    {getDocStatusIcon(user.responsible.document.status)}
-                                    <span className={cn('font-medium text-sm', {'text-muted-foreground line-through': user.responsible.document.status === 'rejected'})}>
+                                    {getDocStatusIcon(responsibleDocumentProps.status)}
+                                    <span className={cn('font-medium text-sm', {'text-muted-foreground line-through': responsibleDocumentProps.status === 'rejected'})}>
                                         Documento do Responsável
                                     </span>
-                                     <Badge variant="outline" className="capitalize">{getDocStatusLabel(user.responsible.document.status)}</Badge>
+                                     <Badge variant="outline" className="capitalize">{getDocStatusLabel(responsibleDocumentProps.status)}</Badge>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <a href={user.responsible.document.url} target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>
+                                    <a href={responsibleDocumentProps.url} target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>
                                         <ExternalLink className="mr-2 h-4 w-4" /> Ver
                                     </a>
                                      <DropdownMenu>
                                         <DropdownMenuTrigger asChild><Button variant="ghost" size="sm">Ações</Button></DropdownMenuTrigger>
                                         <DropdownMenuContent>
-                                            <DropdownMenuItem onSelect={() => handleDocumentStatusChange('responsible.document', 'approved')} disabled={user.responsible?.document?.status === 'approved'}>Aprovar</DropdownMenuItem>
-                                            <DropdownMenuItem onSelect={() => handleDocumentStatusChange('responsible.document', 'rejected')} disabled={user.responsible?.document?.status === 'rejected'}>Recusar</DropdownMenuItem>
+                                            <DropdownMenuItem onSelect={() => handleDocumentStatusChange('responsible.document', 'approved')} disabled={responsibleDocumentProps?.status === 'approved'}>Aprovar</DropdownMenuItem>
+                                            <DropdownMenuItem onSelect={() => handleDocumentStatusChange('responsible.document', 'rejected')} disabled={responsibleDocumentProps?.status === 'rejected'}>Recusar</DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                 </div>
@@ -556,24 +703,24 @@ export default function UserDetailsPage() {
                         ) : (
                             <p className="text-sm text-muted-foreground">Documento do Responsável não enviado.</p>
                         )}
-                        {user.cnpjCard?.url ? (
+                        {cnpjCardProps.url ? (
                              <div className="flex flex-wrap items-center justify-between gap-2 p-3 border rounded-md">
                                  <div className='flex items-center gap-2'>
-                                    {getDocStatusIcon(user.cnpjCard.status)}
-                                    <span className={cn('font-medium text-sm', {'text-muted-foreground line-through': user.cnpjCard.status === 'rejected'})}>
+                                    {getDocStatusIcon(cnpjCardProps.status)}
+                                    <span className={cn('font-medium text-sm', {'text-muted-foreground line-through': cnpjCardProps.status === 'rejected'})}>
                                         Cartão CNPJ
                                     </span>
-                                     <Badge variant="outline" className="capitalize">{getDocStatusLabel(user.cnpjCard.status)}</Badge>
+                                     <Badge variant="outline" className="capitalize">{getDocStatusLabel(cnpjCardProps.status)}</Badge>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                     <a href={user.cnpjCard.url} target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>
+                                     <a href={cnpjCardProps.url} target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>
                                         <ExternalLink className="mr-2 h-4 w-4" /> Ver
                                     </a>
                                      <DropdownMenu>
                                         <DropdownMenuTrigger asChild><Button variant="ghost" size="sm">Ações</Button></DropdownMenuTrigger>
                                         <DropdownMenuContent>
-                                            <DropdownMenuItem onSelect={() => handleDocumentStatusChange('cnpjCard', 'approved')} disabled={user.cnpjCard?.status === 'approved'}>Aprovar</DropdownMenuItem>
-                                            <DropdownMenuItem onSelect={() => handleDocumentStatusChange('cnpjCard', 'rejected')} disabled={user.cnpjCard?.status === 'rejected'}>Recusar</DropdownMenuItem>
+                                            <DropdownMenuItem onSelect={() => handleDocumentStatusChange('cnpjCard', 'approved')} disabled={cnpjCardProps?.status === 'approved'}>Aprovar</DropdownMenuItem>
+                                            <DropdownMenuItem onSelect={() => handleDocumentStatusChange('cnpjCard', 'rejected')} disabled={cnpjCardProps?.status === 'rejected'}>Recusar</DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                 </div>
@@ -581,7 +728,7 @@ export default function UserDetailsPage() {
                         ) : (
                             <p className="text-sm text-muted-foreground">Cartão CNPJ não enviado.</p>
                         )}
-                         {!user.responsible?.document?.url && !user.cnpjCard?.url && (
+                         {!responsibleDocumentProps.url && !cnpjCardProps.url && (
                              <p className="text-muted-foreground text-sm">Nenhum documento enviado.</p>
                          )}
                     </div>

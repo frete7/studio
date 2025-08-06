@@ -70,6 +70,49 @@ export async function assignPlanToUser(userId: string, planId: string, planName:
   }
 }
 
+export async function updateUserByAdmin(userId: string, data: any): Promise<void> {
+    if (!userId) {
+        throw new Error('ID do usuário é obrigatório.');
+    }
+    try {
+        const userDocRef = doc(db, 'users', userId);
+        const userDoc = await getDoc(userDocRef);
+        const userData = userDoc.data();
+
+        if (!userData) {
+            throw new Error("Usuário não encontrado.");
+        }
+        
+        const updateData: any = {
+            name: data.name,
+            tradingName: data.tradingName,
+            cnpj: data.cnpj,
+            address: data.address,
+            'responsible.name': data.responsibleName,
+            'responsible.cpf': data.responsibleCpf
+        };
+
+        // Migrate old document format to new one if necessary
+        if (typeof userData.responsible?.document === 'string') {
+            updateData['responsible.document'] = {
+                url: userData.responsible.document,
+                status: 'pending'
+            };
+        }
+        if (typeof userData.cnpjCard === 'string') {
+             updateData['cnpjCard'] = {
+                url: userData.cnpjCard,
+                status: 'pending'
+            };
+        }
+
+        await updateDoc(userDocRef, updateData);
+    } catch (error) {
+        console.error("Error updating user by admin: ", error);
+        throw new Error('Falha ao atualizar os dados do usuário.');
+    }
+}
+
 
 // Vehicle Types Actions
 export type VehicleType = {
