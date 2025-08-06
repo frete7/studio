@@ -1,20 +1,25 @@
 
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{userId} {
-      // Allow authenticated users to read any user profile (for role checking)
-      allow read: if request.auth != null;
-      
-      // Allow users to create their own profile with specific fields
-      allow create: if request.auth.uid == userId 
-                    && request.resource.data.keys().hasAll(['uid', 'name', 'email', 'role', 'createdAt'])
+      // Allow users to create their own profile upon registration
+      allow create: if request.auth.uid == userId
                     && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.name is string
                     && request.resource.data.email == request.auth.token.email
-                    && request.resource.data.role in ['driver', 'company'];
+                    && request.resource.data.role in ['driver', 'company']
+                    && request.resource.data.createdAt == request.time;
 
-      // Allow users to update only their own profile
+      // Allow authenticated users to read any user's profile (for role checking and admin panel)
+      allow read: if request.auth != null;
+
+      // Allow users to update their own profile
       allow update: if request.auth.uid == userId;
+
+      // Prevent users from deleting their own profile for now
+      allow delete: if false;
     }
   }
 }
