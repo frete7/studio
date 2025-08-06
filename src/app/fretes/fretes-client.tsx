@@ -9,13 +9,14 @@ import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Eye, Loader2, MapPin, Search } from 'lucide-react';
+import { Eye, Loader2, MapPin, Search, Filter, X } from 'lucide-react';
 import Link from 'next/link';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Badge } from '@/components/ui/badge';
 import { groupBy } from 'lodash';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
 type IBGEState = { id: number; sigla: string; nome: string; };
 type IBGECity = { id: number; nome: string; };
@@ -69,49 +70,58 @@ const LocationSelector = ({ label, selectedCities, onSelectionChange }: { label:
                 <option value="" disabled>Selecione um estado</option>
                 {states.map(s => <option key={s.id} value={s.sigla}>{s.nome}</option>)}
             </select>
-            <Popover open={open} onOpenChange={setOpen}>
-                <PopoverTrigger asChild>
-                    <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={open}
-                        className="w-full justify-between"
-                        disabled={!selectedState || isLoadingCities}
-                    >
-                        <span className="truncate">
-                         {selectedCities.length === 0 ? 'Selecione a(s) cidade(s)' : selectedCities.join('; ')}
-                        </span>
-                        <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[300px] p-0">
-                    <Command>
-                        <CommandInput placeholder="Buscar cidade..." />
-                        <CommandList>
-                            <CommandEmpty>Nenhuma cidade encontrada.</CommandEmpty>
-                            <CommandGroup>
-                                {cities.map((city) => (
-                                    <CommandItem
-                                        key={city.id}
-                                        value={city.nome}
-                                        onSelect={() => handleSelectCity(city.nome)}
-                                    >
-                                        <Checkbox
-                                            className="mr-2"
-                                            checked={selectedCities.includes(`${city.nome}, ${selectedState}`)}
-                                            onCheckedChange={() => handleSelectCity(city.nome)}
-                                        />
-                                        {city.nome}
-                                    </CommandItem>
-                                ))}
-                            </CommandGroup>
-                        </CommandList>
-                    </Command>
-                </PopoverContent>
-            </Popover>
+            {selectedState && (
+                <Popover open={open} onOpenChange={setOpen}>
+                    <PopoverTrigger asChild>
+                        <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={open}
+                            className="w-full justify-between"
+                            disabled={!selectedState || isLoadingCities}
+                        >
+                            <span className="truncate">
+                            {selectedCities.length === 0 ? 'Selecione a(s) cidade(s)' : selectedCities.join('; ')}
+                            </span>
+                            <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[300px] p-0">
+                        <Command>
+                            <CommandInput placeholder="Buscar cidade..." />
+                            <CommandList>
+                                <CommandEmpty>Nenhuma cidade encontrada.</CommandEmpty>
+                                <CommandGroup>
+                                    {cities.map((city) => (
+                                        <CommandItem
+                                            key={city.id}
+                                            value={city.nome}
+                                            onSelect={() => handleSelectCity(city.nome)}
+                                        >
+                                            <Checkbox
+                                                className="mr-2"
+                                                checked={selectedCities.includes(`${city.nome}, ${selectedState}`)}
+                                                onCheckedChange={() => handleSelectCity(city.nome)}
+                                            />
+                                            {city.nome}
+                                        </CommandItem>
+                                    ))}
+                                </CommandGroup>
+                            </CommandList>
+                        </Command>
+                    </PopoverContent>
+                </Popover>
+            )}
         </div>
     );
 };
+
+const freightTypes = [
+    { id: 'comum', label: 'Comum' },
+    { id: 'agregamento', label: 'Agregamento' },
+    { id: 'frete completo', label: 'Frete Completo' },
+    { id: 'frete de retorno', label: 'Frete de Retorno' },
+];
 
 export default function FretesClient() {
     const [freights, setFreights] = useState<any[]>([]);
@@ -126,13 +136,13 @@ export default function FretesClient() {
     const [destinationCities, setDestinationCities] = useState<string[]>([]);
     const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
     const [selectedBodyTypes, setSelectedBodyTypes] = useState<string[]>([]);
+    const [selectedFreightTypes, setSelectedFreightTypes] = useState<string[]>([]);
 
 
     useEffect(() => {
         const fetchData = async () => {
             setIsLoading(true);
             try {
-                // Fetch freights, body types, vehicle types, and categories in parallel
                 const freightsQuery = query(collection(db, 'freights'), where('status', '==', 'ativo'));
                 const bodyTypesQuery = query(collection(db, 'body_types'));
                 const vehicleTypesQuery = query(collection(db, 'vehicle_types'));
@@ -177,10 +187,13 @@ export default function FretesClient() {
             if (destinationCities.length > 0 && !destinationCities.some(city => freight.destinations.some((d: any) => `${d.city}, ${d.state}`.includes(city)))) {
                 return false;
             }
+            if (selectedFreightTypes.length > 0 && !selectedFreightTypes.includes(freight.freightType)) {
+                return false;
+            }
             // Vehicle and Body type filters can be added here once we have that data in freights
             return true;
         });
-    }, [freights, originCities, destinationCities, selectedVehicles, selectedBodyTypes]);
+    }, [freights, originCities, destinationCities, selectedVehicles, selectedBodyTypes, selectedFreightTypes]);
 
     const handleVehicleSelection = (vehicleId: string) => {
         setSelectedVehicles(prev => 
@@ -191,6 +204,20 @@ export default function FretesClient() {
         setSelectedBodyTypes(prev => 
             prev.includes(bodyTypeId) ? prev.filter(id => id !== bodyTypeId) : [...prev, bodyTypeId]
         );
+    }
+
+    const handleFreightTypeSelection = (freightTypeId: string) => {
+        setSelectedFreightTypes(prev => 
+            prev.includes(freightTypeId) ? prev.filter(id => id !== freightTypeId) : [...prev, freightTypeId]
+        );
+    }
+
+    const clearFilters = () => {
+        setOriginCities([]);
+        setDestinationCities([]);
+        setSelectedVehicles([]);
+        setSelectedBodyTypes([]);
+        setSelectedFreightTypes([]);
     }
 
     const renderFreightList = () => {
@@ -246,60 +273,98 @@ export default function FretesClient() {
         );
     };
 
+    const renderFilters = () => (
+         <aside className="col-span-1 space-y-6">
+            <div className="flex justify-between items-center">
+                <h3 className="text-xl font-semibold">Filtros</h3>
+                <Button variant="ghost" size="sm" onClick={clearFilters}>Limpar Filtros</Button>
+            </div>
+            <Card className="p-4">
+                <h3 className="font-semibold mb-4">Origem e destino</h3>
+                <div className="space-y-4">
+                    <LocationSelector label="Origem" selectedCities={originCities} onSelectionChange={setOriginCities} />
+                    <LocationSelector label="Destino" selectedCities={destinationCities} onSelectionChange={setDestinationCities} />
+                </div>
+            </Card>
+
+            <Card className="p-4">
+                <h3 className="font-semibold mb-2">Tipo de Frete</h3>
+                <div className="space-y-2">
+                     {freightTypes.map(type => (
+                        <div key={type.id} className="flex items-center space-x-2">
+                            <Checkbox id={`ft-${type.id}`} onCheckedChange={() => handleFreightTypeSelection(type.id)} checked={selectedFreightTypes.includes(type.id)} />
+                            <label htmlFor={`ft-${type.id}`} className="text-sm">{type.label}</label>
+                        </div>
+                    ))}
+                </div>
+            </Card>
+
+            <Card className="p-4">
+                <h3 className="font-semibold mb-2">Veículo</h3>
+                <div className="space-y-4 max-h-96 overflow-y-auto">
+                    {Object.entries(groupedVehicleTypes).map(([category, types]) => (
+                            <div key={category}>
+                            <h4 className="font-medium text-sm mb-2">{category}</h4>
+                            <div className="space-y-2 pl-2">
+                                {types.map(type => (
+                                    <div key={type.id} className="flex items-center space-x-2">
+                                        <Checkbox id={`v-${type.id}`} onCheckedChange={() => handleVehicleSelection(type.id)} checked={selectedVehicles.includes(type.id)} />
+                                        <label htmlFor={`v-${type.id}`} className="text-sm">{type.name}</label>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </Card>
+
+            <Card className="p-4">
+                    <h3 className="font-semibold mb-2">Carroceria</h3>
+                    <div className="space-y-4 max-h-96 overflow-y-auto">
+                    {Object.entries(groupedBodyTypes).map(([group, types]) => (
+                            <div key={group}>
+                            <h4 className="font-medium text-sm mb-2">{group}</h4>
+                            <div className="space-y-2 pl-2">
+                                {types.map(type => (
+                                    <div key={type.id} className="flex items-center space-x-2">
+                                        <Checkbox id={`b-${type.id}`} onCheckedChange={() => handleBodyTypeSelection(type.id)} checked={selectedBodyTypes.includes(type.id)} />
+                                        <label htmlFor={`b-${type.id}`} className="text-sm">{type.name}</label>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </Card>
+        </aside>
+    );
+
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            {/* Sidebar */}
-            <aside className="col-span-1 space-y-6">
-                <Card className="p-4">
-                    <h3 className="font-semibold mb-4">Origem e destino</h3>
-                    <div className="space-y-4">
-                        <LocationSelector label="Origem" selectedCities={originCities} onSelectionChange={setOriginCities} />
-                        <LocationSelector label="Destino" selectedCities={destinationCities} onSelectionChange={setDestinationCities} />
-                    </div>
-                </Card>
+            {/* Mobile Filter Button and Sheet */}
+            <div className="md:hidden col-span-1 mb-4">
+                 <Sheet>
+                    <SheetTrigger asChild>
+                        <Button variant="outline" className="w-full">
+                            <Filter className="mr-2 h-4 w-4" />
+                            Filtros
+                        </Button>
+                    </SheetTrigger>
+                    <SheetContent side="left" className="overflow-y-auto">
+                         {renderFilters()}
+                    </SheetContent>
+                </Sheet>
+            </div>
 
-                <Card className="p-4">
-                    <h3 className="font-semibold mb-2">Veículo</h3>
-                    <div className="space-y-4 max-h-96 overflow-y-auto">
-                        {Object.entries(groupedVehicleTypes).map(([category, types]) => (
-                             <div key={category}>
-                                <h4 className="font-medium text-sm mb-2">{category}</h4>
-                                <div className="space-y-2 pl-2">
-                                    {types.map(type => (
-                                        <div key={type.id} className="flex items-center space-x-2">
-                                            <Checkbox id={`v-${type.id}`} onCheckedChange={() => handleVehicleSelection(type.id)} checked={selectedVehicles.includes(type.id)} />
-                                            <label htmlFor={`v-${type.id}`} className="text-sm">{type.name}</label>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </Card>
 
-                <Card className="p-4">
-                     <h3 className="font-semibold mb-2">Carroceria</h3>
-                     <div className="space-y-4 max-h-96 overflow-y-auto">
-                        {Object.entries(groupedBodyTypes).map(([group, types]) => (
-                             <div key={group}>
-                                <h4 className="font-medium text-sm mb-2">{group}</h4>
-                                <div className="space-y-2 pl-2">
-                                    {types.map(type => (
-                                        <div key={type.id} className="flex items-center space-x-2">
-                                            <Checkbox id={`b-${type.id}`} onCheckedChange={() => handleBodyTypeSelection(type.id)} checked={selectedBodyTypes.includes(type.id)} />
-                                            <label htmlFor={`b-${type.id}`} className="text-sm">{type.name}</label>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </Card>
-            </aside>
+            {/* Sidebar for Desktop */}
+            <div className="hidden md:block col-span-1">
+                 {renderFilters()}
+            </div>
 
             {/* Main Content */}
-            <main className="col-span-3 space-y-6">
+            <main className="col-span-1 md:col-span-3 space-y-6">
                  <Alert className="bg-blue-50 border-blue-200 text-blue-800">
                     <Eye className="h-4 w-4 !text-blue-700" />
                     <AlertTitle className="font-semibold">Para ver os valores dos fretes, você precisa se autenticar.</AlertTitle>
@@ -314,4 +379,3 @@ export default function FretesClient() {
     );
 }
 
-    
