@@ -5,7 +5,6 @@ import { useState } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { AnimatePresence, motion } from 'framer-motion';
 
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -162,20 +161,12 @@ export default function RequestFreightPage() {
                 
                     <FormProvider {...methods}>
                         <form onSubmit={handleSubmit(processForm)}>
-                             <AnimatePresence mode="wait">
-                                <motion.div
-                                    key={currentStep}
-                                    initial={{ opacity: 0, x: 20 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    exit={{ opacity: 0, x: -20 }}
-                                    transition={{ duration: 0.3 }}
-                                >
-                                    {currentStep === 0 && <OriginStep />}
-                                    {currentStep === 1 && <DestinationStep />}
-                                    {currentStep === 2 && <ItemsStep />}
-                                    {currentStep === 3 && <AdditionalInfoStep />}
-                                </motion.div>
-                            </AnimatePresence>
+                            <div>
+                                {currentStep === 0 && <OriginStep />}
+                                {currentStep === 1 && <DestinationStep />}
+                                {currentStep === 2 && <ItemsStep />}
+                                {currentStep === 3 && <AdditionalInfoStep />}
+                            </div>
                         </form>
                     </FormProvider>
 
