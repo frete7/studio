@@ -226,9 +226,13 @@ export default function FretesClient() {
                                      </p>
                                 </div>
                             </div>
-                            <div className="text-right">
-                                <p className="font-bold text-lg text-primary">R$ •••••</p>
-                                <Button asChild variant="secondary" size="sm" className="mt-2">
+                            <div className="text-right space-y-2 flex flex-col items-end">
+                                {freight.freightType === 'comum' ? (
+                                    <Badge variant="outline" className="text-base font-semibold border-primary/50 text-primary">COMUM</Badge>
+                                ) : (
+                                    <p className="font-bold text-lg text-primary">R$ •••••</p>
+                                )}
+                                <Button asChild variant="secondary" size="sm">
                                     <Link href="#">
                                         Ver detalhes
                                     </Link>
