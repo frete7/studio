@@ -1,18 +1,15 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useRouter } from 'next/navigation';
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
-import {
-  addVehicleType,
-  updateVehicleType,
-  deleteVehicleType,
-  type VehicleType
-} from '@/app/actions';
+import { type VehicleType } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -53,17 +50,38 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-interface VehicleTypesClientProps {
-  initialData: VehicleType[];
-}
 
-export default function VehicleTypesClient({ initialData }: VehicleTypesClientProps) {
-  const [isLoading, setIsLoading] = useState(false);
+export default function VehicleTypesClient() {
+  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<VehicleType | null>(null);
 
   const { toast } = useToast();
-  const router = useRouter();
+
+  useEffect(() => {
+    setIsLoading(true);
+    const q = query(collection(db, 'vehicle_types'));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const typesData: VehicleType[] = [];
+        querySnapshot.forEach((doc) => {
+            typesData.push({ ...doc.data(), id: doc.id } as VehicleType);
+        });
+        setVehicleTypes(typesData);
+        setIsLoading(false);
+    }, (error) => {
+        console.error("Error fetching vehicle types: ", error);
+        toast({
+            variant: "destructive",
+            title: "Erro ao buscar tipos de veículos",
+            description: "Verifique suas permissões ou tente novamente mais tarde."
+        });
+        setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [toast]);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -84,80 +102,61 @@ export default function VehicleTypesClient({ initialData }: VehicleTypesClientPr
     setIsDialogOpen(true);
   }
 
-  const onSubmit: SubmitHandler<FormData> = async (data) => {
-    setIsLoading(true);
+  const onSubmit: SubmitHandler<FormData> = async (formData) => {
+    setIsSubmitting(true);
     try {
       if (editingVehicle) {
-        await updateVehicleType(editingVehicle.id, data.name);
+        const typeDoc = doc(db, 'vehicle_types', editingVehicle.id);
+        await updateDoc(typeDoc, { name: formData.name });
         toast({ title: 'Sucesso!', description: 'Tipo de veículo atualizado.' });
       } else {
-        await addVehicleType(data.name);
+        const typesCollection = collection(db, 'vehicle_types');
+        await addDoc(typesCollection, { name: formData.name });
         toast({ title: 'Sucesso!', description: 'Novo tipo de veículo adicionado.' });
       }
       form.reset();
       setIsDialogOpen(false);
       setEditingVehicle(null);
-      router.refresh();
     } catch (error) {
       toast({
         variant: 'destructive',
-        title: 'Erro',
-        description: error instanceof Error ? error.message : 'Ocorreu um erro.',
+        title: 'Erro ao salvar',
+        description: error instanceof Error ? error.message : 'Ocorreu um erro. Verifique se você tem permissão.',
       });
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
   const handleDelete = async (id: string) => {
     try {
-        await deleteVehicleType(id);
+        const typeDoc = doc(db, 'vehicle_types', id);
+        await deleteDoc(typeDoc);
         toast({ title: 'Sucesso!', description: 'Tipo de veículo removido.' });
-        router.refresh();
     } catch (error) {
          toast({
             variant: 'destructive',
-            title: 'Erro',
-            description: error instanceof Error ? error.message : 'Ocorreu um erro ao remover.',
+            title: 'Erro ao remover',
+            description: error instanceof Error ? error.message : 'Ocorreu um erro.',
         });
     }
   }
+  
+  const renderContent = () => {
+     if (isLoading) {
+       return (
+          <div className="flex justify-center items-center h-64">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+       )
+    }
 
-
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Lista de Tipos de Veículos</CardTitle>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-                 <Button onClick={handleAddNewClick}>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Adicionar Novo
-                </Button>
-            </DialogTrigger>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>{editingVehicle ? 'Editar' : 'Adicionar'} Tipo de Veículo</DialogTitle>
-                </DialogHeader>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                    <Input {...form.register('name')} placeholder="Ex: Caminhão Truck" />
-                    {form.formState.errors.name && <p className="text-sm text-destructive">{form.formState.errors.name.message}</p>}
-                    <DialogFooter>
-                        <DialogClose asChild>
-                            <Button type="button" variant="secondary">Cancelar</Button>
-                        </DialogClose>
-                        <Button type="submit" disabled={isLoading}>
-                            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Salvar
-                        </Button>
-                    </DialogFooter>
-                </form>
-            </DialogContent>
-        </Dialog>
-      </CardHeader>
-      <CardContent>
-        {initialData.length > 0 ? (
-          <Table>
+    if (vehicleTypes.length === 0) {
+        return <p className="text-center text-muted-foreground py-8">Nenhum tipo de veículo cadastrado.</p>;
+    }
+    
+    return (
+        <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Nome</TableHead>
@@ -165,7 +164,7 @@ export default function VehicleTypesClient({ initialData }: VehicleTypesClientPr
               </TableRow>
             </TableHeader>
             <TableBody>
-              {initialData.map((vehicle) => (
+              {vehicleTypes.map((vehicle) => (
                 <TableRow key={vehicle.id}>
                   <TableCell className="font-medium">{vehicle.name}</TableCell>
                   <TableCell className="text-right space-x-2">
@@ -200,9 +199,43 @@ export default function VehicleTypesClient({ initialData }: VehicleTypesClientPr
               ))}
             </TableBody>
           </Table>
-        ) : (
-          <p className="text-center text-muted-foreground py-8">Nenhum tipo de veículo cadastrado.</p>
-        )}
+    )
+  }
+
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle>Lista de Tipos de Veículos</CardTitle>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+                 <Button onClick={handleAddNewClick}>
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Adicionar Novo
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>{editingVehicle ? 'Editar' : 'Adicionar'} Tipo de Veículo</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                    <Input {...form.register('name')} placeholder="Ex: Caminhão Truck" />
+                    {form.formState.errors.name && <p className="text-sm text-destructive">{form.formState.errors.name.message}</p>}
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button type="button" variant="secondary">Cancelar</Button>
+                        </DialogClose>
+                        <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Salvar
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+      </CardHeader>
+      <CardContent>
+        {renderContent()}
       </CardContent>
     </Card>
   );
