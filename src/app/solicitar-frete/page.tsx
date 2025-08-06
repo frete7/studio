@@ -67,7 +67,7 @@ const originSchema = baseLocationSchema.extend({
 
 
 const itemsSchema = z.object({
-    type: z.enum(['description', 'list']),
+    type: z.enum(['description', 'list'], { required_error: "Selecione como informar os itens." }),
     description: z.string().optional(),
     list: z.array(z.object({ value: z.string().min(1, "Item não pode ser vazio") })).optional(),
 }).refine(data => {
@@ -79,8 +79,8 @@ const itemsSchema = z.object({
     }
     return true;
 }, {
-    message: "Forneça uma descrição ou adicione pelo menos um item à lista.",
-    path: ['description'],
+    message: "Forneça uma descrição com pelo menos 10 caracteres ou adicione pelo menos um item à lista.",
+    path: ['description'], // Show error on the first field
 });
 
 const additionalInfoSchema = z.object({
@@ -440,18 +440,109 @@ function DestinationStep() {
         </div>
     )
 }
+
 function ItemsStep() {
-     return (
-        <div className="space-y-4">
+    const { control, watch } = useFormContext();
+    const { fields, append, remove } = useFieldArray({
+        control,
+        name: "items.list"
+    });
+
+    const itemsType = watch("items.type");
+
+    return (
+        <div className="space-y-6">
             <h2 className="text-2xl font-semibold">3. Itens a Transportar</h2>
-            <p className="text-muted-foreground">O que será transportado?</p>
+            <p className="text-muted-foreground">O que será transportado? Escolha uma das opções abaixo.</p>
             <Separator />
-            <div className="p-4 border rounded-md bg-muted/50 text-center">
-                <p>Campos do formulário da Etapa 3 aparecerão aqui.</p>
-            </div>
+            
+            <FormField
+                control={control}
+                name="items.type"
+                render={({ field }) => (
+                    <FormItem className="space-y-3">
+                        <FormControl>
+                            <RadioGroup
+                                onValueChange={field.onChange}
+                                defaultValue={field.value}
+                                className="flex flex-col md:flex-row gap-4"
+                            >
+                                <FormItem className="flex items-center space-x-3 space-y-0">
+                                    <FormControl>
+                                        <RadioGroupItem value="description" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">Descrição Livre</FormLabel>
+                                </FormItem>
+                                <FormItem className="flex items-center space-x-3 space-y-0">
+                                    <FormControl>
+                                        <RadioGroupItem value="list" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">Lista de Itens</FormLabel>
+                                </FormItem>
+                            </RadioGroup>
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+
+            {itemsType === 'description' && (
+                <FormField
+                    control={control}
+                    name="items.description"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Descreva os itens</FormLabel>
+                            <FormControl>
+                                <Textarea
+                                    placeholder="Ex: 1 geladeira, 1 sofá de 3 lugares, 10 caixas médias..."
+                                    className="min-h-[120px]"
+                                    {...field}
+                                />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+            )}
+
+            {itemsType === 'list' && (
+                <div className="space-y-4">
+                     <FormLabel>Liste os itens um por um</FormLabel>
+                    {fields.map((field, index) => (
+                        <div key={field.id} className="flex items-center gap-2">
+                             <FormField
+                                control={control}
+                                name={`items.list.${index}.value`}
+                                render={({ field }) => (
+                                    <FormItem className="flex-1">
+                                        <FormControl>
+                                            <Input placeholder={`Item #${index + 1}`} {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                        </div>
+                    ))}
+                    <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => append({ value: "" })}
+                    >
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Adicionar Item
+                    </Button>
+                </div>
+            )}
         </div>
-    )
+    );
 }
+
 function AdditionalInfoStep() {
      return (
         <div className="space-y-4">
@@ -482,7 +573,7 @@ export default function RequestFreightPage() {
             locationType: 'casa',
             floor: 'Térreo',
             distance: '',
-            dateTime: new Date(new Date().setDate(new Date().getDate() + 1))
+            // dateTime: new Date(new Date().setDate(new Date().getDate() + 1))
         },
         destinations: [{ state: '', city: '', neighborhood: '', locationType: 'casa', floor: 'Térreo', distance: '' }],
         items: {
@@ -578,5 +669,3 @@ export default function RequestFreightPage() {
     </section>
   );
 }
-
-    
