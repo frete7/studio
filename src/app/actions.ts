@@ -205,3 +205,49 @@ export async function deleteVehicle(id: string): Promise<void> {
         throw new Error("Falha ao deletar o veículo.");
     }
 }
+
+// Body Types Actions
+export type BodyType = {
+  id: string;
+  name: string;
+  group: string;
+};
+
+export async function seedBodyTypes(): Promise<void> {
+  const bodyTypes = [
+    { name: 'Graneleiro', group: 'Abertas' },
+    { name: 'Grade Baixa', group: 'Abertas' },
+    { name: 'Prancha', group: 'Abertas' },
+    { name: 'Caçamba', group: 'Abertas' },
+    { name: 'Plataforma', group: 'Abertas' },
+    { name: 'Sider', group: 'Fechadas' },
+    { name: 'Baú', group: 'Fechadas' },
+    { name: 'Baú Frigorífico', group: 'Fechadas' },
+    { name: 'Baú Refrigerado', group: 'Fechadas' },
+    { name: 'Silo', group: 'Especiais' },
+    { name: 'Cegonheiro', group: 'Especiais' },
+    { name: 'Gaiola', group: 'Especiais' },
+    { name: 'Tanque', group: 'Especiais' },
+    { name: 'Bug Porta Container', group: 'Especiais' },
+    { name: 'Munk', group: 'Especiais' },
+    { name: 'Apenas Cavalo', group: 'Especiais' },
+    { name: 'Cavaqueira', group: 'Especiais' },
+    { name: 'Hopper', group: 'Especiais' },
+  ];
+
+  const bodyTypesCollection = collection(db, 'body_types');
+  const snapshot = await getDocs(bodyTypesCollection);
+
+  if (snapshot.empty) {
+    const batch = writeBatch(db);
+    bodyTypes.forEach((bodyType) => {
+      const docRef = doc(collection(db, 'body_types'));
+      batch.set(docRef, bodyType);
+    });
+    await batch.commit();
+    console.log("Tipos de carroceria pré-cadastrados com sucesso!");
+  } else {
+    console.log("Tipos de carroceria já existem. Nenhuma ação foi tomada.");
+    throw new Error("Os dados iniciais já foram cadastrados.");
+  }
+}
