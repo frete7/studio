@@ -2,18 +2,147 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, Truck } from 'lucide-react';
-import React from 'react';
+import { Menu, Truck, LogOut, User as UserIcon } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import { useRouter } from 'next/navigation';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useToast } from '@/hooks/use-toast';
 
 const navLinks = [
-  { href: '#', label: 'Buscar Fretes' },
+  { href: '/#fretes', label: 'Buscar Fretes' },
   { href: '/optimizer', label: 'Otimizar Rota' },
-  { href: '#', label: 'Empresas' },
-  { href: '#', label: 'Motoristas' },
+  { href: '/#empresas', label: 'Empresas' },
+  { href: '/#motoristas', label: 'Motoristas' },
 ];
 
 export default function Header() {
   const [isOpen, setIsOpen] = React.useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setIsLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+  
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      toast({
+        title: 'Você saiu!',
+        description: 'Até a próxima!',
+      });
+      router.push('/login');
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao sair',
+        description: 'Não foi possível fazer o logout. Tente novamente.',
+      });
+    }
+  };
+  
+  const getInitials = (email?: string | null) => {
+    if (!email) return 'U';
+    return email.substring(0, 2).toUpperCase();
+  }
+
+  const renderAuthSection = () => {
+    if (isLoading) {
+      return <div className="h-10 w-24 rounded-md bg-muted animate-pulse" />;
+    }
+
+    if (user) {
+      return (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+              <Avatar className="h-10 w-10">
+                <AvatarImage src={user.photoURL ?? ''} alt={user.email ?? ''} />
+                <AvatarFallback>{getInitials(user.email)}</AvatarFallback>
+              </Avatar>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-56" align="end" forceMount>
+            <DropdownMenuLabel className="font-normal">
+              <div className="flex flex-col space-y-1">
+                <p className="text-sm font-medium leading-none">Minha Conta</p>
+                <p className="text-xs leading-none text-muted-foreground">
+                  {user.email}
+                </p>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => router.push('/profile')}>
+              <UserIcon className="mr-2 h-4 w-4" />
+              <span>Meu Perfil</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout}>
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Sair</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      );
+    }
+
+    return (
+       <div className="hidden md:flex items-center gap-4">
+          <Button variant="ghost" asChild>
+            <Link href="/login">Entrar</Link>
+          </Button>
+          <Button asChild>
+            <Link href="/register">Cadastre-se</Link>
+          </Button>
+        </div>
+    );
+  };
+  
+  const renderMobileAuthSection = () => {
+     if (isLoading) {
+      return <div className="h-10 w-full rounded-md bg-muted animate-pulse" />;
+    }
+    
+    if (user) {
+       return (
+         <>
+          <Button variant="outline" asChild onClick={() => setIsOpen(false)}>
+            <Link href="/profile">Meu Perfil</Link>
+          </Button>
+          <Button onClick={handleLogout} className="w-full">
+            Sair
+          </Button>
+         </>
+       )
+    }
+    
+    return (
+       <div className="flex flex-col gap-4">
+           <Button variant="outline" asChild onClick={() => setIsOpen(false)}>
+            <Link href="/login">Entrar</Link>
+          </Button>
+          <Button asChild onClick={() => setIsOpen(false)}>
+            <Link href="/register">Cadastre-se</Link>
+          </Button>
+        </div>
+    )
+  }
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -30,14 +159,14 @@ export default function Header() {
           ))}
         </nav>
         <div className="hidden md:flex items-center gap-4">
-          <Button variant="ghost" asChild>
-            <Link href="/login">Entrar</Link>
-          </Button>
-          <Button asChild className="bg-accent text-accent-foreground hover:bg-accent/90">
-            <Link href="/register">Cadastre-se</Link>
-          </Button>
+          {renderAuthSection()}
         </div>
-        <div className="md:hidden">
+        <div className="md:hidden flex items-center">
+         {user && !isLoading && (
+            <div className="mr-2">
+              {renderAuthSection()}
+            </div>
+          )}
           <Sheet open={isOpen} onOpenChange={setIsOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon">
@@ -58,13 +187,8 @@ export default function Header() {
                     </Link>
                   ))}
                 </nav>
-                <div className="flex flex-col gap-4">
-                   <Button variant="outline" asChild>
-                    <Link href="/login">Entrar</Link>
-                  </Button>
-                  <Button asChild className="bg-accent text-accent-foreground hover:bg-accent/90">
-                    <Link href="/register">Cadastre-se</Link>
-                  </Button>
+                <div className="mt-auto flex flex-col gap-4 pt-6 border-t">
+                  {renderMobileAuthSection()}
                 </div>
               </div>
             </SheetContent>

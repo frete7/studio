@@ -10,7 +10,7 @@ const features = [
     icon: <PackageCheck className="h-8 w-8 text-primary" />,
     title: 'Listagens de Frete',
     description: 'Encontre uma vasta gama de fretes disponíveis, atualizados em tempo real para todo o Brasil.',
-    link: '#',
+    link: '#fretes',
   },
   {
     icon: <Sparkles className="h-8 w-8 text-primary" />,
@@ -22,7 +22,7 @@ const features = [
     icon: <Users className="h-8 w-8 text-primary" />,
     title: 'Perfis Verificados',
     description: 'Conecte-se com motoristas e empresas com perfis verificados, garantindo mais segurança.',
-    link: '#',
+    link: '#motoristas',
   },
 ];
 
@@ -64,7 +64,7 @@ export default function Home() {
           </p>
           <div className="mt-8 flex justify-center gap-4">
             <Button size="lg" asChild>
-              <Link href="#">Buscar Fretes <ArrowRight className="ml-2 h-5 w-5" /></Link>
+              <Link href="/#fretes">Buscar Fretes <ArrowRight className="ml-2 h-5 w-5" /></Link>
             </Button>
             <Button size="lg" variant="outline" asChild>
               <Link href="/register">Cadastre-se</Link>
@@ -74,7 +74,7 @@ export default function Home() {
       </section>
 
       {/* "How it Works" Section */}
-      <section className="py-16 bg-muted/40">
+      <section id="empresas" className="py-16 bg-muted/40 scroll-mt-16">
         <div className="container mx-auto px-4">
             <h2 className="text-3xl font-bold text-center mb-12 font-headline">Como Funciona?</h2>
             <div className="grid md:grid-cols-3 gap-8 text-center">
@@ -85,7 +85,7 @@ export default function Home() {
                     <h3 className="text-xl font-semibold mb-2">1. Anuncie sua Carga</h3>
                     <p className="text-foreground/70">Empresas e pessoas físicas publicam suas necessidades de frete de forma rápida e detalhada.</p>
                 </div>
-                <div className="flex flex-col items-center">
+                <div className="flex flex-col items-center" id="motoristas">
                      <div className="bg-primary/10 rounded-full p-4 mb-4">
                         <User className="h-10 w-10 text-primary"/>
                     </div>
@@ -104,7 +104,7 @@ export default function Home() {
       </section>
       
       {/* Features Section */}
-      <section className="py-20">
+      <section id="fretes" className="py-20 scroll-mt-16">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold font-headline">Ferramentas para o seu Sucesso</h2>
@@ -172,7 +172,7 @@ export default function Home() {
           <p className="max-w-xl mx-auto mb-8 text-primary-foreground/80">
             Junte-se a milhares de motoristas e empresas que já estão transformando sua logística.
           </p>
-          <Button size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90" asChild>
+          <Button size="lg" asChild>
             <Link href="/register">Cadastre-se Gratuitamente</Link>
           </Button>
         </div>
