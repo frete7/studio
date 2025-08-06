@@ -27,7 +27,7 @@ import { Textarea } from '@/components/ui/textarea';
 // Schemas de Validação (Zod)
 // =================================================================
 
-const locationSchema = z.object({
+const baseLocationSchema = z.object({
     state: z.string().min(2, "UF é obrigatório"),
     city: z.string().min(2, "Cidade é obrigatória"),
     neighborhood: z.string().min(2, "Bairro é obrigatório"),
@@ -37,6 +37,24 @@ const locationSchema = z.object({
     floor: z.string({ required_error: "Andar é obrigatório" }),
     accessType: z.enum(['elevador', 'escada', 'rampa']).optional(),
     distance: z.string().min(1, "Distância é obrigatória"),
+});
+
+const locationSchema = baseLocationSchema.refine(data => {
+    if (data.floor !== 'Térreo' && !data.accessType) {
+        return false;
+    }
+    return true;
+}, {
+    message: "O tipo de acesso é obrigatório se não for no térreo",
+    path: ["accessType"],
+});
+
+const originSchema = baseLocationSchema.extend({
+    dateTime: z.date({
+        required_error: "Data e hora são obrigatórios"
+    }).refine(date => date > new Date(), {
+        message: "A data deve ser no futuro"
+    }),
 }).refine(data => {
     if (data.floor !== 'Térreo' && !data.accessType) {
         return false;
@@ -47,13 +65,6 @@ const locationSchema = z.object({
     path: ["accessType"],
 });
 
-const originSchema = locationSchema.extend({
-    dateTime: z.date({
-        required_error: "Data e hora são obrigatórios"
-    }).refine(date => date > new Date(), {
-        message: "A data deve ser no futuro"
-    }),
-})
 
 const itemsSchema = z.object({
     type: z.enum(['description', 'list']),
@@ -504,4 +515,3 @@ export default function RequestFreightPage() {
   );
 }
 
-    
