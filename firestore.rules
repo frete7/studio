@@ -4,48 +4,46 @@ service cloud.firestore {
   match /databases/{database}/documents {
   
     function isAdmin() {
-      // Check if the user is an admin by looking up their user document.
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     match /users/{userId} {
-      allow read;
-      allow create: if request.auth != null;
-      // Allow update if the user is updating their own profile OR if the user is an admin.
+      allow read: if true;
+      allow create: if request.auth.uid != null;
       allow update: if request.auth.uid == userId || isAdmin();
       allow delete: if isAdmin();
     }
-    
-    match /body_types/{docId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-    
-    match /vehicle_categories/{docId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-    
-    match /vehicle_types/{docId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
 
-    match /vehicles/{docId} {
+    match /vehicle_categories/{categoryId} {
       allow read: if true;
       allow write: if isAdmin();
     }
     
-    match /plans/{docId} {
+    match /vehicle_types/{typeId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /body_types/{bodyId} {
         allow read: if true;
         allow write: if isAdmin();
     }
     
-     match /freights/{docId} {
+    match /plans/{planId} {
+        allow read: if true;
+        allow write: if isAdmin();
+    }
+    
+    match /freights/{freightId} {
+        allow read: if true;
+        // Write access should be more granular, e.g., only by the company who posted it or admin
+        allow write: if request.auth.uid != null;
+    }
+
+    match /vehicles/{vehicleId} {
       allow read: if true;
-      allow create: if true; // Allow anonymous freight requests
-      allow update, delete: if isAdmin() || (request.auth != null && get(/databases/$(database)/documents/freights/$(docId)).data.companyId == request.auth.uid);
+      allow write: if isAdmin();
     }
   }
 }
+    
