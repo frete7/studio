@@ -1,16 +1,19 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useForm, FormProvider, useFormContext, Controller, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from "date-fns";
 import { ptBR } from 'date-fns/locale';
+import { addDoc, collection } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -22,6 +25,8 @@ import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
 
 // =================================================================
 // Schemas de Validação (Zod)
@@ -118,12 +123,24 @@ const additionalInfoSchema = z.object({
     path: ['itemPackagingDetails']
 });
 
+const contactSchema = z.object({
+    phoneType: z.enum(['whatsapp', 'fixo'], { required_error: 'Selecione o tipo de telefone.' }),
+    fullName: z.string().min(3, "Nome completo é obrigatório."),
+    phone: z.string().min(10, "Telefone inválido."),
+    confirmPhone: z.string().min(10, "Confirmação de telefone inválida."),
+    email: z.string().email("Email inválido."),
+}).refine(data => data.phone === data.confirmPhone, {
+    message: "Os telefones não coincidem.",
+    path: ['confirmPhone'],
+});
+
 
 const formSchema = z.object({
   origin: originSchema,
   destinations: z.array(locationSchema).min(1, "Adicione pelo menos um destino."),
   items: itemsSchema,
   additionalInfo: additionalInfoSchema,
+  contact: contactSchema,
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -133,10 +150,19 @@ const steps = [
   { id: 2, name: 'Destino(s)', fields: ['destinations'] },
   { id: 3, name: 'Itens', fields: ['items'] },
   { id: 4, name: 'Detalhes Finais', fields: ['additionalInfo'] },
+  { id: 5, name: 'Contato', fields: ['contact'] },
 ];
 
 type IBGEState = { id: number; sigla: string; nome: string; };
 type IBGECity = { id: number; nome: string; };
+
+const generateFreightId = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const nums = '0123456789';
+    const randomChar = () => chars.charAt(Math.floor(Math.random() * chars.length));
+    const randomNum = () => nums.charAt(Math.floor(Math.random() * nums.length));
+    return `#CO-${randomNum()}${randomNum()}${randomChar()}${randomChar()}${randomChar()}#`;
+}
 
 // =================================================================
 // Componentes das Etapas
@@ -851,13 +877,167 @@ function AdditionalInfoStep() {
     )
 }
 
+function ContactStep() {
+    const { control } = useFormContext();
+
+    return (
+        <div className="space-y-6">
+            <h2 className="text-2xl font-semibold">5. Informações de Contato</h2>
+            <p className="text-muted-foreground">Para quem enviaremos os orçamentos?</p>
+            <Separator />
+
+             <FormField
+                control={control}
+                name="contact.phoneType"
+                render={({ field }) => (
+                    <FormItem className="space-y-3">
+                        <FormLabel>O telefone principal é:</FormLabel>
+                        <FormControl>
+                            <RadioGroup
+                                onValueChange={field.onChange}
+                                defaultValue={field.value}
+                                className="flex gap-4"
+                            >
+                                <FormItem className="flex items-center space-x-2">
+                                    <FormControl><RadioGroupItem value="whatsapp" /></FormControl>
+                                    <FormLabel className="font-normal">WhatsApp</FormLabel>
+                                </FormItem>
+                                <FormItem className="flex items-center space-x-2">
+                                    <FormControl><RadioGroupItem value="fixo" /></FormControl>
+                                    <FormLabel className="font-normal">Fixo</FormLabel>
+                                </FormItem>
+                            </RadioGroup>
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+
+            <FormField
+                control={control}
+                name="contact.fullName"
+                render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Nome Completo</FormLabel>
+                        <FormControl><Input placeholder="Digite seu nome completo" {...field} /></FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+            <div className="grid md:grid-cols-2 gap-6">
+                <FormField
+                    control={control}
+                    name="contact.phone"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Telefone com DDD</FormLabel>
+                            <FormControl><Input placeholder="(XX) XXXXX-XXXX" {...field} /></FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                 <FormField
+                    control={control}
+                    name="contact.confirmPhone"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Confirme seu Telefone</FormLabel>
+                            <FormControl><Input placeholder="Repita o telefone" {...field} /></FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+            </div>
+             <FormField
+                control={control}
+                name="contact.email"
+                render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>E-mail</FormLabel>
+                        <FormControl><Input type="email" placeholder="seu.melhor@email.com" {...field} /></FormControl>
+                         <FormDescription>Usaremos este e-mail para enviar as propostas.</FormDescription>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+        </div>
+    )
+}
+
+function SummaryView({ data }: { data: FormData }) {
+    const { origin, destinations, items, additionalInfo, contact } = data;
+
+    const renderList = (list: {value: string}[] | undefined) => (
+        <ul className="list-disc list-inside text-sm">
+            {list?.map((item, index) => <li key={index}>{item.value}</li>)}
+        </ul>
+    );
+
+    return (
+        <div className="space-y-6 text-sm max-h-[60vh] overflow-y-auto pr-4">
+            {/* Contato */}
+            <div className="space-y-1">
+                <h3 className="font-semibold text-base">Seus Dados</h3>
+                <p><strong>Nome:</strong> {contact.fullName}</p>
+                <p><strong>Email:</strong> {contact.email}</p>
+                <p><strong>Telefone:</strong> {contact.phone} ({contact.phoneType})</p>
+            </div>
+            <Separator />
+            {/* Origem */}
+            <div className="space-y-1">
+                <h3 className="font-semibold text-base">Origem</h3>
+                <p><strong>Local:</strong> {origin.city}, {origin.state} (Bairro: {origin.neighborhood})</p>
+                <p><strong>Data:</strong> {format(origin.dateTime, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</p>
+                <p><strong>Detalhes:</strong> {origin.locationType}, {origin.floor}, Acesso por {origin.accessType || 'N/A'}, Dist. {origin.distance}</p>
+            </div>
+            <Separator />
+            {/* Destinos */}
+            <div>
+                <h3 className="font-semibold text-base mb-1">Destinos</h3>
+                {destinations.map((dest, index) => (
+                    <div key={index} className="space-y-1 p-2 border-b last:border-b-0">
+                         <p><strong>Destino {index+1}:</strong> {dest.city}, {dest.state} (Bairro: {dest.neighborhood})</p>
+                         <p><strong>Detalhes:</strong> {dest.locationType}, {dest.floor}, Acesso por {dest.accessType || 'N/A'}, Dist. {dest.distance}</p>
+                    </div>
+                ))}
+            </div>
+            <Separator />
+             {/* Itens */}
+            <div className="space-y-1">
+                 <h3 className="font-semibold text-base">Itens a Transportar</h3>
+                 {items.type === 'description' ? <p>{items.description}</p> : renderList(items.list)}
+            </div>
+            <Separator />
+            {/* Adicionais */}
+             <div className="space-y-1">
+                <h3 className="font-semibold text-base">Informações Adicionais</h3>
+                <p><strong>Restrição no local?</strong> {additionalInfo.hasRestriction ? `Sim - ${additionalInfo.restrictionDetails}` : 'Não'}</p>
+                <p><strong>Montagem/Desmontagem?</strong> {additionalInfo.needsAssembly ? 'Sim' : 'Não'}</p>
+                {additionalInfo.needsAssembly && renderList(additionalInfo.assemblyItems)}
+                <p><strong>Embalar móveis?</strong> {additionalInfo.needsPackaging ? 'Sim' : 'Não'}</p>
+                {additionalInfo.needsPackaging && renderList(additionalInfo.packagingItems)}
+                <p><strong>Preferência de horário?</strong> {additionalInfo.hasSchedulePreference ? `Sim - ${additionalInfo.scheduleDetails}` : 'Não'}</p>
+                <p><strong>Restrição de estacionamento?</strong> {additionalInfo.hasParkingRestriction ? `Sim - ${additionalInfo.parkingRestrictionDetails}` : 'Não'}</p>
+                <p><strong>Guarda-móveis?</strong> {additionalInfo.needsStorage ? 'Sim' : 'Não'}</p>
+                <p><strong>Embalar outros itens?</strong> {additionalInfo.needsItemPackaging ? 'Sim' : 'Não'}</p>
+                {additionalInfo.needsItemPackaging && renderList(additionalInfo.itemPackagingDetails)}
+                <p><strong>Preferência na escolha:</strong> {additionalInfo.companyPreference}</p>
+            </div>
+        </div>
+    );
+}
+
+
 // =================================================================
 // Componente Principal da Página
 // =================================================================
 
 export default function RequestFreightPage() {
   const [currentStep, setCurrentStep] = useState(0);
-  
+  const [isSummaryOpen, setIsSummaryOpen] = useState(false);
+  const { toast } = useToast();
+  const router = useRouter();
+
   const methods = useForm<FormData>({
     resolver: zodResolver(formSchema),
     mode: "onBlur",
@@ -878,32 +1058,67 @@ export default function RequestFreightPage() {
         },
         additionalInfo: {
             hasRestriction: false,
+            restrictionDetails: '',
             needsAssembly: false,
             assemblyItems: [],
             needsPackaging: false,
             packagingItems: [],
             hasSchedulePreference: false,
+            scheduleDetails: '',
             hasParkingRestriction: false,
+            parkingRestrictionDetails: '',
             needsStorage: false,
             needsItemPackaging: false,
             itemPackagingDetails: [],
+            companyPreference: 'cost_benefit',
+        },
+        contact: {
+            phoneType: 'whatsapp',
+            fullName: '',
+            phone: '',
+            confirmPhone: '',
+            email: '',
         }
     }
   });
 
-  const { handleSubmit, trigger, formState: { isSubmitting } } = methods;
+  const { handleSubmit, trigger, getValues, formState: { isSubmitting } } = methods;
 
   async function processForm(data: FormData) {
-    console.log('Form data:', data);
-    // Simular envio
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    alert('Frete solicitado com sucesso!');
+     try {
+        const freightData = {
+            ...data,
+            id: generateFreightId(),
+            freightType: 'comum',
+            status: 'pendente',
+            createdAt: new Date(),
+            origin: `${data.origin.city}, ${data.origin.state}`,
+            destinations: data.destinations.map(d => `${d.city}, ${d.state}`),
+            companyId: 'unauthenticated', // For anonymous requests
+            companyName: data.contact.fullName,
+        };
+        await addDoc(collection(db, 'freights'), freightData);
+        toast({
+            title: "Solicitação Enviada!",
+            description: "Seu pedido de frete foi enviado com sucesso. Em breve você receberá os orçamentos por e-mail."
+        });
+        router.push('/');
+    } catch(error) {
+        console.error("Error saving freight request: ", error);
+        toast({
+            variant: "destructive",
+            title: "Erro ao Enviar",
+            description: "Não foi possível salvar sua solicitação. Tente novamente."
+        })
+    } finally {
+        setIsSummaryOpen(false);
+    }
   }
   
-  type FieldName = keyof FormData;
+  type FieldName = keyof FormData | ('origin' | 'destinations' | 'items' | 'additionalInfo' | 'contact')[];
 
   const nextStep = async () => {
-    const fields = steps[currentStep].fields as FieldName[];
+    const fields = steps[currentStep].fields as FieldName;
     const output = await trigger(fields, { shouldFocus: true });
 
     if (!output) return;
@@ -911,6 +1126,8 @@ export default function RequestFreightPage() {
     if (currentStep < steps.length - 1) {
       setCurrentStep(step => step + 1);
       window.scrollTo(0, 0);
+    } else {
+        setIsSummaryOpen(true);
     }
   };
 
@@ -941,31 +1158,45 @@ export default function RequestFreightPage() {
                     </div>
                 
                     <FormProvider {...methods}>
-                        <form onSubmit={handleSubmit(processForm)}>
-                            <div>
-                                {currentStep === 0 && <OriginStep />}
-                                {currentStep === 1 && <DestinationStep />}
-                                {currentStep === 2 && <ItemsStep />}
-                                {currentStep === 3 && <AdditionalInfoStep />}
-                            </div>
+                        <form onSubmit={handleSubmit(() => setIsSummaryOpen(true))}>
+                            <div className={currentStep === 0 ? 'block' : 'hidden'}> <OriginStep /> </div>
+                            <div className={currentStep === 1 ? 'block' : 'hidden'}> <DestinationStep /> </div>
+                            <div className={currentStep === 2 ? 'block' : 'hidden'}> <ItemsStep /> </div>
+                            <div className={currentStep === 3 ? 'block' : 'hidden'}> <AdditionalInfoStep /> </div>
+                            <div className={currentStep === 4 ? 'block' : 'hidden'}> <ContactStep /> </div>
                         </form>
                     </FormProvider>
+
+                     {/* Modal de Confirmação */}
+                    <Dialog open={isSummaryOpen} onOpenChange={setIsSummaryOpen}>
+                        <DialogContent className="sm:max-w-2xl">
+                             <DialogHeader>
+                                <DialogTitle className="text-2xl">Confirme sua Solicitação</DialogTitle>
+                                <FormDescription>
+                                    Por favor, revise todos os dados antes de finalizar.
+                                </FormDescription>
+                             </DialogHeader>
+                             <SummaryView data={getValues()} />
+                             <DialogFooter>
+                                <DialogClose asChild>
+                                    <Button type="button" variant="secondary">Cancelar</Button>
+                                </DialogClose>
+                                <Button onClick={handleSubmit(processForm)} disabled={isSubmitting}>
+                                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    Finalizar
+                                </Button>
+                             </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
 
                     <div className="mt-8 flex justify-between">
                         <Button onClick={prevStep} variant="outline" disabled={currentStep === 0 || isSubmitting}>
                             Voltar
                         </Button>
-                        {currentStep < steps.length - 1 ? (
-                            <Button onClick={nextStep} disabled={isSubmitting}>
-                                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Próximo
-                            </Button>
-                        ) : (
-                            <Button onClick={handleSubmit(processForm)} disabled={isSubmitting}>
-                                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Enviar Solicitação
-                            </Button>
-                        )}
+                        <Button onClick={nextStep} disabled={isSubmitting}>
+                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {currentStep < steps.length - 1 ? 'Próximo' : 'Revisar e Enviar'}
+                        </Button>
                     </div>
                 </CardContent>
             </Card>
@@ -973,5 +1204,3 @@ export default function RequestFreightPage() {
     </section>
   );
 }
-
-    

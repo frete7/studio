@@ -4,55 +4,63 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function to check for admin role
+    // Helper functions
     function isAdmin() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Rules for the users collection
+    // Regras para Usuários
     match /users/{userId} {
-      allow read, update: if request.auth.uid == userId || isAdmin();
-      allow create: if request.auth.uid == userId;
+      // Qualquer usuário autenticado pode criar seu próprio perfil.
+      allow create: if request.auth != null && request.auth.uid == userId;
+      // Usuários podem ler seus próprios dados, e administradores podem ler qualquer perfil.
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      // Usuários podem atualizar seus próprios dados, e administradores podem atualizar qualquer perfil.
+      allow update: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      // Apenas administradores podem deletar usuários.
+      allow delete: if isAdmin();
     }
 
-    // Rules for vehicle categories
+    // Regras para Fretes
+    match /freights/{freightId} {
+      // Qualquer pessoa (mesmo não autenticada) pode criar uma solicitação de frete.
+      allow create: if true;
+      // Apenas administradores podem ler os detalhes de todos os fretes.
+      allow read: if isAdmin();
+      // Apenas administradores podem atualizar ou deletar fretes.
+      allow update, delete: if isAdmin();
+    }
+
+    // Regras para Categorias de Veículos
     match /vehicle_categories/{categoryId} {
-      allow read: if request.auth != null;
-      allow write: if isAdmin();
-    }
-    
-    // Rules for vehicle types
-    match /vehicle_types/{typeId} {
-      allow read: if request.auth != null;
-      allow write: if isAdmin();
-    }
-    
-    // Rules for body types
-    match /body_types/{bodyTypeId} {
-      allow read: if request.auth != null;
-      allow write: if isAdmin();
+      // Apenas administradores podem gerenciar categorias.
+      allow read, write: if isAdmin();
     }
 
-    // Rules for plans
-    match /plans/{planId} {
-        allow read: if request.auth != null;
-        allow write: if isAdmin();
+    // Regras para Tipos de Veículos
+    match /vehicle_types/{typeId} {
+      // Apenas administradores podem gerenciar tipos de veículos.
+      allow read, write: if isAdmin();
     }
-    
-    // Rules for vehicles
+
+    // Regras para Veículos
     match /vehicles/{vehicleId} {
-      // For now, only admins can manage vehicles through the admin panel
-      // We can add rules for drivers later
+        // Apenas administradores podem ler todos os veículos.
+        // Motoristas poderão ler seus veículos associados (regra a ser adicionada).
       allow read, write: if isAdmin();
     }
     
-    // Rules for freights (basic structure)
-    match /freights/{freightId} {
-        // Allow read for any authenticated user
-        allow read: if request.auth != null;
-        // Allow write only for admins or the company that owns the freight
-        allow write: if isAdmin() || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'company';
+    // Regras para Tipos de Carroceria
+    match /body_types/{bodyTypeId} {
+      allow read, write: if isAdmin();
     }
 
+    // Regras para Planos
+    match /plans/{planId} {
+       // Todos podem ler os planos disponíveis.
+       allow read: if true;
+       // Apenas administradores podem criar, editar ou deletar planos.
+       allow write: if isAdmin();
+    }
   }
 }

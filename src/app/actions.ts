@@ -257,10 +257,7 @@ export type Freight = {
     freightType: 'comum' | 'agregamento' | 'frete completo' | 'frete de retorno';
     origin: string;
     destinations: string[];
-    createdAt: {
-        seconds: number;
-        nanoseconds: number;
-    };
+    createdAt: any; // Can be a server timestamp
     companyId: string;
     companyName?: string;
     status: 'ativo' | 'concluido' | 'pendente' | 'cancelado';
