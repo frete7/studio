@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, Truck, LogOut, User as UserIcon } from 'lucide-react';
+import { Menu, Truck, LogOut, User as UserIcon, Cog } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -77,7 +77,7 @@ export default function Header() {
     return email.substring(0, 2).toUpperCase();
   }
   
-  const getRoleBadgeVariant = (role: string | null) => {
+  const getRoleBadgeVariant = (role: string | null): "default" | "secondary" | "destructive" | "outline" => {
     switch (role) {
       case 'admin':
         return 'destructive';
@@ -116,7 +116,7 @@ export default function Header() {
                     </p>
                     {userRole && (
                         <Badge variant={getRoleBadgeVariant(userRole)} className="capitalize text-xs">
-                            {userRole}
+                            {userRole === 'driver' ? 'Motorista' : userRole === 'company' ? 'Empresa' : userRole}
                         </Badge>
                     )}
                 </div>
@@ -129,7 +129,7 @@ export default function Header() {
             </DropdownMenuItem>
              {userRole === 'admin' && (
               <DropdownMenuItem onClick={() => router.push('/admin')}>
-                <UserIcon className="mr-2 h-4 w-4" />
+                <Cog className="mr-2 h-4 w-4" />
                 <span>Painel Admin</span>
               </DropdownMenuItem>
             )}
