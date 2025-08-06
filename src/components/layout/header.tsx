@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, Truck, LogOut, User as UserIcon, Cog } from 'lucide-react';
+import { Menu, Truck, LogOut, User as UserIcon, Cog, Sparkles } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -200,6 +200,12 @@ export default function Header() {
           ))}
         </nav>
         <div className="hidden md:flex items-center gap-4">
+           <Button asChild>
+              <Link href="/solicitar-frete">
+                Solicitar Frete
+                <Sparkles className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
           {renderAuthSection()}
         </div>
         <div className="md:hidden flex items-center">
@@ -227,6 +233,9 @@ export default function Header() {
                       {link.label}
                     </Link>
                   ))}
+                   <Link href="/solicitar-frete" className="font-semibold text-primary" onClick={() => setIsOpen(false)}>
+                      Solicitar Frete
+                    </Link>
                 </nav>
                 <div className="mt-auto flex flex-col gap-4 pt-6 border-t">
                   {renderMobileAuthSection()}
