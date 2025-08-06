@@ -4,8 +4,10 @@ service cloud.firestore {
     // Permite que um usuário crie, leia e atualize seu próprio documento,
     // mas não altere sua própria função (role).
     match /users/{userId} {
-      allow read, update: if request.auth != null && request.auth.uid == userId && request.resource.data.role == resource.data.role;
-      allow create: if request.auth != null && request.auth.uid == userId;
+      // Qualquer usuário autenticado pode ler os perfis de usuário para verificar a role.
+      allow read: if request.auth != null;
+      // Um usuário só pode criar ou atualizar seu próprio documento.
+      allow create, update: if request.auth != null && request.auth.uid == userId && request.resource.data.role == resource.data.role;
       allow delete: if false; // Ninguém pode deletar
     }
   }
