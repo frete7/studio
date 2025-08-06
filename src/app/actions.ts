@@ -30,23 +30,46 @@ export async function updateUserStatus(uid: string, status: string) {
 }
 
 
-export async function updateDocumentStatus(userId: string, docField: string, docStatus: 'approved' | 'rejected') {
+export async function updateDocumentStatus(userId: string, docField: 'responsible.document' | 'cnpjCard', docStatus: 'approved' | 'rejected') {
     if (!userId || !docField || !docStatus) {
         throw new Error('User ID, document field, and status are required.');
     }
     const userDocRef = doc(db, 'users', userId);
     
-    // Construct the path to the nested status field
-    const fieldPath = `${docField}.status`;
-    const updatePayload: { [key: string]: any } = { [fieldPath]: docStatus };
-
-    // If the document is rejected, set the main user status to 'incomplete'
-    if (docStatus === 'rejected') {
-        updatePayload['status'] = 'incomplete';
-    }
-
     try {
+        const userDoc = await getDoc(userDocRef);
+        if (!userDoc.exists()) {
+            throw new Error("User not found.");
+        }
+
+        const userData = userDoc.data();
+        const updatePayload: { [key: string]: any } = {};
+
+        // Handle nested responsible.document field
+        if (docField === 'responsible.document') {
+            const responsibleData = userData.responsible || {};
+            const documentData = (typeof responsibleData.document === 'string') 
+                ? { url: responsibleData.document, status: 'pending' } 
+                : (responsibleData.document || {});
+
+            responsibleData.document = { ...documentData, status: docStatus };
+            updatePayload['responsible'] = responsibleData;
+        } else { // Handle cnpjCard field
+             const cnpjCardData = (typeof userData.cnpjCard === 'string')
+                ? { url: userData.cnpjCard, status: 'pending' }
+                : (userData.cnpjCard || {});
+            
+            updatePayload[docField] = { ...cnpjCardData, status: docStatus };
+        }
+
+        // If any document is rejected, set main user status to 'incomplete'
+        // This is a simplified check. A more robust check would verify all docs.
+        if (docStatus === 'rejected') {
+            updatePayload['status'] = 'incomplete';
+        }
+
         await updateDoc(userDocRef, updatePayload);
+
     } catch (error) {
         console.error("Error updating document status: ", error);
         throw new Error('Failed to update document status.');
