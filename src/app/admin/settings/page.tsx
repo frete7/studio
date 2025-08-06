@@ -12,7 +12,7 @@ export default function AdminSettingsPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Link href="/admin/vehicles">
+        <Link href="/admin/vehicle-types">
           <Card className="hover:bg-muted/50 transition-colors">
             <CardContent className="flex flex-col items-center justify-center p-6 aspect-square">
                 <Truck className="h-10 w-10 text-primary mb-4" />

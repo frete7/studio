@@ -1,7 +1,7 @@
 
 'use client';
 import { SidebarProvider, Sidebar, SidebarTrigger, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
-import { Home, Users, Truck, Package, Settings, PanelLeft, CreditCard, Shapes } from 'lucide-react';
+import { Home, Users, Truck, Package, Settings, PanelLeft, CreditCard, Shapes, Type } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ const navItems = [
   { href: '/admin/users', label: 'Usuários', icon: Users },
   { href: '/admin/freight', label: 'Fretes', icon: Package },
   { href: '/admin/vehicles', label: 'Veículos', icon: Truck },
+  { href: '/admin/vehicle-types', label: 'Tipos de Veículos', icon: Type },
   { href: '/admin/categories', label: 'Categorias', icon: Shapes },
   { href: '/admin/plans', label: 'Planos', icon: CreditCard },
   { href: '/admin/settings', label: 'Configurações', icon: Settings },
@@ -41,7 +42,7 @@ export default function AdminLayout({
                             <SidebarMenuItem key={item.href}>
                                 <Link href={item.href} passHref>
                                     <SidebarMenuButton
-                                        isActive={pathname === item.href}
+                                        isActive={pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/admin')}
                                         tooltip={{
                                             children: item.label,
                                             side: 'right',
@@ -60,7 +61,7 @@ export default function AdminLayout({
                 <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
                      <div className="flex items-center">
                         <SidebarTrigger className="md:hidden" />
-                        <h1 className="text-xl font-semibold md:text-2xl ml-2">{navItems.find(item => item.href === pathname)?.label || 'Admin'}</h1>
+                        <h1 className="text-xl font-semibold md:text-2xl ml-2">{navItems.find(item => pathname.startsWith(item.href))?.label || 'Admin'}</h1>
                      </div>
                 </header>
                 <main className="flex-1 overflow-y-auto p-4 md:p-6">

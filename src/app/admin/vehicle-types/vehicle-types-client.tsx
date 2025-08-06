@@ -53,12 +53,11 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-interface VehiclesClientProps {
+interface VehicleTypesClientProps {
   initialData: VehicleType[];
 }
 
-export default function VehiclesClient({ initialData }: VehiclesClientProps) {
-  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>(initialData);
+export default function VehicleTypesClient({ initialData }: VehicleTypesClientProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<VehicleType | null>(null);
@@ -98,7 +97,6 @@ export default function VehiclesClient({ initialData }: VehiclesClientProps) {
       form.reset();
       setIsDialogOpen(false);
       setEditingVehicle(null);
-      // Re-fetch or update the list locally to show changes
       router.refresh();
     } catch (error) {
       toast({
