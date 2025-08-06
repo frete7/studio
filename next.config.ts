@@ -19,9 +19,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  experimental: {
-    allowedDevOrigins: ["*.cluster-duylic2g3fbzerqpzxxbw6helm.cloudworkstations.dev"]
-  },
   env: {
     NEXT_PUBLIC_FIREBASE_PROJECT_ID: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
     NEXT_PUBLIC_FIREBASE_APP_ID: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
