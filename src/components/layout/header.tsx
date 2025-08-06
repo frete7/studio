@@ -8,7 +8,7 @@ import React, { useEffect, useState } from 'react';
 import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +34,7 @@ export default function Header() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -43,7 +44,20 @@ export default function Header() {
         const userDocRef = doc(db, 'users', currentUser.uid);
         const userDoc = await getDoc(userDocRef);
         if (userDoc.exists()) {
-          setUserRole(userDoc.data().role);
+          const userData = userDoc.data();
+          setUserRole(userData.role);
+          
+          // Redirect logic
+          const isProfileIncomplete = userData.status === 'pending';
+          const isTryingToCompleteProfile = pathname.startsWith('/profile') || pathname.startsWith('/api'); // Or other allowed paths
+          
+          if (isProfileIncomplete && !isTryingToCompleteProfile) {
+            // Allow logout from any page
+            if (pathname !== '/login' && pathname !== '/register') {
+                router.push('/profile');
+            }
+          }
+
         } else {
           setUserRole('user');
         }
@@ -54,7 +68,7 @@ export default function Header() {
       setIsLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [pathname, router]);
   
   const handleLogout = async () => {
     try {
