@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from "date-fns";
 import { ptBR } from 'date-fns/locale';
-import { addDoc, collection } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 import { Button } from '@/components/ui/button';
@@ -20,7 +20,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar as CalendarIcon, Loader2, PlusCircle, Trash2, CheckCircle } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, PlusCircle, Trash2, CheckCircle, Copy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
@@ -41,7 +41,7 @@ const baseLocationSchema = z.object({
     }),
     floor: z.string({ required_error: "Andar é obrigatório" }),
     accessType: z.enum(['elevador', 'escada', 'rampa']).optional(),
-    distance: z.string().min(1, "Distância é obrigatória"),
+    distance: z.string().min(1, "Distância é obrigatória").regex(/^\d+$/, "Apenas números são permitidos"),
 });
 
 const locationSchema = baseLocationSchema.refine(data => {
@@ -126,8 +126,8 @@ const additionalInfoSchema = z.object({
 const contactSchema = z.object({
     phoneType: z.enum(['whatsapp', 'fixo'], { required_error: 'Selecione o tipo de telefone.' }),
     fullName: z.string().min(3, "Nome completo é obrigatório."),
-    phone: z.string().min(10, "Telefone inválido."),
-    confirmPhone: z.string().min(10, "Confirmação de telefone inválida."),
+    phone: z.string().min(10, "Telefone inválido.").transform(val => val.replace(/\D/g, '')),
+    confirmPhone: z.string().min(10, "Confirmação de telefone inválida.").transform(val => val.replace(/\D/g, '')),
     email: z.string().email("Email inválido."),
 }).refine(data => data.phone === data.confirmPhone, {
     message: "Os telefones não coincidem.",
@@ -209,6 +209,12 @@ function LocationFormFields({ nestName, showDateTime = false }: { nestName: stri
         'Térreo',
         ...Array.from({ length: 89 }, (_, i) => (i + 1).toString())
     ];
+
+    const handleDistanceChange = (e: React.ChangeEvent<HTMLInputElement>, field: any) => {
+        const value = e.target.value;
+        const numbersOnly = value.replace(/\D/g, '');
+        field.onChange(numbersOnly);
+    }
 
     return (
         <div className="space-y-6">
@@ -362,10 +368,16 @@ function LocationFormFields({ nestName, showDateTime = false }: { nestName: stri
                 name={`${nestName}.distance`}
                 render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Distância para carga/descarga</FormLabel>
-                         <FormDescription>Qual a distância entre o local do frete e onde o veículo pode parar?</FormDescription>
+                        <FormLabel>Distância para carga/descarga (metros)</FormLabel>
+                         <FormDescription>Qual a distância em metros entre o local do frete e onde o veículo pode parar?</FormDescription>
                         <FormControl>
-                            <Input placeholder="Ex: 20 metros" {...field} />
+                            <Input 
+                                placeholder="Ex: 20" 
+                                {...field} 
+                                onChange={(e) => handleDistanceChange(e, field)}
+                                value={field.value}
+                                inputMode="numeric"
+                            />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
@@ -450,11 +462,24 @@ function OriginStep() {
 }
 
 function DestinationStep() {
-     const { control } = useFormContext();
+     const { control, getValues, setValue } = useFormContext();
      const { fields, append, remove } = useFieldArray({
          control,
          name: "destinations"
      });
+     
+     const { toast } = useToast();
+
+     const copyOriginAddress = (destinationIndex: number) => {
+        const originValues = getValues("origin");
+        if (originValues.state && originValues.city) {
+            setValue(`destinations.${destinationIndex}.state`, originValues.state, { shouldValidate: true, shouldDirty: true });
+            setValue(`destinations.${destinationIndex}.city`, originValues.city, { shouldValidate: true, shouldDirty: true });
+            toast({ title: "Endereço copiado!", description: "O estado e a cidade da origem foram copiados." });
+        } else {
+             toast({ variant: "destructive", title: "Atenção", description: "Preencha o estado e a cidade na origem primeiro." });
+        }
+     }
 
      return (
         <div className="space-y-6">
@@ -465,13 +490,19 @@ function DestinationStep() {
                 {fields.map((field, index) => (
                     <Card key={field.id} className="bg-muted/30">
                         <CardContent className="p-4 md:p-6">
-                            <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                                 <h3 className="font-semibold text-lg">Destino {index + 1}</h3>
-                                {fields.length > 1 && (
-                                     <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}>
-                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                <div className='flex items-center gap-2'>
+                                    <Button type="button" variant="outline" size="sm" onClick={() => copyOriginAddress(index)}>
+                                        <Copy className="mr-2 h-4 w-4"/>
+                                        Usar dados da origem
                                     </Button>
-                                )}
+                                    {fields.length > 1 && (
+                                         <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}>
+                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                        </Button>
+                                    )}
+                                </div>
                             </div>
                             <LocationFormFields nestName={`destinations.${index}`} />
                         </CardContent>
@@ -879,6 +910,33 @@ function AdditionalInfoStep() {
 
 function ContactStep() {
     const { control } = useFormContext();
+    const phoneType = useWatch({ control, name: 'contact.phoneType' });
+
+    const formatPhoneNumber = (value: string) => {
+        const numbers = value.replace(/\D/g, '');
+        if (phoneType === 'whatsapp') {
+            if (numbers.length > 10) {
+                 return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
+            }
+        }
+        if (numbers.length > 6) {
+             return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 6)}-${numbers.slice(6, 10)}`;
+        }
+         if (numbers.length > 2) {
+            return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+        }
+        return numbers;
+    };
+    
+    const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>, field: any) => {
+        const rawValue = e.target.value.replace(/\D/g, '');
+        const maxLength = phoneType === 'whatsapp' ? 11 : 10;
+        if (rawValue.length <= maxLength) {
+            const formattedValue = formatPhoneNumber(rawValue);
+            field.onChange(formattedValue);
+        }
+    }
+
 
     return (
         <div className="space-y-6">
@@ -894,7 +952,9 @@ function ContactStep() {
                         <FormLabel>O telefone principal é:</FormLabel>
                         <FormControl>
                             <RadioGroup
-                                onValueChange={field.onChange}
+                                onValueChange={(value) => {
+                                    field.onChange(value);
+                                }}
                                 defaultValue={field.value}
                                 className="flex gap-4"
                             >
@@ -931,7 +991,15 @@ function ContactStep() {
                     render={({ field }) => (
                         <FormItem>
                             <FormLabel>Telefone com DDD</FormLabel>
-                            <FormControl><Input placeholder="(XX) XXXXX-XXXX" {...field} /></FormControl>
+                            <FormControl>
+                                <Input 
+                                    placeholder={phoneType === 'whatsapp' ? "(XX) XXXXX-XXXX" : "(XX) XXXX-XXXX"} 
+                                    {...field}
+                                    onChange={(e) => handlePhoneChange(e, field)}
+                                    value={formatPhoneNumber(field.value || '')}
+                                    inputMode="numeric"
+                                />
+                            </FormControl>
                             <FormMessage />
                         </FormItem>
                     )}
@@ -942,7 +1010,15 @@ function ContactStep() {
                     render={({ field }) => (
                         <FormItem>
                             <FormLabel>Confirme seu Telefone</FormLabel>
-                            <FormControl><Input placeholder="Repita o telefone" {...field} /></FormControl>
+                            <FormControl>
+                                <Input 
+                                    placeholder="Repita o telefone" 
+                                    {...field}
+                                     onChange={(e) => handlePhoneChange(e, field)}
+                                     value={formatPhoneNumber(field.value || '')}
+                                     inputMode="numeric"
+                                />
+                            </FormControl>
                             <FormMessage />
                         </FormItem>
                     )}
@@ -988,7 +1064,7 @@ function SummaryView({ data }: { data: FormData }) {
                 <h3 className="font-semibold text-base">Origem</h3>
                 <p><strong>Local:</strong> {origin.city}, {origin.state} (Bairro: {origin.neighborhood})</p>
                 <p><strong>Data:</strong> {origin.dateTime ? format(origin.dateTime, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : 'N/A'}</p>
-                <p><strong>Detalhes:</strong> {origin.locationType}, {origin.floor}, Acesso por {origin.accessType || 'N/A'}, Dist. {origin.distance}</p>
+                <p><strong>Detalhes:</strong> {origin.locationType}, {origin.floor}, Acesso por {origin.accessType || 'N/A'}, Dist. {origin.distance}m</p>
             </div>
             <Separator />
             {/* Destinos */}
@@ -997,7 +1073,7 @@ function SummaryView({ data }: { data: FormData }) {
                 {destinations.map((dest, index) => (
                     <div key={index} className="space-y-1 p-2 border-b last:border-b-0">
                          <p><strong>Destino {index+1}:</strong> {dest.city}, {dest.state} (Bairro: {dest.neighborhood})</p>
-                         <p><strong>Detalhes:</strong> {dest.locationType}, {dest.floor}, Acesso por {dest.accessType || 'N/A'}, Dist. {dest.distance}</p>
+                         <p><strong>Detalhes:</strong> {dest.locationType}, {dest.floor}, Acesso por {dest.accessType || 'N/A'}, Dist. {dest.distance}m</p>
                     </div>
                 ))}
             </div>
@@ -1090,17 +1166,21 @@ export default function RequestFreightPage() {
      const generatedId = generateFreightId();
      setFreightId(generatedId);
      try {
+        // Deep copy and remove circular references for Firestore
+        const dataToSave = JSON.parse(JSON.stringify(data));
+        
         const freightData = {
-            ...data,
+            ...dataToSave,
             id: generatedId,
             freightType: 'comum',
             status: 'ativo',
-            createdAt: new Date(),
-            origin: `${data.origin.city}, ${data.origin.state}`,
-            destinations: data.destinations.map(d => `${d.city}, ${d.state}`),
+            createdAt: serverTimestamp(),
+            origin: `${dataToSave.origin.city}, ${dataToSave.origin.state}`,
+            destinations: dataToSave.destinations.map((d: any) => `${d.city}, ${d.state}`),
             companyId: 'unauthenticated', // For anonymous requests
-            companyName: data.contact.fullName,
+            companyName: dataToSave.contact.fullName,
         };
+
         // Remove confirmation phone from data to be saved
         if (freightData.contact?.confirmPhone) {
             delete (freightData.contact as any).confirmPhone;
@@ -1236,3 +1316,5 @@ export default function RequestFreightPage() {
     </section>
   );
 }
+
+    
