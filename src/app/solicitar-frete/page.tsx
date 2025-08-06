@@ -474,8 +474,13 @@ function DestinationStep() {
         const originValues = getValues("origin");
         if (originValues.state && originValues.city) {
             setValue(`destinations.${destinationIndex}.state`, originValues.state, { shouldValidate: true, shouldDirty: true });
-            setValue(`destinations.${destinationIndex}.city`, originValues.city, { shouldValidate: true, shouldDirty: true });
-            toast({ title: "Endereço copiado!", description: "O estado e a cidade da origem foram copiados." });
+            
+            // Wait a bit for the city list to update based on the new state
+            setTimeout(() => {
+                setValue(`destinations.${destinationIndex}.city`, originValues.city, { shouldValidate: true, shouldDirty: true });
+                toast({ title: "Endereço copiado!", description: "O estado e a cidade da origem foram copiados." });
+            }, 1);
+
         } else {
              toast({ variant: "destructive", title: "Atenção", description: "Preencha o estado e a cidade na origem primeiro." });
         }
@@ -913,6 +918,7 @@ function ContactStep() {
     const phoneType = useWatch({ control, name: 'contact.phoneType' });
 
     const formatPhoneNumber = (value: string) => {
+        if (!value) return '';
         const numbers = value.replace(/\D/g, '');
         if (phoneType === 'whatsapp') {
             if (numbers.length > 10) {
@@ -929,11 +935,10 @@ function ContactStep() {
     };
     
     const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>, field: any) => {
-        const rawValue = e.target.value.replace(/\D/g, '');
+        const rawValue = e.target.value;
         const maxLength = phoneType === 'whatsapp' ? 11 : 10;
-        if (rawValue.length <= maxLength) {
-            const formattedValue = formatPhoneNumber(rawValue);
-            field.onChange(formattedValue);
+        if (rawValue.replace(/\D/g, '').length <= maxLength) {
+            field.onChange(rawValue);
         }
     }
 
@@ -1316,5 +1321,3 @@ export default function RequestFreightPage() {
     </section>
   );
 }
-
-    
