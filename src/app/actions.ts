@@ -29,6 +29,31 @@ export async function updateUserStatus(uid: string, status: string) {
   await updateDoc(userDocRef, { status: status });
 }
 
+
+export async function updateDocumentStatus(userId: string, docField: string, docStatus: 'approved' | 'rejected') {
+    if (!userId || !docField || !docStatus) {
+        throw new Error('User ID, document field, and status are required.');
+    }
+    const userDocRef = doc(db, 'users', userId);
+    
+    // Construct the path to the nested status field
+    const fieldPath = `${docField}.status`;
+    const updatePayload: { [key: string]: any } = { [fieldPath]: docStatus };
+
+    // If the document is rejected, set the main user status to 'incomplete'
+    if (docStatus === 'rejected') {
+        updatePayload['status'] = 'incomplete';
+    }
+
+    try {
+        await updateDoc(userDocRef, updatePayload);
+    } catch (error) {
+        console.error("Error updating document status: ", error);
+        throw new Error('Failed to update document status.');
+    }
+}
+
+
 export async function assignPlanToUser(userId: string, planId: string, planName: string): Promise<void> {
   if (!userId) {
     throw new Error('ID do usuário é obrigatório.');

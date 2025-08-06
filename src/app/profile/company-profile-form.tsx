@@ -16,10 +16,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, UploadCloud, FileText, CheckCircle, Building } from 'lucide-react';
+import { Loader2, UploadCloud, FileText, CheckCircle, Building, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
+import { Alert, AlertTitle } from '@/components/ui/alert';
 
 
 // =================================================================
@@ -40,6 +41,13 @@ const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/web
 const ACCEPTED_DOCUMENT_TYPES = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
 
 
+const fileSchema = z.any()
+  .refine((files) => !files || files.length === 0 || files?.[0]?.size <= MAX_FILE_SIZE, `Tamanho máximo é 5MB.`)
+  .refine(
+    (files) => !files || files.length === 0 || ACCEPTED_DOCUMENT_TYPES.includes(files?.[0]?.type),
+    "Apenas .jpg, .png e .pdf são aceitos."
+  );
+
 const profileSchema = z.object({
     // Etapa 1
     razaoSocial: z.string().min(3, 'Razão Social é obrigatória.'),
@@ -58,12 +66,8 @@ const profileSchema = z.object({
     // Etapa 4
     responsibleName: z.string().min(3, "Nome do responsável é obrigatório."),
     responsibleCpf: z.string().refine(validateCPF, "CPF inválido."),
-    responsibleDocument: z.any().refine((file) => file?.length == 1, "Documento é obrigatório.")
-        .refine((file) => file?.length == 1 ? ACCEPTED_DOCUMENT_TYPES.includes(file?.[0]?.type) : false, "Apenas .jpg, .png e .pdf são aceitos.")
-        .refine((file) => file?.length == 1 ? file[0]?.size <= MAX_FILE_SIZE : false, `Tamanho máximo é 5MB.`),
-    cnpjCard: z.any().refine((file) => file?.length == 1, "Cartão CNPJ é obrigatório.")
-        .refine((file) => file?.length == 1 ? ACCEPTED_DOCUMENT_TYPES.includes(file?.[0]?.type) : false, "Apenas .jpg, .png e .pdf são aceitos.")
-        .refine((file) => file?.length == 1 ? file[0]?.size <= MAX_FILE_SIZE : false, `Tamanho máximo é 5MB.`),
+    responsibleDocument: fileSchema.optional(),
+    cnpjCard: fileSchema.optional(),
     // Etapa 5
     isCarrier: z.enum(['yes', 'no'], { required_error: "Selecione uma opção." }),
 });
@@ -110,19 +114,20 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
         }
     });
 
-    const { handleSubmit, trigger, control, watch } = methods;
+    const { handleSubmit, trigger, control, watch, formState: { errors } } = methods;
 
-    const uploadFile = async (file: File, path: string): Promise<string> => {
+    const uploadFile = async (file: File, path: string): Promise<{url: string, status: string}> => {
         const fileRef = ref(storage, path);
         await uploadBytes(fileRef, file);
-        return await getDownloadURL(fileRef);
+        const url = await getDownloadURL(fileRef);
+        return { url, status: 'pending' };
     };
 
     const processForm = async (data: ProfileFormData) => {
         setIsLoading(true);
         try {
             const userId = profile.uid;
-            const updateData: any = {
+            let updateData: any = {
                 name: data.razaoSocial,
                 tradingName: data.nomeFantasia,
                 address: `${data.logradouro}, ${data.numero}, ${data.bairro}, ${data.cidade} - ${data.uf}`,
@@ -136,6 +141,7 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
                     uf: data.uf,
                 },
                 responsible: {
+                    ...profile.responsible,
                     name: data.responsibleName,
                     cpf: data.responsibleCpf,
                 },
@@ -145,13 +151,13 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
 
             // Handle uploads
             if (data.companyLogo && data.companyLogo[0]) {
-                updateData.photoURL = await uploadFile(data.companyLogo[0], `users/${userId}/logo`);
+                updateData.photoURL = await uploadFile(data.companyLogo[0], `users/${userId}/logo`).then(res => res.url);
             }
-            if (data.responsibleDocument && data.responsibleDocument[0]) {
-                updateData.responsible.documentUrl = await uploadFile(data.responsibleDocument[0], `users/${userId}/responsible_document`);
+             if (data.responsibleDocument && data.responsibleDocument[0]) {
+                updateData.responsible.document = await uploadFile(data.responsibleDocument[0], `users/${userId}/responsible_document`);
             }
             if (data.cnpjCard && data.cnpjCard[0]) {
-                updateData.cnpjCardUrl = await uploadFile(data.cnpjCard[0], `users/${userId}/cnpj_card`);
+                updateData.cnpjCard = await uploadFile(data.cnpjCard[0], `users/${userId}/cnpj_card`);
             }
 
             const userDocRef = doc(db, 'users', userId);
@@ -177,7 +183,23 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
     const nextStep = async () => {
         const fields = steps[currentStep].fields as (keyof ProfileFormData)[];
         const output = await trigger(fields, { shouldFocus: true });
-        if (!output) return;
+        
+        // Custom validation for document step
+        if (currentStep === 3) {
+            let docError = false;
+            if (profile.responsible?.document?.status !== 'approved' && !watch('responsibleDocument')) {
+                 methods.setError('responsibleDocument', { type: 'manual', message: 'Documento do responsável é obrigatório.'});
+                 docError = true;
+            }
+            if (profile.cnpjCard?.status !== 'approved' && !watch('cnpjCard')) {
+                 methods.setError('cnpjCard', { type: 'manual', message: 'Cartão CNPJ é obrigatório.'});
+                 docError = true;
+            }
+             if (!output || docError) return;
+        } else {
+             if (!output) return;
+        }
+
 
         if (currentStep < steps.length - 1) {
             setCurrentStep(step => step + 1);
@@ -194,67 +216,86 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
 
     const progress = ((currentStep + 1) / steps.length) * 100;
     
-    const FileInput = ({ name, label, description, existingImageUrl }: { name: any, label: string, description: string, existingImageUrl?: string }) => {
+    const FileInput = ({ name, label, description, existingFile }: { name: any, label: string, description: string, existingFile?: {url: string, status: 'approved' | 'rejected' | 'pending'} }) => {
         const fileList = watch(name);
-        const [preview, setPreview] = useState<string | null>(existingImageUrl || null);
+        const [preview, setPreview] = useState<string | null>(existingFile?.url && ACCEPTED_IMAGE_TYPES.some(type => existingFile.url.includes(type.split('/')[1])) ? existingFile.url : null);
+        
+        const isApproved = existingFile?.status === 'approved';
+        const isRejected = existingFile?.status === 'rejected';
 
         useEffect(() => {
             const file = fileList?.[0];
             if (file && ACCEPTED_IMAGE_TYPES.includes(file.type)) {
                 const objectUrl = URL.createObjectURL(file);
                 setPreview(objectUrl);
-
                 return () => URL.revokeObjectURL(objectUrl);
-            } else {
-                 if (!existingImageUrl) {
-                    setPreview(null);
-                }
             }
-        }, [fileList, existingImageUrl]);
+        }, [fileList]);
 
         const fileName = fileList?.[0]?.name;
         
+        if (isApproved) {
+            return (
+                 <div className="space-y-2">
+                    <Label>{label}</Label>
+                    <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 text-green-800 rounded-md">
+                        <CheckCircle className="h-5 w-5" />
+                        <span className="text-sm font-medium">Documento aprovado.</span>
+                    </div>
+                </div>
+            )
+        }
+        
         return (
-             <FormField
-                control={control}
-                name={name}
-                render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>{label}</FormLabel>
-                        <FormControl>
-                            <div className="relative">
-                                <label htmlFor={name} className={cn("relative flex flex-col items-center justify-center w-full border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted/75", preview ? "h-48" : "h-32")}>
-                                    {preview ? (
-                                        <Image src={preview} alt="Pré-visualização" layout="fill" objectFit="contain" className="rounded-lg p-2" />
-                                    ) : (
-                                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                            <UploadCloud className="w-8 h-8 mb-4 text-muted-foreground" />
-                                            <p className="mb-2 text-sm text-muted-foreground"><span className="font-semibold">Clique para enviar</span> ou arraste e solte</p>
-                                            <p className="text-xs text-muted-foreground">{description}</p>
-                                        </div>
-                                    )}
-                                    <Input 
-                                        id={name} 
-                                        type="file" 
-                                        className="hidden"
-                                        onBlur={field.onBlur}
-                                        name={field.name}
-                                        onChange={(e) => field.onChange(e.target.files)}
-                                    />
-                                </label>
-                            </div>
-                        </FormControl>
-                         {fileName && !preview && (
-                            <div className="text-sm font-medium text-muted-foreground flex items-center gap-2 mt-2">
-                                <FileText className="h-4 w-4"/>
-                                <span>{fileName}</span>
-                                <CheckCircle className="h-4 w-4 text-green-500" />
-                            </div>
-                         )}
-                        <FormMessage />
-                    </FormItem>
+             <div className="space-y-2">
+                {isRejected && (
+                    <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle>Documento Recusado</AlertTitle>
+                        <p className="text-xs">O arquivo anterior foi recusado. Por favor, envie um novo documento válido.</p>
+                    </Alert>
                 )}
-            />
+                 <FormField
+                    control={control}
+                    name={name}
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>{label}</FormLabel>
+                            <FormControl>
+                                <div className="relative">
+                                    <label htmlFor={name} className={cn("relative flex flex-col items-center justify-center w-full border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted/75", preview ? "h-48" : "h-32")}>
+                                        {preview ? (
+                                            <Image src={preview} alt="Pré-visualização" layout="fill" objectFit="contain" className="rounded-lg p-2" />
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                                <UploadCloud className="w-8 h-8 mb-4 text-muted-foreground" />
+                                                <p className="mb-2 text-sm text-muted-foreground"><span className="font-semibold">Clique para enviar</span> ou arraste e solte</p>
+                                                <p className="text-xs text-muted-foreground">{description}</p>
+                                            </div>
+                                        )}
+                                        <Input 
+                                            id={name} 
+                                            type="file" 
+                                            className="hidden"
+                                            onBlur={field.onBlur}
+                                            name={field.name}
+                                            onChange={(e) => field.onChange(e.target.files)}
+                                        />
+                                    </label>
+                                </div>
+                            </FormControl>
+                             {fileName && !preview && (
+                                <div className="text-sm font-medium text-muted-foreground flex items-center gap-2 mt-2">
+                                    <FileText className="h-4 w-4"/>
+                                    <span>{fileName}</span>
+                                    <CheckCircle className="h-4 w-4 text-green-500" />
+                                </div>
+                             )}
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+             </div>
         )
     }
 
@@ -319,7 +360,7 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
                         </div>
                          {/* ETAPA 3 */}
                         <div className={cn("space-y-6", currentStep !== 2 && "hidden")}>
-                            <FileInput name="companyLogo" label="Logo da Empresa (Opcional)" description="PNG, JPG, WEBP (MAX. 5MB)" existingImageUrl={profile.photoURL} />
+                            <FileInput name="companyLogo" label="Logo da Empresa (Opcional)" description="PNG, JPG, WEBP (MAX. 5MB)" existingFile={{url: profile.photoURL, status: 'approved'}} />
                         </div>
                          {/* ETAPA 4 */}
                         <div className={cn("space-y-6", currentStep !== 3 && "hidden")}>
@@ -335,8 +376,8 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
                                 render={({ field }) => (<FormItem><FormLabel>CPF do Responsável</FormLabel><FormControl><Input placeholder="000.000.000-00" {...field} /></FormControl><FormMessage /></FormItem>
                                 )}
                             />
-                             <FileInput name="responsibleDocument" label="Documento do Responsável (Frente e Verso)" description="RG ou CNH. PNG, JPG, PDF (MAX. 5MB)" />
-                             <FileInput name="cnpjCard" label="Cartão CNPJ" description="Cartão CNPJ da empresa. PNG, JPG, PDF (MAX. 5MB)" />
+                             <FileInput name="responsibleDocument" label="Documento do Responsável (Frente e Verso)" description="RG ou CNH. PNG, JPG, PDF (MAX. 5MB)" existingFile={profile.responsible?.document} />
+                             <FileInput name="cnpjCard" label="Cartão CNPJ" description="Cartão CNPJ da empresa. PNG, JPG, PDF (MAX. 5MB)" existingFile={profile.cnpjCard} />
                         </div>
                         {/* ETAPA 5 */}
                          <div className={cn("space-y-6", currentStep !== 4 && "hidden")}>

@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Mail, Phone, Calendar, User, ShieldCheck, Truck, FileText, ArrowLeft, Loader2, MoreVertical, Building, Landmark, CaseSensitive, Package, PackageSearch, PackageCheck, CreditCard, Pencil, ExternalLink } from 'lucide-react';
+import { Mail, Phone, Calendar, User, ShieldCheck, Truck, FileText, ArrowLeft, Loader2, MoreVertical, Building, Landmark, CaseSensitive, Package, PackageSearch, PackageCheck, CreditCard, Pencil, ExternalLink, ThumbsUp, ThumbsDown, CircleHelp } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState } from 'react';
@@ -23,17 +23,26 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger
 } from "@/components/ui/dropdown-menu"
-import { updateUserStatus, assignPlanToUser, getPlans, type Plan } from '@/app/actions';
+import { updateUserStatus, assignPlanToUser, getPlans, type Plan, updateDocumentStatus } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
+
+type DocumentData = {
+    url: string;
+    status: 'pending' | 'approved' | 'rejected';
+}
 
 type UserData = {
     uid: string;
     name: string;
     email: string;
     role: 'driver' | 'company' | 'admin';
-    status?: 'active' | 'pending' | 'blocked' | 'suspended';
+    status?: 'active' | 'pending' | 'blocked' | 'suspended' | 'incomplete';
     createdAt: any;
     photoURL?: string;
     // Driver fields
@@ -50,9 +59,9 @@ type UserData = {
     responsible?: {
         name: string;
         cpf: string;
-        documentUrl?: string;
+        document?: DocumentData;
     };
-    cnpjCardUrl?: string;
+    cnpjCard?: DocumentData;
 };
 
 type CompanyStats = {
@@ -85,6 +94,7 @@ const getStatusVariant = (status?: string): "default" | "secondary" | "destructi
         case 'pending': return 'secondary';
         case 'blocked': return 'destructive';
         case 'suspended': return 'outline';
+        case 'incomplete': return 'secondary';
         default: return 'secondary';
     }
 };
@@ -95,9 +105,28 @@ const getStatusLabel = (status?: string): string => {
         case 'pending': return 'Pendente';
         case 'blocked': return 'Bloqueado';
         case 'suspended': return 'Suspenso';
+        case 'incomplete': return 'Incompleto';
         default: return 'Indefinido';
     }
 }
+
+const getDocStatusLabel = (status?: string) => {
+    switch(status) {
+        case 'approved': return 'Aprovado';
+        case 'rejected': return 'Recusado';
+        case 'pending':
+        default: return 'Pendente';
+    }
+};
+
+const getDocStatusIcon = (status?: string) => {
+    switch(status) {
+        case 'approved': return <ThumbsUp className="h-4 w-4 text-green-500" />;
+        case 'rejected': return <ThumbsDown className="h-4 w-4 text-destructive" />;
+        case 'pending':
+        default: return <CircleHelp className="h-4 w-4 text-yellow-500" />;
+    }
+};
 
 const userStatuses: (UserData['status'])[] = ['active', 'pending', 'blocked', 'suspended'];
 
@@ -238,6 +267,23 @@ export default function UserDetailsPage() {
       }
   }
 
+  const handleDocumentStatusChange = async (docField: 'responsible.document' | 'cnpjCard', newStatus: 'approved' | 'rejected') => {
+      if (!user) return;
+      try {
+          await updateDocumentStatus(user.uid, docField, newStatus);
+          toast({
+              title: "Sucesso!",
+              description: `Documento ${docField === 'cnpjCard' ? 'CNPJ' : 'do Responsável'} foi ${newStatus === 'approved' ? 'aprovado' : 'recusado'}.`,
+          });
+      } catch (error) {
+           toast({
+              variant: 'destructive',
+              title: 'Erro ao atualizar documento',
+              description: error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.',
+          });
+      }
+  }
+
 
   if (isLoading || !user) {
     return (
@@ -269,7 +315,7 @@ export default function UserDetailsPage() {
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Alterar Status</DropdownMenuLabel>
+                    <DropdownMenuLabel>Alterar Status Geral</DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     {userStatuses.map(status => (
                         <DropdownMenuItem
@@ -484,24 +530,58 @@ export default function UserDetailsPage() {
                     <h3 className="text-lg font-semibold flex items-center gap-2">
                         <FileText className="h-5 w-5" /> Documentos Enviados
                     </h3>
-                    <div className="space-y-2">
-                        {user.responsible?.documentUrl ? (
-                            <a href={user.responsible.documentUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary hover:underline">
-                                <ExternalLink className="h-4 w-4" />
-                                Documento do Responsável
-                            </a>
+                    <div className="space-y-4">
+                        {user.responsible?.document?.url ? (
+                             <div className="flex flex-wrap items-center justify-between gap-2 p-3 border rounded-md">
+                                <div className='flex items-center gap-2'>
+                                    {getDocStatusIcon(user.responsible.document.status)}
+                                    <span className={cn('font-medium text-sm', {'text-muted-foreground line-through': user.responsible.document.status === 'rejected'})}>
+                                        Documento do Responsável
+                                    </span>
+                                     <Badge variant="outline" className="capitalize">{getDocStatusLabel(user.responsible.document.status)}</Badge>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <a href={user.responsible.document.url} target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>
+                                        <ExternalLink className="mr-2 h-4 w-4" /> Ver
+                                    </a>
+                                     <DropdownMenu>
+                                        <DropdownMenuTrigger asChild><Button variant="ghost" size="sm">Ações</Button></DropdownMenuTrigger>
+                                        <DropdownMenuContent>
+                                            <DropdownMenuItem onSelect={() => handleDocumentStatusChange('responsible.document', 'approved')} disabled={user.responsible?.document?.status === 'approved'}>Aprovar</DropdownMenuItem>
+                                            <DropdownMenuItem onSelect={() => handleDocumentStatusChange('responsible.document', 'rejected')} disabled={user.responsible?.document?.status === 'rejected'}>Recusar</DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
+                            </div>
                         ) : (
                             <p className="text-sm text-muted-foreground">Documento do Responsável não enviado.</p>
                         )}
-                        {user.cnpjCardUrl ? (
-                             <a href={user.cnpjCardUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary hover:underline">
-                                <ExternalLink className="h-4 w-4" />
-                                Cartão CNPJ
-                            </a>
+                        {user.cnpjCard?.url ? (
+                             <div className="flex flex-wrap items-center justify-between gap-2 p-3 border rounded-md">
+                                 <div className='flex items-center gap-2'>
+                                    {getDocStatusIcon(user.cnpjCard.status)}
+                                    <span className={cn('font-medium text-sm', {'text-muted-foreground line-through': user.cnpjCard.status === 'rejected'})}>
+                                        Cartão CNPJ
+                                    </span>
+                                     <Badge variant="outline" className="capitalize">{getDocStatusLabel(user.cnpjCard.status)}</Badge>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                     <a href={user.cnpjCard.url} target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>
+                                        <ExternalLink className="mr-2 h-4 w-4" /> Ver
+                                    </a>
+                                     <DropdownMenu>
+                                        <DropdownMenuTrigger asChild><Button variant="ghost" size="sm">Ações</Button></DropdownMenuTrigger>
+                                        <DropdownMenuContent>
+                                            <DropdownMenuItem onSelect={() => handleDocumentStatusChange('cnpjCard', 'approved')} disabled={user.cnpjCard?.status === 'approved'}>Aprovar</DropdownMenuItem>
+                                            <DropdownMenuItem onSelect={() => handleDocumentStatusChange('cnpjCard', 'rejected')} disabled={user.cnpjCard?.status === 'rejected'}>Recusar</DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
+                            </div>
                         ) : (
                             <p className="text-sm text-muted-foreground">Cartão CNPJ não enviado.</p>
                         )}
-                         {!user.responsible?.documentUrl && !user.cnpjCardUrl && (
+                         {!user.responsible?.document?.url && !user.cnpjCard?.url && (
                              <p className="text-muted-foreground text-sm">Nenhum documento enviado.</p>
                          )}
                     </div>
@@ -512,5 +592,3 @@ export default function UserDetailsPage() {
     </div>
   );
 }
-
-    
