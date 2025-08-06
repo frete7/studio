@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { type Freight } from '@/app/actions';
-import { Loader2, ArrowLeft, User, Mail, Phone, Calendar, MapPin, Package, AlertCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Mail, Phone, Calendar, MapPin, Package, AlertCircle, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -26,8 +26,23 @@ type FreightDetails = Freight & {
         type: string;
         description?: string;
         list?: { value: string }[];
+    },
+    additionalInfo?: {
+        hasRestriction: boolean;
+        restrictionDetails?: string;
+        needsAssembly: boolean;
+        assemblyItems?: { value: string }[];
+        needsPackaging: boolean;
+        packagingItems?: { value: string }[];
+        hasSchedulePreference: boolean;
+        scheduleDetails?: string;
+        hasParkingRestriction: boolean;
+        parkingRestrictionDetails?: string;
+        needsStorage: boolean;
+        needsItemPackaging: boolean;
+        itemPackagingDetails?: { value: string }[];
+        companyPreference: 'price' | 'quality' | 'cost_benefit';
     }
-    // other specific fields from the request form
 };
 
 export default function FreightDetailsPage() {
@@ -84,6 +99,25 @@ export default function FreightDetailsPage() {
             </p>
         </div>
     );
+    
+    const renderAdditionalInfoList = (items: { value: string }[] | undefined) => {
+        if (!items || items.length === 0) return null;
+        return (
+            <ul className="list-disc list-inside text-sm text-muted-foreground pl-4">
+                {items.map((item, index) => <li key={index}>{item.value}</li>)}
+            </ul>
+        );
+    }
+    
+    const getCompanyPreferenceLabel = (preference?: string) => {
+        switch (preference) {
+            case 'price': return 'Preço (o mais barato)';
+            case 'quality': return 'Qualidade (a mais bem avaliada)';
+            case 'cost_benefit': return 'Custo/Benefício';
+            default: return 'Não informado';
+        }
+    }
+
 
     if (isLoading) {
         return (
@@ -130,8 +164,8 @@ export default function FreightDetailsPage() {
                         <h1 className="text-3xl font-bold font-headline text-primary">
                             Detalhes do Frete
                         </h1>
-                         <Badge variant="outline" className="text-base font-semibold border-primary/50 text-primary">
-                            {freight.freightType === 'comum' ? 'COMUM' : 'OUTRO'}
+                         <Badge variant="outline" className="text-base font-semibold border-primary/50 text-primary uppercase">
+                            {freight.freightType}
                         </Badge>
                     </div>
                      <p className="text-muted-foreground">Código: {freight.id}</p>
@@ -176,6 +210,46 @@ export default function FreightDetailsPage() {
                         </CardContent>
                     </Card>
                 )}
+                
+                 {freight.additionalInfo && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                               <Info className="h-5 w-5" />
+                                Informações Adicionais
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3 text-sm">
+                            <div>
+                                <p><strong>Restrição no local?</strong> <span className="text-muted-foreground">{freight.additionalInfo.hasRestriction ? `Sim - ${freight.additionalInfo.restrictionDetails}` : 'Não'}</span></p>
+                            </div>
+                            <div>
+                                <p><strong>Necessita montagem/desmontagem?</strong> <span className="text-muted-foreground">{freight.additionalInfo.needsAssembly ? 'Sim' : 'Não'}</span></p>
+                                {renderAdditionalInfoList(freight.additionalInfo.assemblyItems)}
+                            </div>
+                             <div>
+                                <p><strong>Precisa que a empresa embale algum móvel?</strong> <span className="text-muted-foreground">{freight.additionalInfo.needsPackaging ? 'Sim' : 'Não'}</span></p>
+                                {renderAdditionalInfoList(freight.additionalInfo.packagingItems)}
+                            </div>
+                             <div>
+                                <p><strong>Existe horário preferencial?</strong> <span className="text-muted-foreground">{freight.additionalInfo.hasSchedulePreference ? `Sim - ${freight.additionalInfo.scheduleDetails}` : 'Não'}</span></p>
+                            </div>
+                             <div>
+                                <p><strong>Restrição/taxa para estacionar?</strong> <span className="text-muted-foreground">{freight.additionalInfo.hasParkingRestriction ? `Sim - ${freight.additionalInfo.parkingRestrictionDetails}` : 'Não'}</span></p>
+                            </div>
+                            <div>
+                                <p><strong>Precisa de guarda-móveis?</strong> <span className="text-muted-foreground">{freight.additionalInfo.needsStorage ? 'Sim' : 'Não'}</span></p>
+                            </div>
+                            <div>
+                                <p><strong>Precisa que a empresa embale outros itens?</strong> <span className="text-muted-foreground">{freight.additionalInfo.needsItemPackaging ? 'Sim' : 'Não'}</span></p>
+                                {renderAdditionalInfoList(freight.additionalInfo.itemPackagingDetails)}
+                            </div>
+                             <div>
+                                <p><strong>Preferência na escolha da empresa:</strong> <span className="text-muted-foreground">{getCompanyPreferenceLabel(freight.additionalInfo.companyPreference)}</span></p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                 )}
 
 
                 {freight.contact && (
@@ -209,3 +283,5 @@ export default function FreightDetailsPage() {
         </div>
     );
 }
+
+    
