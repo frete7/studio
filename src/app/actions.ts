@@ -83,24 +83,30 @@ export async function updateUserByAdmin(userId: string, data: any): Promise<void
             throw new Error("Usuário não encontrado.");
         }
         
+        // Initialize responsible if it doesn't exist
+        const responsibleData = userData.responsible || {};
+
         const updateData: any = {
             name: data.name,
             tradingName: data.tradingName,
             cnpj: data.cnpj,
             address: data.address,
-            'responsible.name': data.responsibleName,
-            'responsible.cpf': data.responsibleCpf
+            responsible: {
+                ...responsibleData,
+                name: data.responsibleName,
+                cpf: data.responsibleCpf,
+            }
         };
 
         // Migrate old document format to new one if necessary
         if (typeof userData.responsible?.document === 'string') {
-            updateData['responsible.document'] = {
+            updateData.responsible.document = {
                 url: userData.responsible.document,
                 status: 'pending'
             };
         }
         if (typeof userData.cnpjCard === 'string') {
-             updateData['cnpjCard'] = {
+             updateData.cnpjCard = {
                 url: userData.cnpjCard,
                 status: 'pending'
             };
