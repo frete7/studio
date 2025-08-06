@@ -7,8 +7,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Eye, Loader2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import Link from 'next/link';
 
 type User = {
     uid: string;
@@ -19,6 +21,7 @@ type User = {
 };
 
 const getInitials = (name: string) => {
+    if (!name) return '';
     return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
 }
 
@@ -81,11 +84,16 @@ export default function UsersClient() {
                             <TableCell>{user.email}</TableCell>
                             <TableCell>
                                 <Badge variant={user.role === 'admin' ? 'destructive' : 'secondary'} className="capitalize">
-                                    {user.role}
+                                    {user.role === 'driver' ? 'Motorista' : user.role === 'company' ? 'Empresa' : user.role}
                                 </Badge>
                             </TableCell>
                              <TableCell className="text-right">
-                                {/* Action buttons will go here */}
+                                <Button asChild variant="ghost" size="icon">
+                                    <Link href={`/admin/users/${user.uid}`}>
+                                        <Eye className="h-4 w-4" />
+                                        <span className="sr-only">Ver Detalhes</span>
+                                    </Link>
+                                </Button>
                             </TableCell>
                         </TableRow>
                     ))}
