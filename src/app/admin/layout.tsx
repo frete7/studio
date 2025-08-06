@@ -31,7 +31,7 @@ export default function AdminLayout({
                             <Truck className="h-6 w-6 text-primary" />
                             <span className="font-bold text-lg text-foreground">Frete7</span>
                         </Link>
-                        <SidebarTrigger asChild className="md:hidden">
+                        <SidebarTrigger className="md:hidden">
                             <Button variant="ghost" size="icon">
                                 <PanelLeft />
                             </Button>
@@ -61,12 +61,14 @@ export default function AdminLayout({
             </Sidebar>
             <main className="flex-1 overflow-y-auto">
                 <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
-                    <SidebarTrigger asChild className="md:hidden">
-                        <Button variant="ghost" size="icon">
-                            <PanelLeft />
-                        </Button>
-                    </SidebarTrigger>
-                    <h1 className="text-xl font-semibold md:text-2xl">{navItems.find(item => item.href === pathname)?.label || 'Admin'}</h1>
+                     <div className="flex items-center">
+                        <SidebarTrigger className="md:hidden">
+                           <Button variant="ghost" size="icon">
+                               <PanelLeft />
+                           </Button>
+                        </SidebarTrigger>
+                        <h1 className="text-xl font-semibold md:text-2xl ml-2">{navItems.find(item => item.href === pathname)?.label || 'Admin'}</h1>
+                     </div>
                 </header>
                 <div className="p-4 md:p-6">
                      {children}
