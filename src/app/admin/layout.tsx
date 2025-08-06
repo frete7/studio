@@ -61,7 +61,11 @@ export default function AdminLayout({
             </Sidebar>
             <main className="flex-1 overflow-y-auto">
                 <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
-                    <SidebarTrigger className="md:hidden"/>
+                    <SidebarTrigger asChild className="md:hidden">
+                        <Button variant="ghost" size="icon">
+                            <PanelLeft />
+                        </Button>
+                    </SidebarTrigger>
                     <h1 className="text-xl font-semibold md:text-2xl">{navItems.find(item => item.href === pathname)?.label || 'Admin'}</h1>
                 </header>
                 <div className="p-4 md:p-6">
