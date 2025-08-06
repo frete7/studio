@@ -9,7 +9,7 @@ const navLinks = [
   { href: '#', label: 'Buscar Fretes' },
   { href: '/optimizer', label: 'Otimizar Rota' },
   { href: '#', label: 'Empresas' },
-  { href: '#', 'label': 'Motoristas' },
+  { href: '#', label: 'Motoristas' },
 ];
 
 export default function Header() {
@@ -23,8 +23,8 @@ export default function Header() {
           <span className="font-bold text-lg">Frete7</span>
         </Link>
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
-          {navLinks.map((link) => (
-            <Link key={link.href} href={link.href} className="text-foreground/60 transition-colors hover:text-foreground/80">
+          {navLinks.map((link, index) => (
+            <Link key={`${link.href}-${index}`} href={link.href} className="text-foreground/60 transition-colors hover:text-foreground/80">
               {link.label}
             </Link>
           ))}
@@ -52,8 +52,8 @@ export default function Header() {
                   <span className="font-bold text-lg">Frete7</span>
                 </Link>
                 <nav className="flex flex-col gap-4">
-                  {navLinks.map((link) => (
-                    <Link key={link.href} href={link.href} className="text-foreground/80 transition-colors hover:text-foreground" onClick={() => setIsOpen(false)}>
+                  {navLinks.map((link, index) => (
+                    <Link key={`${link.href}-${index}-mobile`} href={link.href} className="text-foreground/80 transition-colors hover:text-foreground" onClick={() => setIsOpen(false)}>
                       {link.label}
                     </Link>
                   ))}
