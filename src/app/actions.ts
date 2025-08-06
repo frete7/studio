@@ -250,3 +250,18 @@ export async function getPlans(): Promise<Plan[]> {
         throw new Error("Falha ao buscar os planos.");
     }
 }
+
+// Freights Actions
+export type Freight = {
+    id: string;
+    freightType: 'comum' | 'agregamento' | 'frete completo' | 'frete de retorno';
+    origin: string;
+    destinations: string[];
+    createdAt: {
+        seconds: number;
+        nanoseconds: number;
+    };
+    companyId: string;
+    companyName?: string;
+    status: 'ativo' | 'concluido' | 'pendente' | 'cancelado';
+}

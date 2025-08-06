@@ -1,18 +1,20 @@
 
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import type { Metadata } from 'next';
+import FreightsClient from './freights-client';
+
+export const metadata: Metadata = {
+    title: 'Gerenciamento de Fretes | Frete7 Admin',
+    description: 'Monitore e gerencie todos os fretes anunciados na plataforma.',
+};
 
 export default function AdminFreightPage() {
   return (
     <div>
-        <Card>
-            <CardHeader>
-                <CardTitle>Gerenciamento de Fretes</CardTitle>
-                <CardDescription>Monitore e gerencie todos os fretes anunciados.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <p>Em breve: uma tabela com todos os fretes, com opções para visualizar detalhes, editar ou remover.</p>
-            </CardContent>
-        </Card>
+        <div className="mb-8">
+            <h1 className="text-3xl font-bold font-headline text-primary">Gerenciamento de Fretes</h1>
+            <p className="text-foreground/70">Monitore e gerencie todos os fretes anunciados.</p>
+        </div>
+        <FreightsClient />
     </div>
   );
 }
