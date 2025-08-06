@@ -1,6 +1,6 @@
 
 import { Card, CardContent } from "@/components/ui/card";
-import { Truck } from "lucide-react";
+import { Truck, Shapes } from "lucide-react";
 import Link from "next/link";
 
 export default function AdminSettingsPage() {
@@ -17,6 +17,14 @@ export default function AdminSettingsPage() {
             <CardContent className="flex flex-col items-center justify-center p-6 aspect-square">
                 <Truck className="h-10 w-10 text-primary mb-4" />
                 <span className="font-semibold text-center">Tipos de Veículos</span>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/admin/categories">
+          <Card className="hover:bg-muted/50 transition-colors">
+            <CardContent className="flex flex-col items-center justify-center p-6 aspect-square">
+                <Shapes className="h-10 w-10 text-primary mb-4" />
+                <span className="font-semibold text-center">Categorias de Veículos</span>
             </CardContent>
           </Card>
         </Link>

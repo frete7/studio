@@ -1,3 +1,4 @@
+
 'use server';
 
 import {
@@ -83,5 +84,62 @@ export async function deleteVehicleType(id: string): Promise<void> {
   } catch (error) {
     console.error("Error deleting vehicle type: ", error);
     throw new Error('Falha ao deletar o tipo de veículo.');
+  }
+}
+
+// Vehicle Categories Actions
+export type VehicleCategory = {
+  id: string;
+  name: string;
+};
+
+export async function getVehicleCategories(): Promise<VehicleCategory[]> {
+  try {
+    const categoriesCollection = collection(db, 'vehicle_categories');
+    const snapshot = await getDocs(categoriesCollection);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VehicleCategory));
+  } catch (error) {
+    console.error("Error fetching vehicle categories: ", error);
+    return [];
+  }
+}
+
+export async function addVehicleCategory(name: string): Promise<VehicleCategory> {
+  if (!name) {
+    throw new Error('O nome da categoria é obrigatório.');
+  }
+  try {
+    const categoriesCollection = collection(db, 'vehicle_categories');
+    const docRef = await addDoc(categoriesCollection, { name });
+    return { id: docRef.id, name };
+  } catch (error) {
+    console.error("Error adding vehicle category: ", error);
+    throw new Error('Falha ao adicionar a categoria.');
+  }
+}
+
+export async function updateVehicleCategory(id: string, name: string): Promise<void> {
+  if (!id || !name) {
+    throw new Error('ID e nome da categoria são obrigatórios.');
+  }
+  try {
+    const categoryDoc = doc(db, 'vehicle_categories', id);
+    await updateDoc(categoryDoc, { name });
+  } catch (error) {
+    console.error("Error updating vehicle category: ", error);
+    throw new Error('Falha ao atualizar a categoria.');
+  }
+}
+
+export async function deleteVehicleCategory(id: string): Promise<void> {
+  if (!id) {
+    throw new Error('O ID da categoria é obrigatório.');
+  }
+  try {
+    const categoryDoc = doc(db, 'vehicle_categories', id);
+    await deleteDoc(categoryDoc);
+  } catch (error) {
+    console.error("Error deleting vehicle category: ", error);
+    throw new Error('Falha ao deletar a categoria.');
   }
 }
