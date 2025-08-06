@@ -1,7 +1,7 @@
 
 'use client';
 import { SidebarProvider, Sidebar, SidebarTrigger, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
-import { Home, Users, Truck, Package, Settings, PanelLeft } from 'lucide-react';
+import { Home, Users, Truck, Package, Settings, PanelLeft, CreditCard } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ const navItems = [
   { href: '/admin/users', label: 'Usuários', icon: Users },
   { href: '/admin/freight', label: 'Fretes', icon: Package },
   { href: '/admin/vehicles', label: 'Veículos', icon: Truck },
+  { href: '/admin/plans', label: 'Planos', icon: CreditCard },
   { href: '/admin/settings', label: 'Configurações', icon: Settings },
 ];
 
@@ -23,7 +24,7 @@ export default function AdminLayout({
 
   return (
     <SidebarProvider>
-        <div className="flex min-h-screen">
+        <div className="flex min-h-screen bg-muted/40">
             <Sidebar>
                 <SidebarHeader>
                     <div className="flex items-center justify-between">
