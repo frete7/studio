@@ -1,17 +1,27 @@
 'use client';
 
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { notFound, useRouter, useParams } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Mail, Phone, Calendar, User, ShieldCheck, Truck, FileText, ArrowLeft, Loader2 } from 'lucide-react';
+import { Mail, Phone, Calendar, User, ShieldCheck, Truck, FileText, ArrowLeft, Loader2, MoreVertical } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { updateUserStatus } from '@/app/actions';
+import { useToast } from '@/hooks/use-toast';
 
 
 type UserData = {
@@ -64,6 +74,8 @@ const getStatusLabel = (status?: string): string => {
     }
 }
 
+const userStatuses: UserData['status'][] = ['active', 'pending', 'blocked', 'suspended'];
+
 
 export default function UserDetailsPage() {
   const [user, setUser] = useState<UserData | null>(null);
@@ -71,6 +83,7 @@ export default function UserDetailsPage() {
   const router = useRouter();
   const params = useParams();
   const userId = params.userId as string;
+  const { toast } = useToast();
 
 
   useEffect(() => {
@@ -81,21 +94,19 @@ export default function UserDetailsPage() {
         router.push('/login');
         return;
       }
-      // First, verify if the logged-in user is an admin
       const adminDocRef = doc(db, 'users', currentUser.uid);
       const adminDoc = await getDoc(adminDocRef);
 
       if (!adminDoc.exists() || adminDoc.data().role !== 'admin') {
-        router.push('/'); // Redirect if not admin
+        router.push('/');
         return;
       }
 
-      // If admin, fetch the user data for the page
       const userDocRef = doc(db, 'users', userId);
       const userDoc = await getDoc(userDocRef);
 
       if (userDoc.exists()) {
-        setUser(userDoc.data() as UserData);
+        setUser({ ...userDoc.data(), uid: userDoc.id } as UserData);
       } else {
         notFound();
       }
@@ -104,6 +115,26 @@ export default function UserDetailsPage() {
 
     return () => unsubscribe();
   }, [userId, router]);
+  
+  const handleStatusChange = async (newStatus: UserData['status']) => {
+    if (!user || !newStatus) return;
+
+    try {
+        await updateUserStatus(user.uid, newStatus);
+        setUser(prevUser => prevUser ? { ...prevUser, status: newStatus } : null);
+        toast({
+            title: "Sucesso!",
+            description: `Status do usuário atualizado para ${getStatusLabel(newStatus)}.`,
+        });
+    } catch (error) {
+        toast({
+            variant: "destructive",
+            title: "Erro ao atualizar",
+            description: "Não foi possível alterar o status do usuário.",
+        });
+        console.error("Failed to update user status:", error);
+    }
+  };
 
 
   if (isLoading || !user) {
@@ -117,13 +148,35 @@ export default function UserDetailsPage() {
 
   return (
     <div className="space-y-6">
-        <div className="flex items-center gap-4">
-            <Button asChild variant="outline" size="icon">
-                <Link href="/admin/users">
-                    <ArrowLeft className="h-4 w-4" />
-                </Link>
-            </Button>
-            <h1 className="text-2xl font-bold">Detalhes do Usuário</h1>
+        <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+                <Button asChild variant="outline" size="icon">
+                    <Link href="/admin/users">
+                        <ArrowLeft className="h-4 w-4" />
+                    </Link>
+                </Button>
+                <h1 className="text-2xl font-bold">Detalhes do Usuário</h1>
+            </div>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                        <MoreVertical className="h-4 w-4" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {userStatuses.map(status => (
+                        <DropdownMenuItem
+                            key={status}
+                            disabled={user.status === status}
+                            onSelect={() => handleStatusChange(status)}
+                        >
+                            Mudar status para {getStatusLabel(status)}
+                        </DropdownMenuItem>
+                    ))}
+                </DropdownMenuContent>
+            </DropdownMenu>
         </div>
 
         <Card>
