@@ -1,9 +1,8 @@
-
 'use client';
 
 import { doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
-import { notFound, useRouter } from 'next/navigation';
+import { notFound, useRouter, useParams } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,11 +13,6 @@ import { Button } from '@/components/ui/button';
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 
-type UserPageProps = {
-  params: {
-    userId: string;
-  };
-};
 
 type UserData = {
     uid: string;
@@ -71,12 +65,17 @@ const getStatusLabel = (status?: string): string => {
 }
 
 
-export default function UserDetailsPage({ params }: UserPageProps) {
+export default function UserDetailsPage() {
   const [user, setUser] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  const params = useParams();
+  const userId = params.userId as string;
+
 
   useEffect(() => {
+    if (!userId) return;
+    
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
         router.push('/login');
@@ -92,7 +91,7 @@ export default function UserDetailsPage({ params }: UserPageProps) {
       }
 
       // If admin, fetch the user data for the page
-      const userDocRef = doc(db, 'users', params.userId);
+      const userDocRef = doc(db, 'users', userId);
       const userDoc = await getDoc(userDocRef);
 
       if (userDoc.exists()) {
@@ -104,7 +103,7 @@ export default function UserDetailsPage({ params }: UserPageProps) {
     });
 
     return () => unsubscribe();
-  }, [params.userId, router]);
+  }, [userId, router]);
 
 
   if (isLoading || !user) {
