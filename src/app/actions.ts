@@ -212,3 +212,52 @@ export type BodyType = {
   name: string;
   group: string;
 };
+
+// Plans Actions
+export type Plan = {
+    id: string;
+    name: string;
+    description: string;
+    durationDays: number;
+    pricePix: number;
+    priceCard: number;
+};
+
+export async function getPlans(): Promise<Plan[]> {
+    try {
+        const plansCollection = collection(db, 'plans');
+        const snapshot = await getDocs(plansCollection);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Plan));
+    } catch (error) {
+        console.error("Error fetching plans: ", error);
+        throw new Error("Falha ao buscar os planos.");
+    }
+}
+
+export async function addPlan(data: Omit<Plan, 'id'>): Promise<Plan> {
+    try {
+        const docRef = await addDoc(collection(db, 'plans'), data);
+        return { id: docRef.id, ...data };
+    } catch (error) {
+        console.error("Error adding plan: ", error);
+        throw new Error("Falha ao adicionar o plano.");
+    }
+}
+
+export async function updatePlan(id: string, data: Partial<Omit<Plan, 'id'>>): Promise<void> {
+    try {
+        await updateDoc(doc(db, 'plans', id), data);
+    } catch (error) {
+        console.error("Error updating plan: ", error);
+        throw new Error("Falha ao atualizar o plano.");
+    }
+}
+
+export async function deletePlan(id: string): Promise<void> {
+    try {
+        await deleteDoc(doc(db, 'plans', id));
+    } catch (error) {
+        console.error("Error deleting plan: ", error);
+        throw new Error("Falha ao deletar o plano.");
+    }
+}
