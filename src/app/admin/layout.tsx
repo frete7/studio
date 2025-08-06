@@ -31,7 +31,6 @@ export default function AdminLayout({
                             <Truck className="h-6 w-6 text-primary" />
                             <span className="font-bold text-lg text-foreground">Frete7</span>
                         </Link>
-                        <SidebarTrigger className="md:hidden" />
                     </div>
                 </SidebarHeader>
                 <SidebarContent>
