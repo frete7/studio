@@ -233,7 +233,7 @@ export default function FretesClient() {
                                     <p className="font-bold text-lg text-primary">R$ •••••</p>
                                 )}
                                 <Button asChild variant="secondary" size="sm">
-                                    <Link href="#">
+                                    <Link href={`/fretes/${freight.id}`}>
                                         Ver detalhes
                                     </Link>
                                 </Button>
