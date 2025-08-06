@@ -1,20 +1,15 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useRouter } from 'next/navigation';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
-import {
-  addVehicleCategory,
-  updateVehicleCategory,
-  deleteVehicleCategory,
-  type VehicleCategory
-} from '@/app/actions';
+import { type VehicleCategory } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,9 +50,11 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-export default function CategoriesClient() {
-  const [categories, setCategories] = useState<VehicleCategory[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+interface CategoriesClientProps {
+    initialData: VehicleCategory[];
+}
+
+export default function CategoriesClient({ initialData }: CategoriesClientProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<VehicleCategory | null>(null);
@@ -72,32 +69,6 @@ export default function CategoriesClient() {
       name: '',
     },
   });
-
-  useEffect(() => {
-    setIsLoading(true);
-    const q = query(collection(db, 'vehicle_categories'));
-    const unsubscribe = onSnapshot(q, 
-        (querySnapshot) => {
-            const categoriesData: VehicleCategory[] = [];
-            querySnapshot.forEach((doc) => {
-                categoriesData.push({ ...doc.data(), id: doc.id } as VehicleCategory);
-            });
-            setCategories(categoriesData);
-            setIsLoading(false);
-        },
-        (error) => {
-            console.error("Error fetching categories: ", error);
-            toast({
-                variant: 'destructive',
-                title: 'Erro ao carregar categorias',
-                description: 'Verifique suas permissões e a conexão com o Firebase.'
-            });
-            setIsLoading(false);
-        }
-    );
-
-    return () => unsubscribe();
-}, [toast]);
 
   const handleEditClick = (category: VehicleCategory) => {
     setEditingCategory(category);
@@ -115,16 +86,18 @@ export default function CategoriesClient() {
     setIsSubmitting(true);
     try {
       if (editingCategory) {
-        await updateVehicleCategory(editingCategory.id, formData.name);
+        const categoryDoc = doc(db, 'vehicle_categories', editingCategory.id);
+        await updateDoc(categoryDoc, { name: formData.name });
         toast({ title: 'Sucesso!', description: 'Categoria atualizada.' });
       } else {
-        await addVehicleCategory(formData.name);
+        const categoriesCollection = collection(db, 'vehicle_categories');
+        await addDoc(categoriesCollection, { name: formData.name });
         toast({ title: 'Sucesso!', description: 'Nova categoria adicionada.' });
       }
       form.reset();
       setIsDialogOpen(false);
       setEditingCategory(null);
-      // No need to call router.refresh() because onSnapshot will update the state
+      router.refresh();
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -138,9 +111,10 @@ export default function CategoriesClient() {
 
   const handleDelete = async (id: string) => {
     try {
-        await deleteVehicleCategory(id);
+        const categoryDoc = doc(db, 'vehicle_categories', id);
+        await deleteDoc(categoryDoc);
         toast({ title: 'Sucesso!', description: 'Categoria removida.' });
-        // No need to call router.refresh()
+        router.refresh();
     } catch (error) {
          toast({
             variant: 'destructive',
@@ -151,14 +125,7 @@ export default function CategoriesClient() {
   }
 
   const renderContent = () => {
-    if (isLoading) {
-        return (
-            <div className="flex justify-center items-center h-48">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-        );
-    }
-    if (categories.length === 0) {
+    if (initialData.length === 0) {
         return <p className="text-center text-muted-foreground py-8">Nenhuma categoria de veículo cadastrada.</p>;
     }
     return (
@@ -170,7 +137,7 @@ export default function CategoriesClient() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {categories.map((category) => (
+              {initialData.map((category) => (
                 <TableRow key={category.id}>
                   <TableCell className="font-medium">{category.name}</TableCell>
                   <TableCell className="text-right space-x-2">
