@@ -34,6 +34,7 @@ export async function updateUserStatus(uid: string, status: string) {
 export type VehicleType = {
   id: string;
   name: string;
+  categoryId: string;
 };
 
 export async function getVehicleTypes(): Promise<VehicleType[]> {
@@ -47,27 +48,27 @@ export async function getVehicleTypes(): Promise<VehicleType[]> {
   }
 }
 
-export async function addVehicleType(name: string): Promise<VehicleType> {
-  if (!name) {
-    throw new Error('O nome do tipo de veículo é obrigatório.');
+export async function addVehicleType(data: Omit<VehicleType, 'id'>): Promise<VehicleType> {
+  if (!data.name || !data.categoryId) {
+    throw new Error('Nome e categoria do tipo de veículo são obrigatórios.');
   }
   try {
     const vehicleTypesCollection = collection(db, 'vehicle_types');
-    const docRef = await addDoc(vehicleTypesCollection, { name });
-    return { id: docRef.id, name };
+    const docRef = await addDoc(vehicleTypesCollection, data);
+    return { id: docRef.id, ...data };
   } catch (error) {
     console.error("Error adding vehicle type: ", error);
     throw new Error('Falha ao adicionar o tipo de veículo.');
   }
 }
 
-export async function updateVehicleType(id: string, name: string): Promise<void> {
-  if (!id || !name) {
-    throw new Error('ID e nome do tipo de veículo são obrigatórios.');
+export async function updateVehicleType(id: string, data: Partial<Omit<VehicleType, 'id'>>): Promise<void> {
+  if (!id || !data.name || !data.categoryId) {
+    throw new Error('ID, nome e categoria do tipo de veículo são obrigatórios.');
   }
   try {
     const vehicleTypeDoc = doc(db, 'vehicle_types', id);
-    await updateDoc(vehicleTypeDoc, { name });
+    await updateDoc(vehicleTypeDoc, data);
   } catch (error) {
     console.error("Error updating vehicle type: ", error);
     throw new Error('Falha ao atualizar o tipo de veículo.');

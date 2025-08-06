@@ -24,7 +24,6 @@ const formSchema = z.object({
   model: z.string().min(2, { message: 'O modelo deve ter pelo menos 2 caracteres.' }),
   licensePlate: z.string().min(7, { message: 'A placa deve ter pelo menos 7 caracteres.' }).max(8, { message: 'A placa deve ter no máximo 8 caracteres.' }),
   typeId: z.string({ required_error: 'Selecione o tipo.' }),
-  categoryId: z.string({ required_error: 'Selecione a categoria.' }),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -48,11 +47,13 @@ export default function VehiclesClient({ initialVehicles, vehicleTypes, vehicleC
     defaultValues: {
       model: '',
       licensePlate: '',
+      typeId: undefined,
     },
   });
   
   const typeMap = new Map(vehicleTypes.map(t => [t.id, t.name]));
   const categoryMap = new Map(vehicleCategories.map(c => [c.id, c.name]));
+  const typeToCategoryMap = new Map(vehicleTypes.map(t => [t.id, t.categoryId]));
 
   const handleEditClick = (vehicle: Vehicle) => {
     setEditingVehicle(vehicle);
@@ -60,7 +61,6 @@ export default function VehiclesClient({ initialVehicles, vehicleTypes, vehicleC
         model: vehicle.model,
         licensePlate: vehicle.licensePlate,
         typeId: vehicle.typeId,
-        categoryId: vehicle.categoryId,
     });
     setIsDialogOpen(true);
   };
@@ -71,19 +71,35 @@ export default function VehiclesClient({ initialVehicles, vehicleTypes, vehicleC
         model: '',
         licensePlate: '',
         typeId: undefined,
-        categoryId: undefined,
     });
     setIsDialogOpen(true);
   }
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     setIsLoading(true);
+
+    const categoryId = typeToCategoryMap.get(data.typeId);
+    if (!categoryId) {
+        toast({
+            variant: 'destructive',
+            title: 'Erro',
+            description: 'O tipo de veículo selecionado não possui uma categoria associada.',
+        });
+        setIsLoading(false);
+        return;
+    }
+
+    const vehicleData = {
+        ...data,
+        categoryId,
+    };
+
     try {
       if (editingVehicle) {
-        await updateVehicle(editingVehicle.id, data);
+        await updateVehicle(editingVehicle.id, vehicleData);
         toast({ title: 'Sucesso!', description: 'Veículo atualizado.' });
       } else {
-        await addVehicle(data);
+        await addVehicle(vehicleData);
         toast({ title: 'Sucesso!', description: 'Novo veículo adicionado.' });
       }
       form.reset();
@@ -175,29 +191,6 @@ export default function VehiclesClient({ initialVehicles, vehicleTypes, vehicleC
                                     <SelectContent>
                                         {vehicleTypes.map(type => (
                                             <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-
-                     <FormField
-                        control={form.control}
-                        name="categoryId"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Categoria do Veículo</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                    <FormControl>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Selecione a Categoria do Veículo..." />
-                                    </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                        {vehicleCategories.map(cat => (
-                                            <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
