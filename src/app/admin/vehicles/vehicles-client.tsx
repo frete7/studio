@@ -1,0 +1,243 @@
+
+'use client';
+
+import { useState } from 'react';
+import { useForm, type SubmitHandler } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useRouter } from 'next/navigation';
+
+import { addVehicle, updateVehicle, deleteVehicle, type Vehicle, type VehicleType, type VehicleCategory } from '@/app/actions';
+import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Loader2, PlusCircle, Trash2, Edit } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+const formSchema = z.object({
+  model: z.string().min(2, { message: 'O modelo deve ter pelo menos 2 caracteres.' }),
+  licensePlate: z.string().min(7, { message: 'A placa deve ter pelo menos 7 caracteres.' }),
+  typeId: z.string({ required_error: 'Selecione o tipo.' }),
+  categoryId: z.string({ required_error: 'Selecione a categoria.' }),
+});
+
+type FormData = z.infer<typeof formSchema>;
+
+interface VehiclesClientProps {
+  initialVehicles: Vehicle[];
+  vehicleTypes: VehicleType[];
+  vehicleCategories: VehicleCategory[];
+}
+
+export default function VehiclesClient({ initialVehicles, vehicleTypes, vehicleCategories }: VehiclesClientProps) {
+  const [isLoading, setIsLoading] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
+
+  const { toast } = useToast();
+  const router = useRouter();
+
+  const form = useForm<FormData>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      model: '',
+      licensePlate: '',
+    },
+  });
+  
+  const typeMap = new Map(vehicleTypes.map(t => [t.id, t.name]));
+  const categoryMap = new Map(vehicleCategories.map(c => [c.id, c.name]));
+
+  const handleEditClick = (vehicle: Vehicle) => {
+    setEditingVehicle(vehicle);
+    form.reset({
+        model: vehicle.model,
+        licensePlate: vehicle.licensePlate,
+        typeId: vehicle.typeId,
+        categoryId: vehicle.categoryId,
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleAddNewClick = () => {
+    setEditingVehicle(null);
+    form.reset();
+    setIsDialogOpen(true);
+  }
+
+  const onSubmit: SubmitHandler<FormData> = async (data) => {
+    setIsLoading(true);
+    try {
+      if (editingVehicle) {
+        await updateVehicle(editingVehicle.id, data);
+        toast({ title: 'Sucesso!', description: 'Veículo atualizado.' });
+      } else {
+        await addVehicle(data);
+        toast({ title: 'Sucesso!', description: 'Novo veículo adicionado.' });
+      }
+      form.reset();
+      setIsDialogOpen(false);
+      setEditingVehicle(null);
+      router.refresh();
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: error instanceof Error ? error.message : 'Ocorreu um erro.',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+        await deleteVehicle(id);
+        toast({ title: 'Sucesso!', description: 'Veículo removido.' });
+        router.refresh();
+    } catch (error) {
+         toast({
+            variant: 'destructive',
+            title: 'Erro',
+            description: error instanceof Error ? error.message : 'Ocorreu um erro ao remover.',
+        });
+    }
+  }
+
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle>Lista de Veículos</CardTitle>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+                 <Button onClick={handleAddNewClick}>
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Adicionar Novo
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>{editingVehicle ? 'Editar' : 'Adicionar'} Veículo</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
+                    <Input {...form.register('model')} placeholder="Modelo do Veículo (Ex: Volvo FH 540)" />
+                    {form.formState.errors.model && <p className="text-sm text-destructive">{form.formState.errors.model.message}</p>}
+
+                    <Input {...form.register('licensePlate')} placeholder="Placa (Ex: BRA2E19)" />
+                    {form.formState.errors.licensePlate && <p className="text-sm text-destructive">{form.formState.errors.licensePlate.message}</p>}
+                    
+                    <Controller
+                        control={form.control}
+                        name="typeId"
+                        render={({ field, fieldState }) => (
+                            <div>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Selecione o Tipo de Veículo..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {vehicleTypes.map(type => (
+                                            <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                            </div>
+                        )}
+                    />
+                     <Controller
+                        control={form.control}
+                        name="categoryId"
+                        render={({ field, fieldState }) => (
+                             <div>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Selecione a Categoria do Veículo..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {vehicleCategories.map(cat => (
+                                            <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
+                            </div>
+                        )}
+                    />
+
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button type="button" variant="secondary">Cancelar</Button>
+                        </DialogClose>
+                        <Button type="submit" disabled={isLoading}>
+                            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Salvar
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+      </CardHeader>
+      <CardContent>
+        {initialVehicles.length > 0 ? (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Modelo</TableHead>
+                <TableHead>Placa</TableHead>
+                <TableHead>Tipo</TableHead>
+                <TableHead>Categoria</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {initialVehicles.map((vehicle) => (
+                <TableRow key={vehicle.id}>
+                  <TableCell className="font-medium">{vehicle.model}</TableCell>
+                  <TableCell>{vehicle.licensePlate}</TableCell>
+                  <TableCell>{typeMap.get(vehicle.typeId) || 'N/A'}</TableCell>
+                  <TableCell>{categoryMap.get(vehicle.categoryId) || 'N/A'}</TableCell>
+                  <TableCell className="text-right space-x-2">
+                     <Button variant="outline" size="icon" onClick={() => handleEditClick(vehicle)}>
+                        <Edit className="h-4 w-4" />
+                        <span className="sr-only">Editar</span>
+                    </Button>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                             <Button variant="destructive" size="icon">
+                                <Trash2 className="h-4 w-4" />
+                                <span className="sr-only">Remover</span>
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Esta ação não pode ser desfeita. Isso irá remover permanentemente o veículo.
+                            </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDelete(vehicle.id)}>
+                                Sim, remover
+                            </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : (
+          <p className="text-center text-muted-foreground py-8">Nenhum veículo cadastrado.</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
