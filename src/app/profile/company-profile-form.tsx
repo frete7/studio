@@ -1,13 +1,14 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db, app } from '@/lib/firebase';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import Image from 'next/image';
 
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -186,9 +187,25 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
 
     const progress = ((currentStep + 1) / steps.length) * 100;
     
-    const FileInput = ({ name, label, description }: { name: any, label: string, description: string }) => {
-        const file = watch(name);
-        const fileName = file?.[0]?.name;
+    const FileInput = ({ name, label, description, existingImageUrl }: { name: any, label: string, description: string, existingImageUrl?: string }) => {
+        const fileList = watch(name);
+        const [preview, setPreview] = useState<string | null>(existingImageUrl || null);
+
+        useEffect(() => {
+            const file = fileList?.[0];
+            if (file && ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+                const objectUrl = URL.createObjectURL(file);
+                setPreview(objectUrl);
+
+                return () => URL.revokeObjectURL(objectUrl);
+            } else {
+                 if (!existingImageUrl) {
+                    setPreview(null);
+                }
+            }
+        }, [fileList, existingImageUrl]);
+
+        const fileName = fileList?.[0]?.name;
         
         return (
              <FormField
@@ -199,12 +216,16 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
                         <FormLabel>{label}</FormLabel>
                         <FormControl>
                             <div className="relative">
-                                <label htmlFor={name} className="relative flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted/75">
-                                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                        <UploadCloud className="w-8 h-8 mb-4 text-muted-foreground" />
-                                        <p className="mb-2 text-sm text-muted-foreground"><span className="font-semibold">Clique para enviar</span> ou arraste e solte</p>
-                                        <p className="text-xs text-muted-foreground">{description}</p>
-                                    </div>
+                                <label htmlFor={name} className={cn("relative flex flex-col items-center justify-center w-full border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted/75", preview ? "h-48" : "h-32")}>
+                                    {preview ? (
+                                        <Image src={preview} alt="Pré-visualização" layout="fill" objectFit="contain" className="rounded-lg p-2" />
+                                    ) : (
+                                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                            <UploadCloud className="w-8 h-8 mb-4 text-muted-foreground" />
+                                            <p className="mb-2 text-sm text-muted-foreground"><span className="font-semibold">Clique para enviar</span> ou arraste e solte</p>
+                                            <p className="text-xs text-muted-foreground">{description}</p>
+                                        </div>
+                                    )}
                                     <Input 
                                         id={name} 
                                         type="file" 
@@ -216,7 +237,7 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
                                 </label>
                             </div>
                         </FormControl>
-                         {fileName && (
+                         {fileName && !preview && (
                             <div className="text-sm font-medium text-muted-foreground flex items-center gap-2 mt-2">
                                 <FileText className="h-4 w-4"/>
                                 <span>{fileName}</span>
@@ -291,7 +312,7 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
                         </div>
                          {/* ETAPA 3 */}
                         <div className={cn(currentStep !== 2 && "hidden")}>
-                            <FileInput name="companyLogo" label="Logo da Empresa (Opcional)" description="PNG, JPG, WEBP (MAX. 5MB)" />
+                            <FileInput name="companyLogo" label="Logo da Empresa (Opcional)" description="PNG, JPG, WEBP (MAX. 5MB)" existingImageUrl={profile.photoURL} />
                         </div>
                          {/* ETAPA 4 */}
                         <div className={cn("space-y-6", currentStep !== 3 && "hidden")}>
@@ -358,3 +379,5 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
         </Card>
     );
 }
+
+    
