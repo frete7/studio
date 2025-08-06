@@ -168,7 +168,7 @@ export async function getVehicles(): Promise<Vehicle[]> {
     }
 }
 
-export async function addVehicle(data: Omit<Vehicle, 'id'>): Promise<Vehicle> {
+export async function addVehicle(data: Omit<Vehicle, 'id' | 'driverId'>): Promise<Vehicle> {
     if (!data.model || !data.licensePlate || !data.typeId || !data.categoryId) {
         throw new Error('Todos os campos são obrigatórios.');
     }
@@ -181,7 +181,7 @@ export async function addVehicle(data: Omit<Vehicle, 'id'>): Promise<Vehicle> {
     }
 }
 
-export async function updateVehicle(id: string, data: Partial<Vehicle>): Promise<void> {
+export async function updateVehicle(id: string, data: Partial<Omit<Vehicle, 'id' | 'driverId'>>): Promise<void> {
     if (!id) {
         throw new Error('O ID do veículo é obrigatório.');
     }
@@ -204,4 +204,3 @@ export async function deleteVehicle(id: string): Promise<void> {
         throw new Error("Falha ao deletar o veículo.");
     }
 }
-

@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useForm, type SubmitHandler } from 'react-hook-form';
+import { useForm, type SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useRouter } from 'next/navigation';
@@ -17,10 +17,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Loader2, PlusCircle, Trash2, Edit } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+
 
 const formSchema = z.object({
   model: z.string().min(2, { message: 'O modelo deve ter pelo menos 2 caracteres.' }),
-  licensePlate: z.string().min(7, { message: 'A placa deve ter pelo menos 7 caracteres.' }),
+  licensePlate: z.string().min(7, { message: 'A placa deve ter pelo menos 7 caracteres.' }).max(8, { message: 'A placa deve ter no máximo 8 caracteres.' }),
   typeId: z.string({ required_error: 'Selecione o tipo.' }),
   categoryId: z.string({ required_error: 'Selecione a categoria.' }),
 });
@@ -65,7 +67,12 @@ export default function VehiclesClient({ initialVehicles, vehicleTypes, vehicleC
 
   const handleAddNewClick = () => {
     setEditingVehicle(null);
-    form.reset();
+    form.reset({
+        model: '',
+        licensePlate: '',
+        typeId: undefined,
+        categoryId: undefined,
+    });
     setIsDialogOpen(true);
   }
 
@@ -124,55 +131,84 @@ export default function VehiclesClient({ initialVehicles, vehicleTypes, vehicleC
                 <DialogHeader>
                     <DialogTitle>{editingVehicle ? 'Editar' : 'Adicionar'} Veículo</DialogTitle>
                 </DialogHeader>
+                <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
-                    <Input {...form.register('model')} placeholder="Modelo do Veículo (Ex: Volvo FH 540)" />
-                    {form.formState.errors.model && <p className="text-sm text-destructive">{form.formState.errors.model.message}</p>}
-
-                    <Input {...form.register('licensePlate')} placeholder="Placa (Ex: BRA2E19)" />
-                    {form.formState.errors.licensePlate && <p className="text-sm text-destructive">{form.formState.errors.licensePlate.message}</p>}
+                    <FormField
+                        control={form.control}
+                        name="model"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Modelo</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="Modelo do Veículo (Ex: Volvo FH 540)" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                     <FormField
+                        control={form.control}
+                        name="licensePlate"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Placa</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="Placa (Ex: BRA2E19)" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
                     
-                    <Controller
+                    <FormField
                         control={form.control}
                         name="typeId"
-                        render={({ field, fieldState }) => (
-                            <div>
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Tipo de Veículo</FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Selecione o Tipo de Veículo..." />
                                     </SelectTrigger>
+                                    </FormControl>
                                     <SelectContent>
                                         {vehicleTypes.map(type => (
                                             <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
-                                {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
-                            </div>
+                                <FormMessage />
+                            </FormItem>
                         )}
                     />
-                     <Controller
+
+                     <FormField
                         control={form.control}
                         name="categoryId"
-                        render={({ field, fieldState }) => (
-                             <div>
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Categoria do Veículo</FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Selecione a Categoria do Veículo..." />
                                     </SelectTrigger>
+                                    </FormControl>
                                     <SelectContent>
                                         {vehicleCategories.map(cat => (
                                             <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
-                                {fieldState.error && <p className="text-sm text-destructive mt-1">{fieldState.error.message}</p>}
-                            </div>
+                                <FormMessage />
+                            </FormItem>
                         )}
                     />
 
                     <DialogFooter>
                         <DialogClose asChild>
-                            <Button type="button" variant="secondary">Cancelar</Button>
+                            <Button type="button" variant="secondary" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
                         </DialogClose>
                         <Button type="submit" disabled={isLoading}>
                             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -180,6 +216,7 @@ export default function VehiclesClient({ initialVehicles, vehicleTypes, vehicleC
                         </Button>
                     </DialogFooter>
                 </form>
+                </Form>
             </DialogContent>
         </Dialog>
       </CardHeader>
