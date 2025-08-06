@@ -100,9 +100,12 @@ export async function getVehicleCategories(): Promise<VehicleCategory[]> {
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VehicleCategory));
   } catch (error) {
     console.error("Error fetching vehicle categories: ", error);
-    return [];
+    // You might want to throw the error or return a specific error state
+    // instead of an empty array to better handle errors in the UI.
+    throw new Error('Falha ao buscar as categorias de veículos.');
   }
 }
+
 
 export async function addVehicleCategory(name: string): Promise<VehicleCategory> {
   if (!name) {

@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -11,7 +11,6 @@ import {
   addVehicleCategory,
   updateVehicleCategory,
   deleteVehicleCategory,
-  getVehicleCategories,
   type VehicleCategory
 } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
@@ -55,34 +54,17 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-export default function CategoriesClient() {
-  const [data, setData] = useState<VehicleCategory[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+interface CategoriesClientProps {
+    initialData: VehicleCategory[];
+}
+
+export default function CategoriesClient({ initialData }: CategoriesClientProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<VehicleCategory | null>(null);
 
   const { toast } = useToast();
   const router = useRouter();
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      try {
-        const categories = await getVehicleCategories();
-        setData(categories);
-      } catch (error) {
-         toast({
-            variant: 'destructive',
-            title: 'Erro ao carregar categorias',
-            description: 'Não foi possível buscar os dados. Tente novamente.',
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchData();
-  }, [toast]);
 
 
   const form = useForm<FormData>({
@@ -104,11 +86,6 @@ export default function CategoriesClient() {
     setIsDialogOpen(true);
   }
 
-  const refreshData = async () => {
-      const categories = await getVehicleCategories();
-      setData(categories);
-  }
-
   const onSubmit: SubmitHandler<FormData> = async (formData) => {
     setIsSubmitting(true);
     try {
@@ -122,7 +99,7 @@ export default function CategoriesClient() {
       form.reset();
       setIsDialogOpen(false);
       setEditingCategory(null);
-      await refreshData();
+      router.refresh();
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -138,7 +115,7 @@ export default function CategoriesClient() {
     try {
         await deleteVehicleCategory(id);
         toast({ title: 'Sucesso!', description: 'Categoria removida.' });
-        await refreshData();
+        router.refresh();
     } catch (error) {
          toast({
             variant: 'destructive',
@@ -181,13 +158,7 @@ export default function CategoriesClient() {
         </Dialog>
       </CardHeader>
       <CardContent>
-        {isLoading ? (
-            <div className="space-y-4">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-            </div>
-        ) : data.length > 0 ? (
+        {initialData.length > 0 ? (
           <Table>
             <TableHeader>
               <TableRow>
@@ -196,7 +167,7 @@ export default function CategoriesClient() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.map((category) => (
+              {initialData.map((category) => (
                 <TableRow key={category.id}>
                   <TableCell className="font-medium">{category.name}</TableCell>
                   <TableCell className="text-right space-x-2">

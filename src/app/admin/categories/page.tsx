@@ -1,20 +1,26 @@
 
 import type { Metadata } from 'next';
 import CategoriesClient from './categories-client';
+import { getVehicleCategories } from '@/app/actions';
 
 export const metadata: Metadata = {
     title: 'Gerenciamento de Categorias | Frete7 Admin',
     description: 'Gerencie as categorias de veículos da plataforma.',
 };
 
-export default function AdminCategoriesPage() {
+// This page is forced to be dynamic to re-fetch data on demand.
+export const revalidate = 0;
+
+export default async function AdminCategoriesPage() {
+    const initialData = await getVehicleCategories();
+
     return (
         <div>
             <div className="mb-8">
                 <h1 className="text-3xl font-bold font-headline text-primary">Gerenciamento de Categorias de Veículos</h1>
                 <p className="text-foreground/70">Adicione, edite ou remova as categorias de veículos disponíveis.</p>
             </div>
-            <CategoriesClient />
+            <CategoriesClient initialData={initialData} />
         </div>
     );
 }
