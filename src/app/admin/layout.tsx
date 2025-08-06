@@ -1,6 +1,6 @@
 
 'use client';
-import { SidebarProvider, Sidebar, SidebarTrigger, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset } from '@/components/ui/sidebar';
+import { SidebarProvider, Sidebar, SidebarTrigger, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 import { Home, Users, Truck, Package, Settings, PanelLeft } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -31,11 +31,7 @@ export default function AdminLayout({
                             <Truck className="h-6 w-6 text-primary" />
                             <span className="font-bold text-lg text-foreground">Frete7</span>
                         </Link>
-                        <SidebarTrigger className="md:hidden">
-                            <Button variant="ghost" size="icon">
-                                <PanelLeft />
-                            </Button>
-                        </SidebarTrigger>
+                        <SidebarTrigger className="md:hidden" />
                     </div>
                 </SidebarHeader>
                 <SidebarContent>
@@ -62,11 +58,7 @@ export default function AdminLayout({
             <main className="flex-1 overflow-y-auto">
                 <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
                      <div className="flex items-center">
-                        <SidebarTrigger className="md:hidden">
-                           <Button variant="ghost" size="icon">
-                               <PanelLeft />
-                           </Button>
-                        </SidebarTrigger>
+                        <SidebarTrigger className="md:hidden" />
                         <h1 className="text-xl font-semibold md:text-2xl ml-2">{navItems.find(item => item.href === pathname)?.label || 'Admin'}</h1>
                      </div>
                 </header>
