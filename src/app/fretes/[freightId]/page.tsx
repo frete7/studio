@@ -4,9 +4,11 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
+import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
+
 import { type Freight } from '@/app/actions';
-import { Loader2, ArrowLeft, User, Mail, Phone, Calendar, MapPin, Package, AlertCircle, Info, Clock, Building, Truck } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Mail, Phone, Calendar, MapPin, Package, AlertCircle, Info, Clock, Building, Truck, Lock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -48,9 +50,20 @@ export default function FreightDetailsPage() {
     const [freight, setFreight] = useState<FreightDetails | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [user, setUser] = useState<FirebaseUser | null>(null);
+    const [isAuthLoading, setIsAuthLoading] = useState(true);
     const params = useParams();
     const router = useRouter();
     const freightId = params.freightId as string;
+
+    useEffect(() => {
+        const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+            setUser(currentUser);
+            setIsAuthLoading(false);
+        });
+        
+        return () => unsubscribeAuth();
+    }, []);
 
     useEffect(() => {
         if (!freightId) {
@@ -129,7 +142,7 @@ export default function FreightDetailsPage() {
     }
 
 
-    if (isLoading) {
+    if (isLoading || isAuthLoading) {
         return (
             <div className="flex h-[calc(100vh-12rem)] items-center justify-center">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -279,12 +292,20 @@ export default function FreightDetailsPage() {
                             </div>
                             <div className="flex items-center gap-3">
                                 <Mail className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-sm">{freight.contact.email}</span>
+                                <span className="text-sm">{user ? freight.contact.email : '********'}</span>
                             </div>
                              <div className="flex items-center gap-3">
                                 <Phone className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-sm">{freight.contact.phone} ({freight.contact.phoneType})</span>
+                                <span className="text-sm">{user ? `${freight.contact.phone} (${freight.contact.phoneType})` : '********'}</span>
                             </div>
+                             {!user && (
+                                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md text-center text-sm text-yellow-800 flex items-center justify-center gap-2">
+                                    <Lock className="h-4 w-4" />
+                                    <span>
+                                        <a href="/login" className="font-semibold underline">Faça login</a> ou <a href="/register" className="font-semibold underline">cadastre-se</a> para ver o contato.
+                                    </span>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 )}
@@ -292,3 +313,5 @@ export default function FreightDetailsPage() {
         </div>
     );
 }
+
+    
