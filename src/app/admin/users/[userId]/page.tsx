@@ -377,12 +377,12 @@ export default function UserDetailsPage() {
                                     <DialogTitle>Atribuir Plano Manualmente</DialogTitle>
                                 </DialogHeader>
                                 <div className="py-4">
-                                    <Select onValueChange={setSelectedPlanId} defaultValue={user.activePlanId}>
+                                    <Select onValueChange={setSelectedPlanId} defaultValue={user.activePlanId || ''}>
                                         <SelectTrigger>
                                             <SelectValue placeholder="Selecione um plano..." />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="">Nenhum (Básico)</SelectItem>
+                                            <SelectItem value="">Nenhum (Plano Básico)</SelectItem>
                                             {plans.map(plan => (
                                                 <SelectItem key={plan.id} value={plan.id}>{plan.name}</SelectItem>
                                             ))}

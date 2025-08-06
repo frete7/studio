@@ -30,8 +30,8 @@ export async function updateUserStatus(uid: string, status: string) {
 }
 
 export async function assignPlanToUser(userId: string, planId: string, planName: string): Promise<void> {
-  if (!userId || !planId) {
-    throw new Error('ID do usuário e ID do plano são obrigatórios.');
+  if (!userId) {
+    throw new Error('ID do usuário é obrigatório.');
   }
   try {
     const userDocRef = doc(db, 'users', userId);
