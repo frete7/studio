@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { type Freight } from '@/app/actions';
-import { Loader2, ArrowLeft, User, Mail, Phone, Calendar, MapPin, Package, AlertCircle, Info } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Mail, Phone, Calendar, MapPin, Package, AlertCircle, Info, Clock, Building, Truck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -84,19 +84,30 @@ export default function FreightDetailsPage() {
     }, [freightId]);
     
     const renderLocationDetails = (location: any, title: string) => (
-        <div className="space-y-1">
-            <h4 className="font-semibold">{title}</h4>
-            <p className="text-sm text-muted-foreground">
-                {location.city}, {location.state} (Bairro: {location.neighborhood})
-            </p>
+        <div className="space-y-3">
+            <h4 className="font-semibold text-lg">{title}</h4>
+            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                <MapPin className="h-4 w-4 flex-shrink-0" />
+                <span><strong>Endereço:</strong> {location.city}, {location.state} (Bairro: {location.neighborhood})</span>
+            </div>
             {location.dateTime && (
-                 <p className="text-sm text-muted-foreground">
-                    Data: {format(new Date(location.dateTime.seconds * 1000), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                </p>
+                 <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                    <Clock className="h-4 w-4 flex-shrink-0" />
+                    <span><strong>Data:</strong> {format(new Date(location.dateTime.seconds * 1000), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
+                </div>
             )}
-            <p className="text-sm text-muted-foreground">
-                Tipo: {location.locationType}, Andar: {location.floor}, Acesso: {location.accessType || 'N/A'}
-            </p>
+            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                 <Building className="h-4 w-4 flex-shrink-0" />
+                <span>
+                    <strong>Detalhes:</strong> Tipo: {location.locationType} | Andar: {location.floor} | Acesso: {location.accessType || 'N/A'}
+                </span>
+            </div>
+             <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                 <Truck className="h-4 w-4 flex-shrink-0" />
+                <span>
+                    <strong>Distância Carga/Descarga:</strong> {location.distance} metros
+                </span>
+            </div>
         </div>
     );
     
@@ -178,7 +189,7 @@ export default function FreightDetailsPage() {
                             Rota
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-4">
+                    <CardContent className="space-y-6">
                         {/* @ts-ignore */}
                         {freight.origin && renderLocationDetails(freight.origin, "Origem")}
                         <Separator />
@@ -283,5 +294,3 @@ export default function FreightDetailsPage() {
         </div>
     );
 }
-
-    
