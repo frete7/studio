@@ -29,6 +29,22 @@ export async function updateUserStatus(uid: string, status: string) {
   await updateDoc(userDocRef, { status: status });
 }
 
+export async function assignPlanToUser(userId: string, planId: string, planName: string): Promise<void> {
+  if (!userId || !planId) {
+    throw new Error('ID do usuário e ID do plano são obrigatórios.');
+  }
+  try {
+    const userDocRef = doc(db, 'users', userId);
+    await updateDoc(userDocRef, {
+      activePlanId: planId,
+      activePlanName: planName,
+     });
+  } catch (error) {
+    console.error("Error assigning plan to user: ", error);
+    throw new Error('Falha ao atribuir o plano ao usuário.');
+  }
+}
+
 
 // Vehicle Types Actions
 export type VehicleType = {
@@ -232,33 +248,5 @@ export async function getPlans(): Promise<Plan[]> {
     } catch (error) {
         console.error("Error fetching plans: ", error);
         throw new Error("Falha ao buscar os planos.");
-    }
-}
-
-export async function addPlan(data: Omit<Plan, 'id'>): Promise<Plan> {
-    try {
-        const docRef = await addDoc(collection(db, 'plans'), data);
-        return { id: docRef.id, ...data };
-    } catch (error) {
-        console.error("Error adding plan: ", error);
-        throw new Error("Falha ao adicionar o plano.");
-    }
-}
-
-export async function updatePlan(id: string, data: Partial<Omit<Plan, 'id'>>): Promise<void> {
-    try {
-        await updateDoc(doc(db, 'plans', id), data);
-    } catch (error) {
-        console.error("Error updating plan: ", error);
-        throw new Error("Falha ao atualizar o plano.");
-    }
-}
-
-export async function deletePlan(id: string): Promise<void> {
-    try {
-        await deleteDoc(doc(db, 'plans', id));
-    } catch (error) {
-        console.error("Error deleting plan: ", error);
-        throw new Error("Falha ao deletar o plano.");
     }
 }

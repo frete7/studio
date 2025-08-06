@@ -45,7 +45,7 @@ export default function AdminBillingPage() {
         <p className="text-foreground/70">Monitore a saúde financeira do seu negócio.</p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Receita Mensal (MRR)</CardTitle>
@@ -96,35 +96,37 @@ export default function AdminBillingPage() {
             </CardDescription>
         </CardHeader>
         <CardContent>
-             <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Cliente</TableHead>
-                        <TableHead>Plano</TableHead>
-                        <TableHead className="text-right">Valor</TableHead>
-                        <TableHead className="text-center">Status</TableHead>
-                        <TableHead className="text-right">Data</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {recentTransactions.map((transaction, index) => (
-                        <TableRow key={index}>
-                            <TableCell>
-                                <div className="font-medium">{transaction.name}</div>
-                                <div className="text-sm text-muted-foreground">{transaction.email}</div>
-                            </TableCell>
-                            <TableCell>{transaction.plan}</TableCell>
-                            <TableCell className="text-right">{transaction.amount}</TableCell>
-                            <TableCell className="text-center">
-                                <Badge variant={transaction.status === 'Pago' ? 'default' : 'secondary'}>
-                                    {transaction.status}
-                                </Badge>
-                            </TableCell>
-                            <TableCell className="text-right">{transaction.date}</TableCell>
+            <div className="overflow-x-auto">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Cliente</TableHead>
+                            <TableHead className="hidden sm:table-cell">Plano</TableHead>
+                            <TableHead className="text-right">Valor</TableHead>
+                            <TableHead className="text-center hidden sm:table-cell">Status</TableHead>
+                            <TableHead className="text-right hidden md:table-cell">Data</TableHead>
                         </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
+                    </TableHeader>
+                    <TableBody>
+                        {recentTransactions.map((transaction, index) => (
+                            <TableRow key={index}>
+                                <TableCell>
+                                    <div className="font-medium">{transaction.name}</div>
+                                    <div className="text-sm text-muted-foreground">{transaction.email}</div>
+                                </TableCell>
+                                <TableCell className="hidden sm:table-cell">{transaction.plan}</TableCell>
+                                <TableCell className="text-right">{transaction.amount}</TableCell>
+                                <TableCell className="text-center hidden sm:table-cell">
+                                    <Badge variant={transaction.status === 'Pago' ? 'default' : 'secondary'}>
+                                        {transaction.status}
+                                    </Badge>
+                                </TableCell>
+                                <TableCell className="text-right hidden md:table-cell">{transaction.date}</TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </div>
         </CardContent>
        </Card>
     </div>

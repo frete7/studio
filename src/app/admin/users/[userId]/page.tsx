@@ -8,11 +8,14 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Mail, Phone, Calendar, User, ShieldCheck, Truck, FileText, ArrowLeft, Loader2, MoreVertical, Building, Landmark, CaseSensitive, Package, PackageSearch, PackageCheck, CreditCard } from 'lucide-react';
+import { Mail, Phone, Calendar, User, ShieldCheck, Truck, FileText, ArrowLeft, Loader2, MoreVertical, Building, Landmark, CaseSensitive, Package, PackageSearch, PackageCheck, CreditCard, Pencil } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,7 +24,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { updateUserStatus } from '@/app/actions';
+import { updateUserStatus, assignPlanToUser, getPlans, type Plan } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 
 
@@ -42,7 +45,8 @@ type UserData = {
     foundationDate?: string;
     tradingName?: string;
     address?: string;
-    activePlan?: string;
+    activePlanName?: string;
+    activePlanId?: string;
 };
 
 type CompanyStats = {
@@ -95,6 +99,10 @@ const userStatuses: (UserData['status'])[] = ['active', 'pending', 'blocked', 's
 export default function UserDetailsPage() {
   const [user, setUser] = useState<UserData | null>(null);
   const [companyStats, setCompanyStats] = useState<CompanyStats | null>(null);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<string>('');
+  const [isSubmittingPlan, setIsSubmittingPlan] = useState(false);
+  const [isPlanDialogOpen, setIsPlanDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const params = useParams();
@@ -133,6 +141,16 @@ export default function UserDetailsPage() {
         }
     }
 
+    const fetchPlansData = async (userRole: string) => {
+        try {
+            const allPlans = await getPlans();
+            const filteredPlans = allPlans.filter(plan => plan.userType === userRole);
+            setPlans(filteredPlans);
+        } catch (error) {
+             console.error("Error fetching plans:", error);
+        }
+    }
+
     const authUnsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
         router.push('/login');
@@ -152,9 +170,11 @@ export default function UserDetailsPage() {
          if (doc.exists()) {
             const userData = { ...doc.data(), uid: doc.id } as UserData;
             setUser(userData);
+            setSelectedPlanId(userData.activePlanId || '');
             if (userData.role === 'company') {
                 fetchCompanyStats(userData.uid);
             }
+            fetchPlansData(userData.role);
         } else {
             notFound();
         }
@@ -188,6 +208,29 @@ export default function UserDetailsPage() {
         console.error("Failed to update user status:", error);
     }
   };
+  
+  const handleAssignPlan = async () => {
+      if (!user) return;
+      
+      setIsSubmittingPlan(true);
+      try {
+          const planIdToAssign = selectedPlanId;
+          const selectedPlan = plans.find(p => p.id === planIdToAssign);
+          const planName = selectedPlan ? selectedPlan.name : 'Básico'; // Handle 'none' case
+
+          await assignPlanToUser(user.uid, planIdToAssign, planName);
+          toast({ title: 'Sucesso!', description: 'Plano atribuído ao usuário.' });
+          setIsPlanDialogOpen(false);
+      } catch (error) {
+          toast({
+              variant: 'destructive',
+              title: 'Erro ao atribuir plano',
+              description: error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.',
+          });
+      } finally {
+          setIsSubmittingPlan(false);
+      }
+  }
 
 
   if (isLoading || !user) {
@@ -203,7 +246,7 @@ export default function UserDetailsPage() {
 
   return (
     <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-4">
                 <Button asChild variant="outline" size="icon">
                     <Link href="/admin/users">
@@ -242,7 +285,7 @@ export default function UserDetailsPage() {
                         <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
-                        <div className="flex items-center gap-4">
+                        <div className="flex flex-wrap items-center gap-4">
                             <CardTitle className="text-3xl">{isCompany ? user.tradingName || user.name : user.name}</CardTitle>
                             <Badge variant={getStatusVariant(user.status)} className="text-sm">
                                 {getStatusLabel(user.status)}
@@ -280,13 +323,89 @@ export default function UserDetailsPage() {
                         </div>
                          <div className="flex items-center gap-3">
                             <CreditCard className="h-5 w-5 text-muted-foreground" />
-                            <span><span className="font-semibold">Plano Ativo:</span> {user.activePlan || 'Básico'}</span>
+                            <span><span className="font-semibold">Plano Ativo:</span> {user.activePlanName || 'Básico'}</span>
                         </div>
                          <div className="flex items-center gap-3 col-span-full">
                             <Building className="h-5 w-5 text-muted-foreground" />
                             <span><span className="font-semibold">Endereço:</span> {user.address ?? 'Não informado'}</span>
                         </div>
                     </div>
+                    </>
+                ) : (
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="flex items-center gap-3">
+                            <User className="h-5 w-5 text-muted-foreground" />
+                            <span><span className="font-semibold">Nome:</span> {user.name}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <Mail className="h-5 w-5 text-muted-foreground" />
+                            <span><span className="font-semibold">Email:</span> {user.email}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <Calendar className="h-5 w-5 text-muted-foreground" />
+                            <span><span className="font-semibold">Data de Nasc.:</span> {user.birthDate ? `${new Date(user.birthDate).toLocaleDateString('pt-BR')} ${calculateAge(user.birthDate)}` : 'Não informado'}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <ShieldCheck className="h-5 w-5 text-muted-foreground" />
+                            <span><span className="font-semibold">CNH:</span> {user.cnh ?? 'Não informado'}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <ShieldCheck className="h-5 w-5 text-muted-foreground" />
+                            <span><span className="font-semibold">Categoria CNH:</span> {user.cnhCategory ?? 'Não informado'}</span>
+                        </div>
+                         <div className="flex items-center gap-3">
+                            <CreditCard className="h-5 w-5 text-muted-foreground" />
+                            <span><span className="font-semibold">Plano Ativo:</span> {user.activePlanName || 'Básico'}</span>
+                        </div>
+                    </div>
+                )}
+                 <Separator />
+                <div className="space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h3 className="text-lg font-semibold flex items-center gap-2">
+                           Plano e Assinatura
+                        </h3>
+                         <Dialog open={isPlanDialogOpen} onOpenChange={setIsPlanDialogOpen}>
+                            <DialogTrigger asChild>
+                                <Button variant="outline">
+                                    <Pencil className="mr-2 h-4 w-4" />
+                                    Gerenciar Plano
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Atribuir Plano Manualmente</DialogTitle>
+                                </DialogHeader>
+                                <div className="py-4">
+                                    <Select onValueChange={setSelectedPlanId} defaultValue={user.activePlanId}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Selecione um plano..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="">Nenhum (Básico)</SelectItem>
+                                            {plans.map(plan => (
+                                                <SelectItem key={plan.id} value={plan.id}>{plan.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <DialogFooter>
+                                    <DialogClose asChild>
+                                        <Button type="button" variant="secondary">Cancelar</Button>
+                                    </DialogClose>
+                                    <Button onClick={handleAssignPlan} disabled={isSubmittingPlan}>
+                                        {isSubmittingPlan && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                        Salvar Alterações
+                                    </Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                    </div>
+                    <p>Plano atual: <span className="font-semibold">{user.activePlanName || 'Básico'}</span></p>
+                </div>
+
+                {isCompany && (
+                    <>
                     <Separator />
                     <div className="space-y-4">
                         <h3 className="text-lg font-semibold flex items-center gap-2">
@@ -329,29 +448,6 @@ export default function UserDetailsPage() {
                         )}
                     </div>
                     </>
-                ) : (
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <div className="flex items-center gap-3">
-                            <User className="h-5 w-5 text-muted-foreground" />
-                            <span><span className="font-semibold">Nome:</span> {user.name}</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <Mail className="h-5 w-5 text-muted-foreground" />
-                            <span><span className="font-semibold">Email:</span> {user.email}</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <Calendar className="h-5 w-5 text-muted-foreground" />
-                            <span><span className="font-semibold">Data de Nasc.:</span> {user.birthDate ? `${new Date(user.birthDate).toLocaleDateString('pt-BR')} ${calculateAge(user.birthDate)}` : 'Não informado'}</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <ShieldCheck className="h-5 w-5 text-muted-foreground" />
-                            <span><span className="font-semibold">CNH:</span> {user.cnh ?? 'Não informado'}</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <ShieldCheck className="h-5 w-5 text-muted-foreground" />
-                            <span><span className="font-semibold">Categoria CNH:</span> {user.cnhCategory ?? 'Não informado'}</span>
-                        </div>
-                    </div>
                 )}
                 
                 {!isCompany && (
@@ -380,5 +476,3 @@ export default function UserDetailsPage() {
     </div>
   );
 }
-
-    

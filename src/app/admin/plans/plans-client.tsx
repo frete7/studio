@@ -8,7 +8,6 @@ import { z } from 'zod';
 import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
-import { type Plan } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +20,8 @@ import { Loader2, PlusCircle, Trash2, Edit } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
+import { type Plan } from '@/app/actions';
+
 
 const formSchema = z.object({
   name: z.string().min(2, { message: 'O nome deve ter pelo menos 2 caracteres.' }),
@@ -160,61 +161,63 @@ export default function PlansClient() {
     }
     
     return (
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Nome</TableHead>
-            <TableHead>Tipo de Usuário</TableHead>
-            <TableHead>Duração</TableHead>
-            <TableHead>Valor PIX</TableHead>
-            <TableHead>Valor Cartão</TableHead>
-            <TableHead className="text-right">Ações</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {plans.map((plan) => (
-            <TableRow key={plan.id}>
-              <TableCell className="font-medium">{plan.name}</TableCell>
-              <TableCell>
-                 <Badge variant={plan.userType === 'driver' ? 'secondary' : 'outline'} className="capitalize">
-                    {plan.userType === 'driver' ? 'Motorista' : 'Empresa'}
-                 </Badge>
-              </TableCell>
-              <TableCell>{plan.durationDays} dias</TableCell>
-              <TableCell>{formatCurrency(plan.pricePix)}</TableCell>
-              <TableCell>{formatCurrency(plan.priceCard)}</TableCell>
-              <TableCell className="text-right space-x-2">
-                 <Button variant="outline" size="icon" onClick={() => handleEditClick(plan)}>
-                    <Edit className="h-4 w-4" />
-                    <span className="sr-only">Editar</span>
-                </Button>
-                <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                         <Button variant="destructive" size="icon">
-                            <Trash2 className="h-4 w-4" />
-                            <span className="sr-only">Remover</span>
-                        </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                        <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Esta ação não pode ser desfeita. Isso irá remover permanentemente o plano.
-                        </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleDelete(plan.id)}>
-                            Sim, remover
-                        </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-              </TableCell>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Nome</TableHead>
+              <TableHead className="hidden sm:table-cell">Tipo</TableHead>
+              <TableHead className="hidden md:table-cell">Duração</TableHead>
+              <TableHead>Valor PIX</TableHead>
+              <TableHead>Valor Cartão</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {plans.map((plan) => (
+              <TableRow key={plan.id}>
+                <TableCell className="font-medium">{plan.name}</TableCell>
+                <TableCell className="hidden sm:table-cell">
+                  <Badge variant={plan.userType === 'driver' ? 'secondary' : 'outline'} className="capitalize">
+                      {plan.userType === 'driver' ? 'Motorista' : 'Empresa'}
+                  </Badge>
+                </TableCell>
+                <TableCell className="hidden md:table-cell">{plan.durationDays} dias</TableCell>
+                <TableCell>{formatCurrency(plan.pricePix)}</TableCell>
+                <TableCell>{formatCurrency(plan.priceCard)}</TableCell>
+                <TableCell className="text-right space-x-2">
+                  <Button variant="outline" size="icon" onClick={() => handleEditClick(plan)}>
+                      <Edit className="h-4 w-4" />
+                      <span className="sr-only">Editar</span>
+                  </Button>
+                  <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                          <Button variant="destructive" size="icon">
+                              <Trash2 className="h-4 w-4" />
+                              <span className="sr-only">Remover</span>
+                          </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                          <AlertDialogHeader>
+                          <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                              Esta ação não pode ser desfeita. Isso irá remover permanentemente o plano.
+                          </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleDelete(plan.id)}>
+                              Sim, remover
+                          </AlertDialogAction>
+                          </AlertDialogFooter>
+                      </AlertDialogContent>
+                  </AlertDialog>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     );
   }
 
