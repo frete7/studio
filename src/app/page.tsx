@@ -67,7 +67,7 @@ export default function Home() {
               <Link href="#">Buscar Fretes <ArrowRight className="ml-2 h-5 w-5" /></Link>
             </Button>
             <Button size="lg" variant="outline" asChild>
-              <Link href="#">Anunciar Carga</Link>
+              <Link href="/register">Cadastre-se</Link>
             </Button>
           </div>
         </div>
@@ -173,7 +173,7 @@ export default function Home() {
             Junte-se a milhares de motoristas e empresas que já estão transformando sua logística.
           </p>
           <Button size="lg" className="bg-accent text-accent-foreground hover:bg-accent/90" asChild>
-            <Link href="#">Cadastre-se Gratuitamente</Link>
+            <Link href="/register">Cadastre-se Gratuitamente</Link>
           </Button>
         </div>
       </section>

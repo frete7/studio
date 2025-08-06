@@ -31,10 +31,10 @@ export default function Header() {
         </nav>
         <div className="hidden md:flex items-center gap-4">
           <Button variant="ghost" asChild>
-            <Link href="#">Entrar</Link>
+            <Link href="/login">Entrar</Link>
           </Button>
           <Button asChild className="bg-accent text-accent-foreground hover:bg-accent/90">
-            <Link href="#">Anunciar Carga</Link>
+            <Link href="/register">Cadastre-se</Link>
           </Button>
         </div>
         <div className="md:hidden">
@@ -60,10 +60,10 @@ export default function Header() {
                 </nav>
                 <div className="flex flex-col gap-4">
                    <Button variant="outline" asChild>
-                    <Link href="#">Entrar</Link>
+                    <Link href="/login">Entrar</Link>
                   </Button>
                   <Button asChild className="bg-accent text-accent-foreground hover:bg-accent/90">
-                    <Link href="#">Anunciar Carga</Link>
+                    <Link href="/register">Cadastre-se</Link>
                   </Button>
                 </div>
               </div>
