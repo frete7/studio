@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Mail, Phone, Calendar, User, ShieldCheck, Truck, FileText, ArrowLeft, Loader2, MoreVertical, Building, Landmark, CaseSensitive, Package, PackageSearch, PackageCheck, CreditCard, Pencil } from 'lucide-react';
+import { Mail, Phone, Calendar, User, ShieldCheck, Truck, FileText, ArrowLeft, Loader2, MoreVertical, Building, Landmark, CaseSensitive, Package, PackageSearch, PackageCheck, CreditCard, Pencil, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState } from 'react';
@@ -47,6 +47,12 @@ type UserData = {
     address?: string;
     activePlanName?: string;
     activePlanId?: string;
+    responsible?: {
+        name: string;
+        cpf: string;
+        documentUrl?: string;
+    };
+    cnpjCardUrl?: string;
 };
 
 type CompanyStats = {
@@ -257,12 +263,13 @@ export default function UserDetailsPage() {
             </div>
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                        <MoreVertical className="h-4 w-4" />
+                    <Button variant="outline">
+                        <ShieldCheck className="mr-2 h-4 w-4" />
+                        Moderar Usuário
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                    <DropdownMenuLabel>Alterar Status</DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     {userStatuses.map(status => (
                         <DropdownMenuItem
@@ -270,7 +277,7 @@ export default function UserDetailsPage() {
                             disabled={user.status === status}
                             onSelect={() => handleStatusChange(status)}
                         >
-                            Mudar status para {getStatusLabel(status)}
+                            Mudar para {getStatusLabel(status)}
                         </DropdownMenuItem>
                     ))}
                 </DropdownMenuContent>
@@ -300,6 +307,7 @@ export default function UserDetailsPage() {
                 <Separator />
                 {isCompany ? (
                     <>
+                    <h3 className="text-lg font-semibold">Dados da Empresa</h3>
                     <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                         <div className="flex items-center gap-3">
                             <CaseSensitive className="h-5 w-5 text-muted-foreground" />
@@ -320,10 +328,6 @@ export default function UserDetailsPage() {
                         <div className="flex items-center gap-3">
                             <Calendar className="h-5 w-5 text-muted-foreground" />
                             <span><span className="font-semibold">Data de Fundação:</span> {user.foundationDate ? new Date(user.foundationDate).toLocaleDateString('pt-BR') : 'Não informado'}</span>
-                        </div>
-                         <div className="flex items-center gap-3">
-                            <CreditCard className="h-5 w-5 text-muted-foreground" />
-                            <span><span className="font-semibold">Plano Ativo:</span> {user.activePlanName || 'Básico'}</span>
                         </div>
                          <div className="flex items-center gap-3 col-span-full">
                             <Building className="h-5 w-5 text-muted-foreground" />
@@ -353,13 +357,26 @@ export default function UserDetailsPage() {
                             <ShieldCheck className="h-5 w-5 text-muted-foreground" />
                             <span><span className="font-semibold">Categoria CNH:</span> {user.cnhCategory ?? 'Não informado'}</span>
                         </div>
-                         <div className="flex items-center gap-3">
-                            <CreditCard className="h-5 w-5 text-muted-foreground" />
-                            <span><span className="font-semibold">Plano Ativo:</span> {user.activePlanName || 'Básico'}</span>
-                        </div>
                     </div>
                 )}
                  <Separator />
+                 <div className="space-y-4">
+                    <h3 className="text-lg font-semibold flex items-center gap-2">
+                        Dados do Responsável
+                    </h3>
+                    <div className="grid md:grid-cols-2 gap-6">
+                        <div className="flex items-center gap-3">
+                            <User className="h-5 w-5 text-muted-foreground" />
+                            <span><span className="font-semibold">Nome:</span> {user.responsible?.name || 'Não informado'}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <FileText className="h-5 w-5 text-muted-foreground" />
+                            <span><span className="font-semibold">CPF:</span> {user.responsible?.cpf || 'Não informado'}</span>
+                        </div>
+                    </div>
+                 </div>
+
+                <Separator />
                 <div className="space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <h3 className="text-lg font-semibold flex items-center gap-2">
@@ -465,10 +482,29 @@ export default function UserDetailsPage() {
                 <Separator />
                  <div className="space-y-4">
                     <h3 className="text-lg font-semibold flex items-center gap-2">
-                        <FileText className="h-5 w-5" /> Documentos
+                        <FileText className="h-5 w-5" /> Documentos Enviados
                     </h3>
-                    <p className="text-muted-foreground">Nenhum documento enviado.</p>
-                     {/* Futuramente, listar os documentos aqui */}
+                    <div className="space-y-2">
+                        {user.responsible?.documentUrl ? (
+                            <a href={user.responsible.documentUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary hover:underline">
+                                <ExternalLink className="h-4 w-4" />
+                                Documento do Responsável
+                            </a>
+                        ) : (
+                            <p className="text-sm text-muted-foreground">Documento do Responsável não enviado.</p>
+                        )}
+                        {user.cnpjCardUrl ? (
+                             <a href={user.cnpjCardUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary hover:underline">
+                                <ExternalLink className="h-4 w-4" />
+                                Cartão CNPJ
+                            </a>
+                        ) : (
+                            <p className="text-sm text-muted-foreground">Cartão CNPJ não enviado.</p>
+                        )}
+                         {!user.responsible?.documentUrl && !user.cnpjCardUrl && (
+                             <p className="text-muted-foreground text-sm">Nenhum documento enviado.</p>
+                         )}
+                    </div>
                 </div>
             </CardContent>
         </Card>
@@ -476,3 +512,5 @@ export default function UserDetailsPage() {
     </div>
   );
 }
+
+    
