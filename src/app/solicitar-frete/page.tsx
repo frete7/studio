@@ -495,7 +495,7 @@ function DestinationStep() {
                 setValue(`destinations.${destinationIndex}.city`, originValues.city, { shouldValidate: true, shouldDirty: true });
                 setValue(`destinations.${destinationIndex}.neighborhood`, originValues.neighborhood, { shouldValidate: true, shouldDirty: true });
                 setValue(`destinations.${destinationIndex}.locationType`, originValues.locationType, { shouldValidate: true, shouldDirty: true });
-            }, 500); // 500ms delay might be needed for slower network
+            }, 1); 
 
         } else {
              toast({ variant: "destructive", title: "Atenção", description: "Preencha o estado e a cidade na origem primeiro." });
@@ -1193,13 +1193,16 @@ export default function RequestFreightPage() {
         const dataToSave = JSON.parse(JSON.stringify(data));
         
         const freightData = {
-            ...dataToSave,
             id: generatedId,
             freightType: 'comum',
             status: 'ativo',
             createdAt: serverTimestamp(),
-            origin: `${dataToSave.origin.city}, ${dataToSave.origin.state}`,
-            destinations: dataToSave.destinations.map((d: any) => `${d.city}, ${d.state}`),
+            // Add the detailed objects directly
+            origin: dataToSave.origin,
+            destinations: dataToSave.destinations,
+            items: dataToSave.items,
+            additionalInfo: dataToSave.additionalInfo,
+            contact: dataToSave.contact,
             companyId: 'unauthenticated', // For anonymous requests
             companyName: dataToSave.contact.fullName,
         };
@@ -1339,3 +1342,5 @@ export default function RequestFreightPage() {
     </section>
   );
 }
+
+    

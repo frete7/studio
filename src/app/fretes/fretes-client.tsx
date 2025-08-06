@@ -114,7 +114,7 @@ const LocationSelector = ({ label, selectedCities, onSelectionChange }: { label:
 };
 
 export default function FretesClient() {
-    const [freights, setFreights] = useState<Freight[]>([]);
+    const [freights, setFreights] = useState<any[]>([]);
     const [allBodyTypes, setAllBodyTypes] = useState<BodyType[]>([]);
     const [allVehicleTypes, setAllVehicleTypes] = useState<any[]>([]); // Using 'any' for simplicity
     const [allVehicleCategories, setAllVehicleCategories] = useState<VehicleCategory[]>([]);
@@ -145,7 +145,7 @@ export default function FretesClient() {
                     getDocs(vehicleCategoriesQuery),
                 ]);
 
-                setFreights(freightsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Freight)));
+                setFreights(freightsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id })));
                 setAllBodyTypes(bodyTypesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as BodyType)));
                 setAllVehicleTypes(vehicleTypesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as any)));
                 setAllVehicleCategories(vehicleCategoriesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as VehicleCategory)));
@@ -170,10 +170,11 @@ export default function FretesClient() {
 
     const filteredFreights = useMemo(() => {
         return freights.filter(freight => {
-             if (originCities.length > 0 && !originCities.some(city => freight.origin.includes(city))) {
+             const originString = `${freight.origin?.city}, ${freight.origin?.state}`;
+             if (originCities.length > 0 && !originCities.some(city => originString.includes(city))) {
                 return false;
             }
-            if (destinationCities.length > 0 && !destinationCities.some(city => freight.destinations.some(d => d.includes(city)))) {
+            if (destinationCities.length > 0 && !destinationCities.some(city => freight.destinations.some((d: any) => `${d.city}, ${d.state}`.includes(city)))) {
                 return false;
             }
             // Vehicle and Body type filters can be added here once we have that data in freights
@@ -213,7 +214,7 @@ export default function FretesClient() {
                             <div className="flex-1 space-y-2">
                                 <div className="flex items-center gap-2">
                                     <MapPin className="h-4 w-4 text-muted-foreground"/>
-                                    <p className="font-semibold">{freight.origin}</p>
+                                    <p className="font-semibold">{freight.origin.city}, {freight.origin.state}</p>
                                 </div>
                                 <div className="pl-6">
                                      <div className="border-l-2 border-dashed h-4"></div>
@@ -221,14 +222,14 @@ export default function FretesClient() {
                                 <div className="flex items-center gap-2">
                                      <MapPin className="h-4 w-4 text-muted-foreground"/>
                                      <p className="font-semibold">
-                                        {freight.destinations[0]}
+                                        {freight.destinations[0].city}, {freight.destinations[0].state}
                                         {freight.destinations.length > 1 && <Badge variant="secondary" className="ml-2">+{freight.destinations.length - 1}</Badge>}
                                      </p>
                                 </div>
                             </div>
                             <div className="text-right space-y-2 flex flex-col items-end">
                                 {freight.freightType === 'comum' ? (
-                                    <Badge variant="outline" className="text-base font-semibold border-primary/50 text-primary">COMUM</Badge>
+                                    <Badge variant="outline" className="text-base font-semibold border-primary/50 text-primary uppercase">{freight.freightType}</Badge>
                                 ) : (
                                     <p className="font-bold text-lg text-primary">R$ •••••</p>
                                 )}
@@ -312,3 +313,5 @@ export default function FretesClient() {
         </div>
     );
 }
+
+    
