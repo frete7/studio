@@ -1,3 +1,4 @@
+
 'use client';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -21,7 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 
 const navLinks = [
-  { href: '/#fretes', label: 'Buscar Fretes' },
+  { href: '/fretes', label: 'Buscar Fretes' },
   { href: '/optimizer', label: 'Otimizar Rota' },
   { href: '/#empresas', label: 'Empresas' },
   { href: '/#motoristas', label: 'Motoristas' },
