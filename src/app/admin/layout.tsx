@@ -31,8 +31,8 @@ export default function AdminLayout({
                             <Truck className="h-6 w-6 text-primary" />
                             <span className="font-bold text-lg text-foreground">Frete7</span>
                         </Link>
-                        <SidebarTrigger asChild>
-                            <Button variant="ghost" size="icon" className="md:hidden">
+                        <SidebarTrigger asChild className="md:hidden">
+                            <Button variant="ghost" size="icon">
                                 <PanelLeft />
                             </Button>
                         </SidebarTrigger>
