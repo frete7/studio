@@ -1,31 +1,58 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    match /users/{userId} {
-      // Allow user to create their own profile
-      allow create: if request.auth != null &&
-                      request.auth.uid == userId &&
-                      request.resource.data.name is string &&
-                      request.resource.data.email == request.auth.token.email &&
-                      request.resource.data.role in ['driver', 'company'] &&
-                      request.resource.data.createdAt == request.time;
-                      
-      // Allow user to read and update their own profile
-      allow get, update: if request.auth != null && request.auth.uid == userId;
-
-      // Allow admins to get any user profile
-      allow get: if request.auth != null &&
-                   exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    // Helper function to check if the user is an admin
+    function isAdmin() {
+      // Check if the user document exists and has the role 'admin'
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    match /users/{document=**} {
-        // Allow admins to list all users
-        allow list: if request.auth != null &&
-                   exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    // Rules for the 'users' collection
+    match /users/{userId} {
+      // Allow admins to get/list any user document
+      allow get, list: if isAdmin();
+
+      // Allow authenticated users to read their own document
+      allow get: if request.auth.uid == userId;
+      
+      // Allow admin to update any user document
+      allow update: if isAdmin();
+
+      // Allow authenticated users to update their own 'name'
+      allow update: if request.auth.uid == userId && request.resource.data.keys().hasOnly(['name']);
+
+      // Allow anyone to create a user document (for registration)
+      // Ensure required fields are present and correct
+      allow create: if request.auth.uid == userId &&
+                       request.resource.data.name is string &&
+                       request.resource.data.email == request.auth.email &&
+                       request.resource.data.role in ['driver', 'company'] &&
+                       request.resource.data.createdAt == request.time;
+    }
+
+    // Rules for 'vehicle_types' collection
+    match /vehicle_types/{vehicleTypeId} {
+      allow read: if request.auth != null; // Allow any authenticated user to read
+      allow list, write, delete: if isAdmin(); // Allow only admins to manage
+    }
+
+    // Rules for 'vehicle_categories' collection
+    match /vehicle_categories/{categoryId} {
+      allow read: if request.auth != null; // Allow any authenticated user to read
+      allow list, write, delete: if isAdmin(); // Allow only admins to manage
+    }
+
+    // Rules for 'freights' collection
+    match /freights/{freightId} {
+      // Allow admins to read/list all freights
+      allow get, list: if isAdmin();
+
+      // Allow any authenticated user to read freights
+      allow get: if request.auth != null;
     }
   }
 }
