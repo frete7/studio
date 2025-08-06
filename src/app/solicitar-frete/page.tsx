@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm, FormProvider, useFormContext, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -108,43 +108,99 @@ const steps = [
   { id: 4, name: 'Detalhes Finais', fields: ['additionalInfo'] },
 ];
 
+type IBGEState = { id: number; sigla: string; nome: string; };
+type IBGECity = { id: number; nome: string; };
 
 // =================================================================
 // Componentes das Etapas
 // =================================================================
 
 function LocationFormFields({ nestName, showDateTime = false }: { nestName: string, showDateTime?: boolean }) {
-    const { control, watch } = useFormContext();
+    const { control, watch, setValue } = useFormContext();
+    
+    const [states, setStates] = useState<IBGEState[]>([]);
+    const [cities, setCities] = useState<IBGECity[]>([]);
+    const [isLoadingStates, setIsLoadingStates] = useState(false);
+    const [isLoadingCities, setIsLoadingCities] = useState(false);
+
+    const selectedState = watch(`${nestName}.state`);
     const floorValue = watch(`${nestName}.floor`);
     const isTerreo = floorValue === 'Térreo';
 
-    const floorOptions = ['Térreo', ...Array.from({ length: 95 }, (_, i) => (i - 5).toString()).reverse()];
+    useEffect(() => {
+        setIsLoadingStates(true);
+        fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome')
+            .then(res => res.json())
+            .then(data => {
+                setStates(data);
+                setIsLoadingStates(false);
+            });
+    }, []);
+
+    useEffect(() => {
+        if (selectedState) {
+            setIsLoadingCities(true);
+            setCities([]);
+            setValue(`${nestName}.city`, ''); // Reset city when state changes
+            fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${selectedState}/municipios`)
+                .then(res => res.json())
+                .then(data => {
+                    setCities(data);
+                    setIsLoadingCities(false);
+                });
+        }
+    }, [selectedState, nestName, setValue]);
+
+
+    const floorOptions = [
+        ...Array.from({ length: 5 }, (_, i) => (i - 5).toString()),
+        'Térreo',
+        ...Array.from({ length: 89 }, (_, i) => (i + 1).toString())
+    ];
 
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
+                 <FormField
                     control={control}
                     name={`${nestName}.state`}
                     render={({ field }) => (
                         <FormItem>
                             <FormLabel>Estado (UF)</FormLabel>
-                            <FormControl>
-                                <Input placeholder="Ex: SP" {...field} />
-                            </FormControl>
+                            <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoadingStates}>
+                                <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder={isLoadingStates ? "Carregando..." : "Selecione o estado"} />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    {states.map(state => (
+                                        <SelectItem key={state.id} value={state.sigla}>{state.nome}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                             <FormMessage />
                         </FormItem>
                     )}
                 />
-                <FormField
+                 <FormField
                     control={control}
                     name={`${nestName}.city`}
                     render={({ field }) => (
                         <FormItem>
                             <FormLabel>Cidade</FormLabel>
-                            <FormControl>
-                                <Input placeholder="Ex: São Paulo" {...field} />
-                            </FormControl>
+                             <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!selectedState || isLoadingCities}>
+                                <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder={isLoadingCities ? "Carregando..." : "Selecione a cidade"} />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    {cities.map(city => (
+                                        <SelectItem key={city.id} value={city.nome}>{city.nome}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                             <FormMessage />
                         </FormItem>
                     )}
@@ -157,7 +213,7 @@ function LocationFormFields({ nestName, showDateTime = false }: { nestName: stri
                     <FormItem>
                         <FormLabel>Bairro</FormLabel>
                         <FormControl>
-                            <Input placeholder="Ex: Vila Madalena" {...field} />
+                            <Input placeholder="Digite o nome do bairro" {...field} />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
@@ -214,7 +270,9 @@ function LocationFormFields({ nestName, showDateTime = false }: { nestName: stri
                                 </FormControl>
                                 <SelectContent>
                                     {floorOptions.map(floor => (
-                                        <SelectItem key={floor} value={floor}>{floor}</SelectItem>
+                                        <SelectItem key={floor} value={floor}>
+                                            {floor === 'Térreo' ? 'Térreo' : `${floor}° Andar`}
+                                        </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
@@ -418,6 +476,12 @@ export default function RequestFreightPage() {
     resolver: zodResolver(formSchema),
     defaultValues: {
         origin: {
+            state: '',
+            city: '',
+            neighborhood: '',
+            locationType: 'casa',
+            floor: 'Térreo',
+            distance: '',
             dateTime: new Date(new Date().setDate(new Date().getDate() + 1))
         },
         destinations: [{ state: '', city: '', neighborhood: '', locationType: 'casa', floor: 'Térreo', distance: '' }],
@@ -515,3 +579,4 @@ export default function RequestFreightPage() {
   );
 }
 
+    
