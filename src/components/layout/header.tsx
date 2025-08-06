@@ -48,7 +48,7 @@ export default function Header() {
           setUserRole(userData.role);
           
           // Redirect logic
-          const isProfileIncomplete = userData.status === 'pending';
+          const isProfileIncomplete = userData.status === 'incomplete';
           const isTryingToCompleteProfile = pathname.startsWith('/profile') || pathname.startsWith('/api'); // Or other allowed paths
           
           if (isProfileIncomplete && !isTryingToCompleteProfile) {
