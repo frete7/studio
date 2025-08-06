@@ -1,59 +1,51 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+  
     function isAdmin() {
-      // Check if the user is authenticated and if their user document shows they are an admin.
-      return request.auth != null &&
+      // Check if the user is an admin by looking up their user document.
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Unauthenticated users can read public-facing data
-    match /freights/{freightId} {
-        allow read: if true;
-        allow write: if false; // All writes must be through server actions
+    match /users/{userId} {
+      allow read;
+      allow create: if request.auth != null;
+      // Allow update if the user is updating their own profile OR if the user is an admin.
+      allow update: if request.auth.uid == userId || isAdmin();
+      allow delete: if isAdmin();
     }
     
-    match /plans/{planId} {
+    match /body_types/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /vehicle_categories/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /vehicle_types/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /vehicles/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /plans/{docId} {
         allow read: if true;
         allow write: if isAdmin();
     }
-
-    match /vehicle_types/{typeId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    match /vehicle_categories/{categoryId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    match /body_types/{bodyTypeId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
     
-    match /vehicles/{vehicleId} {
+     match /freights/{docId} {
       allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // Users can only read/write their own data, but admins can read/write any user data.
-    match /users/{userId} {
-      allow read: if request.auth.uid == userId || isAdmin();
-      
-      // Allow user to update their own profile with specific fields
-      // Allow admin to update any user's profile
-      allow update: if (request.auth.uid == userId && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'tradingName', 'address', 'addressDetails', 'responsible', 'isCarrier', 'status', 'photoURL', 'cnpjCard'])) || isAdmin();
-      
-      // Allow user creation for anyone (during signup)
-      allow create: if true;
-      
-      // Only admins can delete users
-      allow delete: if isAdmin();
+      allow create: if true; // Allow anonymous freight requests
+      allow update, delete: if isAdmin() || (request.auth != null && get(/databases/$(database)/documents/freights/$(docId)).data.companyId == request.auth.uid);
     }
   }
 }
