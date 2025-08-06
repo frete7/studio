@@ -20,7 +20,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar as CalendarIcon, Loader2, PlusCircle, Trash2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, PlusCircle, Trash2, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
@@ -161,7 +161,7 @@ const generateFreightId = () => {
     const nums = '0123456789';
     const randomChar = () => chars.charAt(Math.floor(Math.random() * chars.length));
     const randomNum = () => nums.charAt(Math.floor(Math.random() * nums.length));
-    return `#CO-${randomNum()}${randomNum()}${randomChar()}${randomChar()}${randomChar()}#`;
+    return `#CO-${randomNum()}${randomNum()}${randomChar()}${randomChar()}${randomChar()}`;
 }
 
 // =================================================================
@@ -1035,6 +1035,8 @@ function SummaryView({ data }: { data: FormData }) {
 export default function RequestFreightPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
+  const [isSuccessOpen, setIsSuccessOpen] = useState(false);
+  const [freightId, setFreightId] = useState('');
   const { toast } = useToast();
   const router = useRouter();
 
@@ -1085,10 +1087,12 @@ export default function RequestFreightPage() {
   const { handleSubmit, trigger, getValues, formState: { isSubmitting } } = methods;
 
   async function processForm(data: FormData) {
+     const generatedId = generateFreightId();
+     setFreightId(generatedId);
      try {
         const freightData = {
             ...data,
-            id: generateFreightId(),
+            id: generatedId,
             freightType: 'comum',
             status: 'pendente',
             createdAt: new Date(),
@@ -1097,12 +1101,14 @@ export default function RequestFreightPage() {
             companyId: 'unauthenticated', // For anonymous requests
             companyName: data.contact.fullName,
         };
+        // Remove confirmation phone from data to be saved
+        if (freightData.contact?.confirmPhone) {
+            delete (freightData.contact as any).confirmPhone;
+        }
+
         await addDoc(collection(db, 'freights'), freightData);
-        toast({
-            title: "Solicitação Enviada!",
-            description: "Seu pedido de frete foi enviado com sucesso. Em breve você receberá os orçamentos por e-mail."
-        });
-        router.push('/');
+        setIsSummaryOpen(false);
+        setIsSuccessOpen(true);
     } catch(error) {
         console.error("Error saving freight request: ", error);
         toast({
@@ -1110,7 +1116,6 @@ export default function RequestFreightPage() {
             title: "Erro ao Enviar",
             description: "Não foi possível salvar sua solicitação. Tente novamente."
         })
-    } finally {
         setIsSummaryOpen(false);
     }
   }
@@ -1137,6 +1142,11 @@ export default function RequestFreightPage() {
        window.scrollTo(0, 0);
     }
   };
+
+  const handleFinish = () => {
+    setIsSuccessOpen(false);
+    router.push('/');
+  }
   
   const progress = ((currentStep + 1) / steps.length) * 100;
 
@@ -1167,7 +1177,7 @@ export default function RequestFreightPage() {
                         </form>
                     </FormProvider>
 
-                     {/* Modal de Confirmação */}
+                    {/* Modal de Confirmação */}
                     <Dialog open={isSummaryOpen} onOpenChange={setIsSummaryOpen}>
                         <DialogContent className="sm:max-w-2xl">
                              <DialogHeader>
@@ -1184,6 +1194,28 @@ export default function RequestFreightPage() {
                                 <Button onClick={handleSubmit(processForm)} disabled={isSubmitting}>
                                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                     Finalizar
+                                </Button>
+                             </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+
+                    {/* Modal de Sucesso */}
+                    <Dialog open={isSuccessOpen} onOpenChange={setIsSuccessOpen}>
+                        <DialogContent>
+                             <DialogHeader>
+                                <div className="flex flex-col items-center text-center gap-4 py-4">
+                                    <CheckCircle className="h-16 w-16 text-green-500" />
+                                    <DialogTitle className="text-2xl">Parabéns!</DialogTitle>
+                                    <p className="text-muted-foreground">Seu pedido foi feito com sucesso e em breve você começará a receber os primeiros orçamentos.</p>
+                                    <div className="bg-muted rounded-md p-3 w-full text-center mt-2">
+                                        <p className="text-sm">Código do Pedido:</p>
+                                        <p className="font-mono font-bold text-lg text-primary">{freightId}</p>
+                                    </div>
+                                </div>
+                             </DialogHeader>
+                             <DialogFooter>
+                                <Button onClick={handleFinish} className="w-full">
+                                    Fechar
                                 </Button>
                              </DialogFooter>
                         </DialogContent>
