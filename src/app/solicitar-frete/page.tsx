@@ -177,8 +177,10 @@ function LocationFormFields({ nestName, showDateTime = false }: { nestName: stri
     const [isLoadingCities, setIsLoadingCities] = useState(false);
 
     const selectedState = watch(`${nestName}.state`);
+    const selectedCity = watch(`${nestName}.city`);
     const floorValue = watch(`${nestName}.floor`);
     const isTerreo = floorValue === 'Térreo';
+    const isFieldsEnabled = selectedState && selectedCity;
 
     useEffect(() => {
         setIsLoadingStates(true);
@@ -271,7 +273,7 @@ function LocationFormFields({ nestName, showDateTime = false }: { nestName: stri
                     <FormItem>
                         <FormLabel>Bairro</FormLabel>
                         <FormControl>
-                            <Input placeholder="Digite o nome do bairro" {...field} />
+                            <Input placeholder="Digite o nome do bairro" {...field} disabled={!isFieldsEnabled}/>
                         </FormControl>
                         <FormMessage />
                     </FormItem>
@@ -288,6 +290,7 @@ function LocationFormFields({ nestName, showDateTime = false }: { nestName: stri
                                 onValueChange={field.onChange}
                                 defaultValue={field.value}
                                 className="flex flex-col md:flex-row gap-4"
+                                disabled={!isFieldsEnabled}
                             >
                                 <FormItem className="flex items-center space-x-3 space-y-0">
                                     <FormControl>
@@ -320,7 +323,7 @@ function LocationFormFields({ nestName, showDateTime = false }: { nestName: stri
                     render={({ field }) => (
                         <FormItem>
                             <FormLabel>Andar</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!isFieldsEnabled}>
                                 <FormControl>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Selecione o andar" />
@@ -345,7 +348,7 @@ function LocationFormFields({ nestName, showDateTime = false }: { nestName: stri
                         render={({ field }) => (
                             <FormItem>
                                 <FormLabel>Acesso ao Local</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!isFieldsEnabled}>
                                     <FormControl>
                                         <SelectTrigger>
                                             <SelectValue placeholder="Selecione o acesso" />
@@ -377,6 +380,7 @@ function LocationFormFields({ nestName, showDateTime = false }: { nestName: stri
                                 onChange={(e) => handleDistanceChange(e, field)}
                                 value={field.value}
                                 inputMode="numeric"
+                                disabled={!isFieldsEnabled}
                             />
                         </FormControl>
                         <FormMessage />
@@ -400,6 +404,7 @@ function LocationFormFields({ nestName, showDateTime = false }: { nestName: stri
                                     "w-full pl-3 text-left font-normal",
                                     !field.value && "text-muted-foreground"
                                 )}
+                                disabled={!isFieldsEnabled}
                                 >
                                 {field.value ? (
                                     format(field.value, "PPP 'às' HH:mm", { locale: ptBR })
@@ -462,24 +467,30 @@ function OriginStep() {
 }
 
 function DestinationStep() {
-     const { control, getValues, setValue } = useFormContext();
+     const { control, getValues, setValue, formState: { errors } } = useFormContext();
      const { fields, append, remove } = useFieldArray({
          control,
          name: "destinations"
      });
      
      const { toast } = useToast();
+     const allDestinations = useWatch({ control, name: "destinations" });
+     const lastDestination = allDestinations[allDestinations.length - 1];
+     const isAddDisabled = !lastDestination.state || !lastDestination.city || !lastDestination.neighborhood || !lastDestination.floor || !lastDestination.distance;
+
 
      const copyOriginAddress = (destinationIndex: number) => {
         const originValues = getValues("origin");
         if (originValues.state && originValues.city) {
             setValue(`destinations.${destinationIndex}.state`, originValues.state, { shouldValidate: true, shouldDirty: true });
             
-            // Wait a bit for the city list to update based on the new state
+            // This relies on the useEffect in LocationFormFields to fetch cities
+            // We set the city value after a short delay to allow the city list to populate
             setTimeout(() => {
                 setValue(`destinations.${destinationIndex}.city`, originValues.city, { shouldValidate: true, shouldDirty: true });
-                toast({ title: "Endereço copiado!", description: "O estado e a cidade da origem foram copiados." });
-            }, 1);
+                setValue(`destinations.${destinationIndex}.neighborhood`, originValues.neighborhood, { shouldValidate: true, shouldDirty: true });
+                setValue(`destinations.${destinationIndex}.locationType`, originValues.locationType, { shouldValidate: true, shouldDirty: true });
+            }, 500); // 500ms delay might be needed for slower network
 
         } else {
              toast({ variant: "destructive", title: "Atenção", description: "Preencha o estado e a cidade na origem primeiro." });
@@ -521,10 +532,12 @@ function DestinationStep() {
                 onClick={() => append({ 
                     state: '', city: '', neighborhood: '', locationType: 'casa', floor: 'Térreo', distance: ''
                 })}
+                disabled={isAddDisabled}
             >
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Adicionar outro destino
             </Button>
+            {isAddDisabled && <p className="text-sm text-muted-foreground text-center mt-2">Preencha o destino atual antes de adicionar um novo.</p>}
         </div>
     )
 }
