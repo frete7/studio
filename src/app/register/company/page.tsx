@@ -48,6 +48,21 @@ export default function CompanyRegisterPage() {
   const form = useForm<CompanyFormData>({
     resolver: zodResolver(companyFormSchema),
     mode: 'onBlur',
+    defaultValues: {
+        cnpj: '',
+        razaoSocial: '',
+        nomeFantasia: '',
+        cep: '',
+        logradouro: '',
+        numero: '',
+        complemento: '',
+        bairro: '',
+        cidade: '',
+        uf: '',
+        email: '',
+        password: '',
+        confirmPassword: '',
+    }
   });
 
   const handleCepBlur = async (cep: string) => {
