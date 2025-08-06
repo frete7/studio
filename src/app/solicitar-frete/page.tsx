@@ -159,9 +159,14 @@ type IBGECity = { id: number; nome: string; };
 const generateFreightId = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const nums = '0123456789';
-    const randomChar = () => chars.charAt(Math.floor(Math.random() * chars.length));
-    const randomNum = () => nums.charAt(Math.floor(Math.random() * nums.length));
-    return `#CO-${randomNum()}${randomNum()}${randomChar()}${randomChar()}${randomChar()}`;
+    const crypto = window.crypto;
+    const array = new Uint32Array(5);
+    crypto.getRandomValues(array);
+
+    const randomChar = (index: number) => chars[array[index] % chars.length];
+    const randomNum = (index: number) => nums[array[index] % nums.length];
+
+    return `#CO-${randomNum(0)}${randomNum(1)}${randomChar(2)}${randomChar(3)}${randomChar(4)}`;
 }
 
 // =================================================================
