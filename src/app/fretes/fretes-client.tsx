@@ -3,7 +3,8 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { collection, onSnapshot, query, where, getDocs } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
+import { onAuthStateChanged, type User } from 'firebase/auth';
 import { type Freight, type BodyType, type Vehicle, type VehicleCategory } from '@/app/actions';
 import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -130,6 +131,7 @@ export default function FretesClient() {
     const [allVehicleCategories, setAllVehicleCategories] = useState<VehicleCategory[]>([]);
     
     const [isLoading, setIsLoading] = useState(true);
+    const [user, setUser] = useState<User | null>(null);
 
     // Filter states
     const [originCities, setOriginCities] = useState<string[]>([]);
@@ -137,6 +139,14 @@ export default function FretesClient() {
     const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
     const [selectedBodyTypes, setSelectedBodyTypes] = useState<string[]>([]);
     const [selectedFreightTypes, setSelectedFreightTypes] = useState<string[]>([]);
+
+    useEffect(() => {
+        const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+            setUser(currentUser);
+        });
+        
+        return () => unsubscribeAuth();
+    }, []);
 
 
     useEffect(() => {
@@ -365,17 +375,18 @@ export default function FretesClient() {
 
             {/* Main Content */}
             <main className="col-span-1 md:col-span-3 space-y-6">
-                 <Alert className="bg-blue-50 border-blue-200 text-blue-800">
-                    <Eye className="h-4 w-4 !text-blue-700" />
-                    <AlertTitle className="font-semibold">Para ver os valores dos fretes, você precisa se autenticar.</AlertTitle>
-                    <AlertDescription>
-                        <Link href="/login" className="font-bold underline">Entre</Link> ou <Link href="/register" className="font-bold underline">crie uma conta</Link> para ter acesso a todos os detalhes.
-                    </AlertDescription>
-                </Alert>
+                {!user && (
+                    <Alert className="bg-blue-50 border-blue-200 text-blue-800">
+                        <Eye className="h-4 w-4 !text-blue-700" />
+                        <AlertTitle className="font-semibold">Para ver os valores dos fretes, você precisa se autenticar.</AlertTitle>
+                        <AlertDescription>
+                            <Link href="/login" className="font-bold underline">Entre</Link> ou <Link href="/register" className="font-bold underline">crie uma conta</Link> para ter acesso a todos os detalhes.
+                        </AlertDescription>
+                    </Alert>
+                )}
                 <h2 className="text-lg font-medium">{filteredFreights.length} fretes disponíveis</h2>
                 {renderFreightList()}
             </main>
         </div>
     );
 }
-
