@@ -20,7 +20,7 @@ type DashboardStats = {
     pendingVerifications: number;
 };
 
-export default function AdminPage() {
+export default function AdminDashboardPage() {
   const [user, setUser] = useState<UserData | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,70 +38,60 @@ export default function AdminPage() {
 
       if (userDoc.exists() && userDoc.data().role === 'admin') {
         setUser(userDoc.data() as UserData);
-        // Fetch dashboard data only if user is admin
         fetchDashboardData();
       } else {
-        // Not an admin or doc doesn't exist, redirect
         router.push('/');
-        setIsLoading(false);
       }
     });
-    
-    const fetchDashboardData = async () => {
-        try {
-            // Get total users
-            const usersCollection = collection(db, 'users');
-            const totalUsersSnapshot = await getCountFromServer(usersCollection);
-            const totalUsers = totalUsersSnapshot.data().count;
-
-            // Get new users today
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const startOfToday = Timestamp.fromDate(today);
-
-            const newUsersQuery = query(usersCollection, where('createdAt', '>=', startOfToday));
-            const newUsersSnapshot = await getCountFromServer(newUsersQuery);
-            const newUsersToday = newUsersSnapshot.data().count;
-            
-            // Placeholder for pending verifications
-            const pendingVerifications = 0;
-
-            setStats({
-                totalUsers,
-                newUsersToday,
-                pendingVerifications
-            });
-
-        } catch (error) {
-            console.error("Error fetching dashboard data: ", error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
 
     return () => unsubscribe();
   }, [router]);
+  
+  const fetchDashboardData = async () => {
+      setIsLoading(true);
+      try {
+          const usersCollection = collection(db, 'users');
+          const totalUsersSnapshot = await getCountFromServer(usersCollection);
+          const totalUsers = totalUsersSnapshot.data().count;
 
-  if (isLoading) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const startOfToday = Timestamp.fromDate(today);
+
+          const newUsersQuery = query(usersCollection, where('createdAt', '>=', startOfToday));
+          const newUsersSnapshot = await getCountFromServer(newUsersQuery);
+          const newUsersToday = newUsersSnapshot.data().count;
+          
+          const pendingVerifications = 0; // Placeholder
+
+          setStats({
+              totalUsers,
+              newUsersToday,
+              pendingVerifications
+          });
+
+      } catch (error) {
+          console.error("Error fetching dashboard data: ", error);
+      } finally {
+          setIsLoading(false);
+      }
+  };
+
+
+  if (isLoading && !stats) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-[calc(100vh-12rem)] items-center justify-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
   }
 
-  if (!user) {
-    // This state should ideally not be reached due to redirects
-    return null;
-  }
-
   return (
-    <div className="container mx-auto px-4 py-12">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold font-headline text-primary">Painel do Administrador</h1>
-        <p className="text-foreground/70">Bem-vindo, {user.name}!</p>
+    <div className="space-y-6">
+       <div className="mb-8">
+        <h1 className="text-3xl font-bold font-headline text-primary">Dashboard</h1>
+        <p className="text-foreground/70">Bem-vindo, {user?.name || 'Admin'}! Aqui está um resumo da plataforma.</p>
       </div>
-
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
