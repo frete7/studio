@@ -45,25 +45,24 @@ export async function updateDocumentStatus(userId: string, docField: 'responsibl
         const userData = userDoc.data();
         const updatePayload: { [key: string]: any } = {};
 
-        // Handle nested responsible.document field
+        // Use dot notation to update nested fields directly.
         if (docField === 'responsible.document') {
-            const responsibleData = userData.responsible || {};
-            const documentData = (typeof responsibleData.document === 'string') 
-                ? { url: responsibleData.document, status: 'pending' } 
-                : (responsibleData.document || {});
+            const documentData = (typeof userData.responsible?.document === 'string') 
+                ? { url: userData.responsible.document, status: 'pending' } 
+                : (userData.responsible?.document || {});
+            
+            updatePayload['responsible.document'] = { ...documentData, status: docStatus };
 
-            responsibleData.document = { ...documentData, status: docStatus };
-            updatePayload['responsible'] = responsibleData;
         } else { // Handle cnpjCard field
              const cnpjCardData = (typeof userData.cnpjCard === 'string')
                 ? { url: userData.cnpjCard, status: 'pending' }
                 : (userData.cnpjCard || {});
             
-            updatePayload[docField] = { ...cnpjCardData, status: docStatus };
+            updatePayload['cnpjCard'] = { ...cnpjCardData, status: docStatus };
         }
 
         // If any document is rejected, set main user status to 'incomplete'
-        // This is a simplified check. A more robust check would verify all docs.
+        // to signal that action is required.
         if (docStatus === 'rejected') {
             updatePayload['status'] = 'incomplete';
         }
