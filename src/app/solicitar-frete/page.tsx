@@ -1094,7 +1094,7 @@ export default function RequestFreightPage() {
             ...data,
             id: generatedId,
             freightType: 'comum',
-            status: 'pendente',
+            status: 'ativo',
             createdAt: new Date(),
             origin: `${data.origin.city}, ${data.origin.state}`,
             destinations: data.destinations.map(d => `${d.city}, ${d.state}`),
