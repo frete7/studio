@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useForm, FormProvider, useFormContext, Controller, useFieldArray } from 'react-hook-form';
+import { useForm, FormProvider, useFormContext, Controller, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from "date-fns";
@@ -85,10 +85,37 @@ const itemsSchema = z.object({
 
 const additionalInfoSchema = z.object({
     hasRestriction: z.boolean().default(false),
+    restrictionDetails: z.string().optional(),
     needsAssembly: z.boolean().default(false),
-    assemblyItems: z.array(z.object({ value: z.string() })).optional(),
+    assemblyItems: z.array(z.object({ value: z.string().min(1, "Item não pode ser vazio.") })).optional(),
     needsPackaging: z.boolean().default(false),
-    packagingItems: z.array(z.object({ value: z.string() })).optional(),
+    packagingItems: z.array(z.object({ value: z.string().min(1, "Item não pode ser vazio.") })).optional(),
+    hasSchedulePreference: z.boolean().default(false),
+    scheduleDetails: z.string().optional(),
+    hasParkingRestriction: z.boolean().default(false),
+    parkingRestrictionDetails: z.string().optional(),
+    needsStorage: z.boolean().default(false),
+    needsItemPackaging: z.boolean().default(false),
+    itemPackagingDetails: z.array(z.object({ value: z.string().min(1, "Item não pode ser vazio.") })).optional(),
+    companyPreference: z.enum(['price', 'quality', 'cost_benefit'], { required_error: "Selecione sua preferência." }),
+}).refine(data => !data.hasRestriction || (data.restrictionDetails && data.restrictionDetails.length > 0), {
+    message: "Por favor, descreva a restrição.",
+    path: ['restrictionDetails']
+}).refine(data => !data.needsAssembly || (data.assemblyItems && data.assemblyItems.length > 0), {
+    message: "Adicione pelo menos um móvel para montagem/desmontagem.",
+    path: ['assemblyItems']
+}).refine(data => !data.needsPackaging || (data.packagingItems && data.packagingItems.length > 0), {
+    message: "Adicione pelo menos um móvel para embalar.",
+    path: ['packagingItems']
+}).refine(data => !data.hasSchedulePreference || (data.scheduleDetails && data.scheduleDetails.length > 0), {
+    message: "Por favor, informe o horário preferencial.",
+    path: ['scheduleDetails']
+}).refine(data => !data.hasParkingRestriction || (data.parkingRestrictionDetails && data.parkingRestrictionDetails.length > 0), {
+    message: "Por favor, descreva a restrição ou taxa.",
+    path: ['parkingRestrictionDetails']
+}).refine(data => !data.needsItemPackaging || (data.itemPackagingDetails && data.itemPackagingDetails.length > 0), {
+    message: "Adicione pelo menos um item a ser embalado.",
+    path: ['itemPackagingDetails']
 });
 
 
@@ -140,9 +167,8 @@ function LocationFormFields({ nestName, showDateTime = false }: { nestName: stri
     useEffect(() => {
         if (selectedState) {
             setIsLoadingCities(true);
-            setCities([]);
             setValue(`${nestName}.city`, ''); // Reset city when state changes
-            fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${selectedState}/municipios`)
+            fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${selectedState}/municipios?orderBy=nome`)
                 .then(res => res.json())
                 .then(data => {
                     setCities(data);
@@ -189,7 +215,7 @@ function LocationFormFields({ nestName, showDateTime = false }: { nestName: stri
                     render={({ field }) => (
                         <FormItem>
                             <FormLabel>Cidade</FormLabel>
-                             <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!selectedState || isLoadingCities}>
+                             <Select onValueChange={field.onChange} value={field.value} disabled={!selectedState || isLoadingCities}>
                                 <FormControl>
                                     <SelectTrigger>
                                         <SelectValue placeholder={isLoadingCities ? "Carregando..." : "Selecione a cidade"} />
@@ -442,13 +468,13 @@ function DestinationStep() {
 }
 
 function ItemsStep() {
-    const { control, watch } = useFormContext();
+    const { control } = useFormContext();
     const { fields, append, remove } = useFieldArray({
         control,
         name: "items.list"
     });
 
-    const itemsType = watch("items.type");
+    const itemsType = useWatch({ control, name: "items.type" });
 
     return (
         <div className="space-y-6">
@@ -543,15 +569,284 @@ function ItemsStep() {
     );
 }
 
+function ConditionalListInput({ controlName, switchName, label, placeholder }: { controlName: string, switchName: string, label: string, placeholder: string }) {
+    const { control } = useFormContext();
+    const { fields, append, remove } = useFieldArray({ control, name: controlName });
+    const switchValue = useWatch({ control, name: switchName });
+
+    if (!switchValue) return null;
+
+    return (
+        <div className="space-y-4 pl-4 border-l-2 ml-2">
+            <FormLabel>{label}</FormLabel>
+            {fields.map((field, index) => (
+                <div key={field.id} className="flex items-center gap-2">
+                    <FormField
+                        control={control}
+                        name={`${controlName}.${index}.value`}
+                        render={({ field: itemField }) => (
+                            <FormItem className="flex-1">
+                                <FormControl>
+                                    <Input placeholder={`${placeholder} #${index + 1}`} {...itemField} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                </div>
+            ))}
+            <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => append({ value: "" })}
+            >
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Adicionar
+            </Button>
+        </div>
+    );
+}
+
 function AdditionalInfoStep() {
-     return (
-        <div className="space-y-4">
+    const { control } = useFormContext();
+    const watchHasRestriction = useWatch({ control, name: 'additionalInfo.hasRestriction' });
+    const watchHasSchedulePreference = useWatch({ control, name: 'additionalInfo.hasSchedulePreference' });
+    const watchHasParkingRestriction = useWatch({ control, name: 'additionalInfo.hasParkingRestriction' });
+
+    return (
+        <div className="space-y-6">
             <h2 className="text-2xl font-semibold">4. Informações Adicionais</h2>
-            <p className="text-muted-foreground">Algum detalhe extra importante?</p>
+            <p className="text-muted-foreground">Forneça detalhes extras para um orçamento mais preciso.</p>
             <Separator />
-            <div className="p-4 border rounded-md bg-muted/50 text-center">
-                <p>Campos do formulário da Etapa 4 aparecerão aqui.</p>
+
+            <div className="space-y-6">
+                <FormField
+                    control={control}
+                    name="additionalInfo.hasRestriction"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                                <FormLabel>O local possui alguma restrição?</FormLabel>
+                            </div>
+                            <FormControl>
+                                <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                        </FormItem>
+                    )}
+                />
+                {watchHasRestriction && (
+                     <FormField
+                        control={control}
+                        name="additionalInfo.restrictionDetails"
+                        render={({ field }) => (
+                             <FormItem className="pl-4 border-l-2 ml-2">
+                                <FormLabel>Qual?</FormLabel>
+                                <FormControl>
+                                    <Textarea placeholder="Ex: Proibido barulho após as 22h, elevador não pode ser usado para mudanças..." {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                )}
             </div>
+
+            <div className="space-y-2">
+                <FormField
+                    control={control}
+                    name="additionalInfo.needsAssembly"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                                <FormLabel>Necessita desmontagem/montagem?</FormLabel>
+                            </div>
+                            <FormControl>
+                                <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                        </FormItem>
+                    )}
+                />
+                <ConditionalListInput 
+                    controlName="additionalInfo.assemblyItems"
+                    switchName="additionalInfo.needsAssembly"
+                    label="Quais móveis?"
+                    placeholder="Ex: Guarda-roupa"
+                />
+                 <FormField control={control} name="additionalInfo.assemblyItems" render={() => <FormMessage />} />
+            </div>
+
+            <div className="space-y-2">
+                 <FormField
+                    control={control}
+                    name="additionalInfo.needsPackaging"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                                <FormLabel>Precisa que a empresa embale algum móvel?</FormLabel>
+                            </div>
+                            <FormControl>
+                                <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                        </FormItem>
+                    )}
+                />
+                <ConditionalListInput 
+                    controlName="additionalInfo.packagingItems"
+                    switchName="additionalInfo.needsPackaging"
+                    label="Quais móveis?"
+                    placeholder="Ex: Sofá, TV 55 polegadas"
+                />
+                <FormField control={control} name="additionalInfo.packagingItems" render={() => <FormMessage />} />
+            </div>
+
+            <div className="space-y-6">
+                <FormField
+                    control={control}
+                    name="additionalInfo.hasSchedulePreference"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                                <FormLabel>Existe horário preferencial para a mudança?</FormLabel>
+                            </div>
+                            <FormControl>
+                                <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                        </FormItem>
+                    )}
+                />
+                {watchHasSchedulePreference && (
+                     <FormField
+                        control={control}
+                        name="additionalInfo.scheduleDetails"
+                        render={({ field }) => (
+                             <FormItem className="pl-4 border-l-2 ml-2">
+                                <FormLabel>Qual o horário?</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="Ex: Somente no período da manhã" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                )}
+            </div>
+
+             <div className="space-y-6">
+                <FormField
+                    control={control}
+                    name="additionalInfo.hasParkingRestriction"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                                <FormLabel>Há restrição/taxa para estacionar?</FormLabel>
+                            </div>
+                            <FormControl>
+                                <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                        </FormItem>
+                    )}
+                />
+                {watchHasParkingRestriction && (
+                     <FormField
+                        control={control}
+                        name="additionalInfo.parkingRestrictionDetails"
+                        render={({ field }) => (
+                             <FormItem className="pl-4 border-l-2 ml-2">
+                                <FormLabel>Qual?</FormLabel>
+                                <FormControl>
+                                    <Textarea placeholder="Ex: Zona Azul, condomínio cobra taxa de R$50,00" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                )}
+            </div>
+             <div className="space-y-2">
+                 <FormField
+                    control={control}
+                    name="additionalInfo.needsStorage"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                                <FormLabel>Precisa de guarda-móveis?</FormLabel>
+                                <FormDescription>Armazenamento temporário dos itens.</FormDescription>
+                            </div>
+                            <FormControl>
+                                <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                        </FormItem>
+                    )}
+                />
+            </div>
+
+            <div className="space-y-2">
+                 <FormField
+                    control={control}
+                    name="additionalInfo.needsItemPackaging"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                                <FormLabel>Precisa que a empresa embale outros itens?</FormLabel>
+                                <FormDescription>Roupas, utensílios, etc.</FormDescription>
+                            </div>
+                            <FormControl>
+                                <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                        </FormItem>
+                    )}
+                />
+                <ConditionalListInput 
+                    controlName="additionalInfo.itemPackagingDetails"
+                    switchName="additionalInfo.needsItemPackaging"
+                    label="Quais itens?"
+                    placeholder="Ex: Roupas de cama"
+                />
+                 <FormField control={control} name="additionalInfo.itemPackagingDetails" render={() => <FormMessage />} />
+            </div>
+            
+            <Separator />
+
+             <FormField
+                control={control}
+                name="additionalInfo.companyPreference"
+                render={({ field }) => (
+                    <FormItem className="space-y-3">
+                        <FormLabel>Na escolha da empresa, você vai dar preferência a:</FormLabel>
+                        <FormControl>
+                            <RadioGroup
+                                onValueChange={field.onChange}
+                                defaultValue={field.value}
+                                className="flex flex-col gap-2"
+                            >
+                                <FormItem className="flex items-center space-x-3 space-y-0">
+                                    <FormControl>
+                                        <RadioGroupItem value="price" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">Preço (o mais barato)</FormLabel>
+                                </FormItem>
+                                <FormItem className="flex items-center space-x-3 space-y-0">
+                                    <FormControl>
+                                        <RadioGroupItem value="quality" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">Qualidade (a mais bem avaliada)</FormLabel>
+                                </FormItem>
+                                <FormItem className="flex items-center space-x-3 space-y-0">
+                                    <FormControl>
+                                        <RadioGroupItem value="cost_benefit" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">Custo/Benefício (equilíbrio entre preço e qualidade)</FormLabel>
+                                </FormItem>
+                            </RadioGroup>
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
         </div>
     )
 }
@@ -565,6 +860,7 @@ export default function RequestFreightPage() {
   
   const methods = useForm<FormData>({
     resolver: zodResolver(formSchema),
+    mode: "onBlur",
     defaultValues: {
         origin: {
             state: '',
@@ -573,7 +869,6 @@ export default function RequestFreightPage() {
             locationType: 'casa',
             floor: 'Térreo',
             distance: '',
-            // dateTime: new Date(new Date().setDate(new Date().getDate() + 1))
         },
         destinations: [{ state: '', city: '', neighborhood: '', locationType: 'casa', floor: 'Térreo', distance: '' }],
         items: {
@@ -586,7 +881,12 @@ export default function RequestFreightPage() {
             needsAssembly: false,
             assemblyItems: [],
             needsPackaging: false,
-            packagingItems: []
+            packagingItems: [],
+            hasSchedulePreference: false,
+            hasParkingRestriction: false,
+            needsStorage: false,
+            needsItemPackaging: false,
+            itemPackagingDetails: [],
         }
     }
   });
@@ -600,21 +900,24 @@ export default function RequestFreightPage() {
     alert('Frete solicitado com sucesso!');
   }
   
+  type FieldName = keyof FormData;
+
   const nextStep = async () => {
-    const fields = steps[currentStep].fields;
-    // @ts-ignore
+    const fields = steps[currentStep].fields as FieldName[];
     const output = await trigger(fields, { shouldFocus: true });
 
     if (!output) return;
 
     if (currentStep < steps.length - 1) {
       setCurrentStep(step => step + 1);
+      window.scrollTo(0, 0);
     }
   };
 
   const prevStep = () => {
     if (currentStep > 0) {
       setCurrentStep(step => step - 1);
+       window.scrollTo(0, 0);
     }
   };
   
@@ -654,6 +957,7 @@ export default function RequestFreightPage() {
                         </Button>
                         {currentStep < steps.length - 1 ? (
                             <Button onClick={nextStep} disabled={isSubmitting}>
+                                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Próximo
                             </Button>
                         ) : (
@@ -669,3 +973,5 @@ export default function RequestFreightPage() {
     </section>
   );
 }
+
+    
