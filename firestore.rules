@@ -1,59 +1,54 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // =================================
-    // Helper Functions
-    // =================================
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function getUserData(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data;
-    }
-
-    function isUser(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-    
+  
     function isAdmin() {
-      return isSignedIn() && getUserData(request.auth.uid).role == 'admin';
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // =================================
-    // Collection Rules
-    // =================================
-
-    // Users can only read/write their own data. Admins can read/write any.
+    // Regras para a coleção 'users'
     match /users/{userId} {
-      allow read, write: if isUser(userId) || isAdmin();
-    }
-
-    // Freights can be created by anyone (anonymous included).
-    // Only admins can read, update, or delete them.
-    match /freights/{freightId} {
-      allow create: if true;
-      allow read, update, delete: if isAdmin();
+      // Qualquer usuário autenticado pode criar seu próprio perfil
+      allow create: if request.auth.uid == userId;
+      // Um usuário só pode ler ou atualizar seus próprios dados
+      allow read, update: if request.auth.uid == userId || isAdmin();
+      // Apenas administradores podem deletar usuários ou listar todos
+      allow delete, list: if isAdmin();
     }
     
-    // Only admins can manage platform configurations.
-    match /body_types/{docId} {
-      allow read, write: if isAdmin();
+    // Regras para a coleção 'freights'
+    match /freights/{freightId} {
+        // Qualquer um pode criar (solicitação anônima) ou ler a lista de fretes
+        allow create, read;
+        // Apenas o criador (se logado) ou um admin pode atualizar/deletar
+        allow update, delete: if isAdmin() || request.auth.uid == resource.data.companyId;
     }
-    match /vehicle_categories/{docId} {
-      allow read, write: if isAdmin();
+
+    // Regras para coleções de configuração (Planos, Tipos de Veículos, etc.)
+    match /plans/{planId} {
+      allow read: if true;
+      allow list, write: if isAdmin();
     }
-    match /vehicle_types/{docId} {
-      allow read, write: if isAdmin();
+
+    match /vehicle_types/{typeId} {
+      allow read: if true;
+      allow list, write: if isAdmin();
     }
-    match /vehicles/{docId} {
-      allow read, write: if isAdmin();
+    
+    match /vehicle_categories/{categoryId} {
+      allow read: if true;
+      allow list, write: if isAdmin();
     }
-    match /plans/{docId} {
-      allow read, write: if isAdmin();
+    
+    match /vehicles/{vehicleId} {
+      allow read: if true;
+      allow list, write: if isAdmin();
+    }
+
+    match /body_types/{bodyTypeId} {
+      allow read: if true;
+      allow list, write: if isAdmin();
     }
   }
 }
