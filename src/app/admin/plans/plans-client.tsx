@@ -1,13 +1,14 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useRouter } from 'next/navigation';
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
-import { addPlan, updatePlan, deletePlan, type Plan } from '@/app/actions';
+import { type Plan } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,17 +30,37 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-interface PlansClientProps {
-  initialPlans: Plan[];
-}
-
-export default function PlansClient({ initialPlans }: PlansClientProps) {
-  const [isLoading, setIsLoading] = useState(false);
+export default function PlansClient() {
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
 
   const { toast } = useToast();
-  const router = useRouter();
+
+  useEffect(() => {
+    setIsLoading(true);
+    const q = query(collection(db, 'plans'));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const data: Plan[] = [];
+        querySnapshot.forEach((doc) => {
+            data.push({ ...doc.data(), id: doc.id } as Plan);
+        });
+        setPlans(data);
+        setIsLoading(false);
+    }, (error) => {
+        console.error("Error fetching plans: ", error);
+        toast({
+            variant: "destructive",
+            title: "Erro ao buscar dados",
+            description: "Verifique suas permissões ou tente novamente mais tarde."
+        });
+        setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [toast]);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -77,19 +98,18 @@ export default function PlansClient({ initialPlans }: PlansClientProps) {
   }
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
-    setIsLoading(true);
+    setIsSubmitting(true);
     try {
       if (editingPlan) {
-        await updatePlan(editingPlan.id, data);
+        await updateDoc(doc(db, 'plans', editingPlan.id), data);
         toast({ title: 'Sucesso!', description: 'Plano atualizado.' });
       } else {
-        await addPlan(data);
+        await addDoc(collection(db, 'plans'), data);
         toast({ title: 'Sucesso!', description: 'Novo plano adicionado.' });
       }
       form.reset();
       setIsDialogOpen(false);
       setEditingPlan(null);
-      router.refresh();
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -97,15 +117,14 @@ export default function PlansClient({ initialPlans }: PlansClientProps) {
         description: error instanceof Error ? error.message : 'Ocorreu um erro.',
       });
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
   const handleDelete = async (id: string) => {
     try {
-        await deletePlan(id);
+        await deleteDoc(doc(db, 'plans', id));
         toast({ title: 'Sucesso!', description: 'Plano removido.' });
-        router.refresh();
     } catch (error) {
          toast({
             variant: 'destructive',
@@ -117,6 +136,74 @@ export default function PlansClient({ initialPlans }: PlansClientProps) {
 
   const formatCurrency = (value: number) => {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      );
+    }
+
+    if (plans.length === 0) {
+      return (
+        <p className="text-center text-muted-foreground py-8">Nenhum plano cadastrado.</p>
+      );
+    }
+    
+    return (
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Nome</TableHead>
+            <TableHead>Duração</TableHead>
+            <TableHead>Valor PIX</TableHead>
+            <TableHead>Valor Cartão</TableHead>
+            <TableHead className="text-right">Ações</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {plans.map((plan) => (
+            <TableRow key={plan.id}>
+              <TableCell className="font-medium">{plan.name}</TableCell>
+              <TableCell>{plan.durationDays} dias</TableCell>
+              <TableCell>{formatCurrency(plan.pricePix)}</TableCell>
+              <TableCell>{formatCurrency(plan.priceCard)}</TableCell>
+              <TableCell className="text-right space-x-2">
+                 <Button variant="outline" size="icon" onClick={() => handleEditClick(plan)}>
+                    <Edit className="h-4 w-4" />
+                    <span className="sr-only">Editar</span>
+                </Button>
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                         <Button variant="destructive" size="icon">
+                            <Trash2 className="h-4 w-4" />
+                            <span className="sr-only">Remover</span>
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                        <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Esta ação não pode ser desfeita. Isso irá remover permanentemente o plano.
+                        </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => handleDelete(plan.id)}>
+                            Sim, remover
+                        </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    );
   }
 
   return (
@@ -207,8 +294,8 @@ export default function PlansClient({ initialPlans }: PlansClientProps) {
                         <DialogClose asChild>
                             <Button type="button" variant="secondary" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
                         </DialogClose>
-                        <Button type="submit" disabled={isLoading}>
-                            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Salvar
                         </Button>
                     </DialogFooter>
@@ -218,60 +305,9 @@ export default function PlansClient({ initialPlans }: PlansClientProps) {
         </Dialog>
       </CardHeader>
       <CardContent>
-        {initialPlans.length > 0 ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Duração</TableHead>
-                <TableHead>Valor PIX</TableHead>
-                <TableHead>Valor Cartão</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {initialPlans.map((plan) => (
-                <TableRow key={plan.id}>
-                  <TableCell className="font-medium">{plan.name}</TableCell>
-                  <TableCell>{plan.durationDays} dias</TableCell>
-                  <TableCell>{formatCurrency(plan.pricePix)}</TableCell>
-                  <TableCell>{formatCurrency(plan.priceCard)}</TableCell>
-                  <TableCell className="text-right space-x-2">
-                     <Button variant="outline" size="icon" onClick={() => handleEditClick(plan)}>
-                        <Edit className="h-4 w-4" />
-                        <span className="sr-only">Editar</span>
-                    </Button>
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                             <Button variant="destructive" size="icon">
-                                <Trash2 className="h-4 w-4" />
-                                <span className="sr-only">Remover</span>
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                Esta ação não pode ser desfeita. Isso irá remover permanentemente o plano.
-                            </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDelete(plan.id)}>
-                                Sim, remover
-                            </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : (
-          <p className="text-center text-muted-foreground py-8">Nenhum plano cadastrado.</p>
-        )}
+        {renderContent()}
       </CardContent>
     </Card>
   );
 }
+
