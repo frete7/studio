@@ -6,8 +6,7 @@ import {
   type OptimizeRouteOutput,
 } from '@/ai/flows/optimize-route';
 import { db } from '@/lib/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
-
+import { addDoc, collection, deleteDoc, doc, getDocs, updateDoc } from 'firebase/firestore';
 
 export async function getOptimizedRoute(
   input: OptimizeRouteInput
@@ -27,4 +26,62 @@ export async function updateUserStatus(uid: string, status: string) {
   }
   const userDocRef = doc(db, 'users', uid);
   await updateDoc(userDocRef, { status: status });
+}
+
+
+// Vehicle Types Actions
+export type VehicleType = {
+  id: string;
+  name: string;
+};
+
+export async function getVehicleTypes(): Promise<VehicleType[]> {
+  try {
+    const vehicleTypesCollection = collection(db, 'vehicle_types');
+    const snapshot = await getDocs(vehicleTypesCollection);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VehicleType));
+  } catch (error) {
+    console.error("Error fetching vehicle types: ", error);
+    return [];
+  }
+}
+
+export async function addVehicleType(name: string): Promise<VehicleType> {
+  if (!name) {
+    throw new Error('O nome do tipo de veículo é obrigatório.');
+  }
+  try {
+    const vehicleTypesCollection = collection(db, 'vehicle_types');
+    const docRef = await addDoc(vehicleTypesCollection, { name });
+    return { id: docRef.id, name };
+  } catch (error) {
+    console.error("Error adding vehicle type: ", error);
+    throw new Error('Falha ao adicionar o tipo de veículo.');
+  }
+}
+
+export async function updateVehicleType(id: string, name: string): Promise<void> {
+  if (!id || !name) {
+    throw new Error('ID e nome do tipo de veículo são obrigatórios.');
+  }
+  try {
+    const vehicleTypeDoc = doc(db, 'vehicle_types', id);
+    await updateDoc(vehicleTypeDoc, { name });
+  } catch (error) {
+    console.error("Error updating vehicle type: ", error);
+    throw new Error('Falha ao atualizar o tipo de veículo.');
+  }
+}
+
+export async function deleteVehicleType(id: string): Promise<void> {
+  if (!id) {
+    throw new Error('O ID do tipo de veículo é obrigatório.');
+  }
+  try {
+    const vehicleTypeDoc = doc(db, 'vehicle_types', id);
+    await deleteDoc(vehicleTypeDoc);
+  } catch (error) {
+    console.error("Error deleting vehicle type: ", error);
+    throw new Error('Falha ao deletar o tipo de veículo.');
+  }
 }
