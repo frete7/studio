@@ -5,7 +5,8 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Menu, Truck, LogOut, User as UserIcon } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import {
   DropdownMenu,
@@ -17,6 +18,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
+import { Badge } from '@/components/ui/badge';
 
 const navLinks = [
   { href: '/#fretes', label: 'Buscar Fretes' },
@@ -28,13 +30,26 @@ const navLinks = [
 export default function Header() {
   const [isOpen, setIsOpen] = React.useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const { toast } = useToast();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
+        const userDocRef = doc(db, 'users', currentUser.uid);
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists()) {
+          setUserRole(userDoc.data().role);
+        } else {
+          setUserRole('user');
+        }
+      } else {
+        setUser(null);
+        setUserRole(null);
+      }
       setIsLoading(false);
     });
     return () => unsubscribe();
@@ -61,6 +76,19 @@ export default function Header() {
     if (!email) return 'U';
     return email.substring(0, 2).toUpperCase();
   }
+  
+  const getRoleBadgeVariant = (role: string | null) => {
+    switch (role) {
+      case 'admin':
+        return 'destructive';
+      case 'driver':
+        return 'secondary';
+      case 'company':
+        return 'outline';
+      default:
+        return 'default';
+    }
+  }
 
   const renderAuthSection = () => {
     if (isLoading) {
@@ -80,11 +108,18 @@ export default function Header() {
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-56" align="end" forceMount>
             <DropdownMenuLabel className="font-normal">
-              <div className="flex flex-col space-y-1">
+              <div className="flex flex-col space-y-2">
                 <p className="text-sm font-medium leading-none">Minha Conta</p>
-                <p className="text-xs leading-none text-muted-foreground">
-                  {user.email}
-                </p>
+                <div className="flex items-center justify-between">
+                    <p className="text-xs leading-none text-muted-foreground truncate">
+                    {user.email}
+                    </p>
+                    {userRole && (
+                        <Badge variant={getRoleBadgeVariant(userRole)} className="capitalize text-xs">
+                            {userRole}
+                        </Badge>
+                    )}
+                </div>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -92,6 +127,12 @@ export default function Header() {
               <UserIcon className="mr-2 h-4 w-4" />
               <span>Meu Perfil</span>
             </DropdownMenuItem>
+             {userRole === 'admin' && (
+              <DropdownMenuItem onClick={() => router.push('/admin')}>
+                <UserIcon className="mr-2 h-4 w-4" />
+                <span>Painel Admin</span>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>
               <LogOut className="mr-2 h-4 w-4" />
