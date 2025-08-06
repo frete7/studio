@@ -62,8 +62,8 @@ const profileSchema = z.object({
     cidade: z.string().min(1, 'Cidade é obrigatória.'),
     uf: z.string().min(2, 'UF é obrigatório.'),
     // Etapa 3
-    companyLogo: z.any().optional().refine((files) => !files || files.length === 0 || files?.[0]?.size <= MAX_FILE_SIZE, `Tamanho máximo é 5MB.`)
-      .refine((files) => !files || files.length === 0 || ACCEPTED_IMAGE_TYPES.includes(files?.[0]?.type), "Apenas .jpg, .jpeg, .png and .webp são aceitos."),
+    companyLogo: z.any().refine((files) => files?.length > 0, "O logo da empresa é obrigatório.").refine((files) => files?.[0]?.size <= MAX_FILE_SIZE, `Tamanho máximo é 5MB.`)
+      .refine((files) => ACCEPTED_IMAGE_TYPES.includes(files?.[0]?.type), "Apenas .jpg, .jpeg, .png and .webp são aceitos."),
     // Etapa 4
     responsibleName: z.string().min(3, "Nome do responsável é obrigatório."),
     responsibleCpf: z.string().refine(validateCPF, "CPF inválido."),
@@ -183,20 +183,28 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
 
     const nextStep = async () => {
         const fields = steps[currentStep].fields as (keyof ProfileFormData)[];
-        const output = await trigger(fields, { shouldFocus: true });
+        let output = await trigger(fields, { shouldFocus: true });
         
         // Custom validation for document step
+        if (currentStep === 2 && !watch('companyLogo') && profile.photoURL) {
+            output = true; // Allow to proceed if logo already exists
+        }
+
         if (currentStep === 3) {
             let docError = false;
             if (profile.responsible?.document?.status !== 'approved' && !watch('responsibleDocument')) {
                  methods.setError('responsibleDocument', { type: 'manual', message: 'Documento do responsável é obrigatório.'});
                  docError = true;
+            } else {
+                 methods.clearErrors('responsibleDocument');
             }
             if (profile.cnpjCard?.status !== 'approved' && !watch('cnpjCard')) {
                  methods.setError('cnpjCard', { type: 'manual', message: 'Cartão CNPJ é obrigatório.'});
                  docError = true;
+            } else {
+                methods.clearErrors('cnpjCard');
             }
-             if (!output || docError) return;
+            if (!output || docError) return;
         } else {
              if (!output) return;
         }
@@ -217,25 +225,29 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
 
     const progress = ((currentStep + 1) / steps.length) * 100;
     
-    const FileInput = ({ name, label, description, existingFile }: { name: any, label: string, description: string, existingFile?: {url: string, status: 'approved' | 'rejected' | 'pending'} }) => {
+    const FileInput = ({ name, label, description, isLogo = false, existingFile }: { name: any, label: string, description: string, isLogo?: boolean, existingFile?: {url: string, status?: 'approved' | 'rejected' | 'pending'} }) => {
         const fileList = watch(name);
-        const [preview, setPreview] = useState<string | null>(existingFile?.url && ACCEPTED_IMAGE_TYPES.some(type => existingFile.url.includes(type.split('/')[1])) ? existingFile.url : null);
+        const [preview, setPreview] = useState<string | null>(existingFile?.url ? existingFile.url : null);
         
         const isApproved = existingFile?.status === 'approved';
         const isRejected = existingFile?.status === 'rejected';
 
         useEffect(() => {
-            const file = fileList?.[0];
-            if (file && ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-                const objectUrl = URL.createObjectURL(file);
-                setPreview(objectUrl);
-                return () => URL.revokeObjectURL(objectUrl);
+            if (fileList && fileList[0]) {
+                 const file = fileList[0];
+                 if (ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+                    const objectUrl = URL.createObjectURL(file);
+                    setPreview(objectUrl);
+                    return () => URL.revokeObjectURL(objectUrl);
+                } else {
+                    setPreview(null);
+                }
             }
         }, [fileList]);
 
         const fileName = fileList?.[0]?.name;
         
-        if (isApproved) {
+        if (isApproved && !isLogo) {
             return (
                  <div className="space-y-2">
                     <Label>{label}</Label>
@@ -249,7 +261,7 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
         
         return (
              <div className="space-y-2">
-                {isRejected && (
+                {isRejected && !isLogo && (
                     <Alert variant="destructive">
                         <AlertCircle className="h-4 w-4" />
                         <AlertTitle>Documento Recusado</AlertTitle>
@@ -361,7 +373,7 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
                         </div>
                          {/* ETAPA 3 */}
                         <div className={cn("space-y-6", currentStep !== 2 && "hidden")}>
-                            <FileInput name="companyLogo" label="Logo da Empresa (Opcional)" description="PNG, JPG, WEBP (MAX. 5MB)" existingFile={{url: profile.photoURL, status: 'approved'}} />
+                            <FileInput name="companyLogo" label="Logo da Empresa" description="PNG, JPG, WEBP (MAX. 5MB)" isLogo={true} existingFile={{url: profile.photoURL}} />
                         </div>
                          {/* ETAPA 4 */}
                         <div className={cn("space-y-6", currentStep !== 3 && "hidden")}>
