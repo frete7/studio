@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -11,6 +11,7 @@ import {
   addVehicleCategory,
   updateVehicleCategory,
   deleteVehicleCategory,
+  getVehicleCategories,
   type VehicleCategory
 } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
@@ -46,6 +47,7 @@ import {
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Loader2, PlusCircle, Trash2, Edit } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const formSchema = z.object({
   name: z.string().min(2, { message: 'O nome deve ter pelo menos 2 caracteres.' }),
@@ -53,17 +55,35 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-interface CategoriesClientProps {
-  initialData: VehicleCategory[];
-}
-
-export default function CategoriesClient({ initialData }: CategoriesClientProps) {
-  const [isLoading, setIsLoading] = useState(false);
+export default function CategoriesClient() {
+  const [data, setData] = useState<VehicleCategory[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<VehicleCategory | null>(null);
 
   const { toast } = useToast();
   const router = useRouter();
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const categories = await getVehicleCategories();
+        setData(categories);
+      } catch (error) {
+         toast({
+            variant: 'destructive',
+            title: 'Erro ao carregar categorias',
+            description: 'Não foi possível buscar os dados. Tente novamente.',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, [toast]);
+
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -84,20 +104,25 @@ export default function CategoriesClient({ initialData }: CategoriesClientProps)
     setIsDialogOpen(true);
   }
 
-  const onSubmit: SubmitHandler<FormData> = async (data) => {
-    setIsLoading(true);
+  const refreshData = async () => {
+      const categories = await getVehicleCategories();
+      setData(categories);
+  }
+
+  const onSubmit: SubmitHandler<FormData> = async (formData) => {
+    setIsSubmitting(true);
     try {
       if (editingCategory) {
-        await updateVehicleCategory(editingCategory.id, data.name);
+        await updateVehicleCategory(editingCategory.id, formData.name);
         toast({ title: 'Sucesso!', description: 'Categoria atualizada.' });
       } else {
-        await addVehicleCategory(data.name);
+        await addVehicleCategory(formData.name);
         toast({ title: 'Sucesso!', description: 'Nova categoria adicionada.' });
       }
       form.reset();
       setIsDialogOpen(false);
       setEditingCategory(null);
-      router.refresh();
+      await refreshData();
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -105,7 +130,7 @@ export default function CategoriesClient({ initialData }: CategoriesClientProps)
         description: error instanceof Error ? error.message : 'Ocorreu um erro.',
       });
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -113,7 +138,7 @@ export default function CategoriesClient({ initialData }: CategoriesClientProps)
     try {
         await deleteVehicleCategory(id);
         toast({ title: 'Sucesso!', description: 'Categoria removida.' });
-        router.refresh();
+        await refreshData();
     } catch (error) {
          toast({
             variant: 'destructive',
@@ -146,8 +171,8 @@ export default function CategoriesClient({ initialData }: CategoriesClientProps)
                         <DialogClose asChild>
                             <Button type="button" variant="secondary">Cancelar</Button>
                         </DialogClose>
-                        <Button type="submit" disabled={isLoading}>
-                            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Salvar
                         </Button>
                     </DialogFooter>
@@ -156,7 +181,13 @@ export default function CategoriesClient({ initialData }: CategoriesClientProps)
         </Dialog>
       </CardHeader>
       <CardContent>
-        {initialData.length > 0 ? (
+        {isLoading ? (
+            <div className="space-y-4">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+            </div>
+        ) : data.length > 0 ? (
           <Table>
             <TableHeader>
               <TableRow>
@@ -165,7 +196,7 @@ export default function CategoriesClient({ initialData }: CategoriesClientProps)
               </TableRow>
             </TableHeader>
             <TableBody>
-              {initialData.map((category) => (
+              {data.map((category) => (
                 <TableRow key={category.id}>
                   <TableCell className="font-medium">{category.name}</TableCell>
                   <TableCell className="text-right space-x-2">
