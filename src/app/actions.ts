@@ -255,8 +255,8 @@ export async function getPlans(): Promise<Plan[]> {
 export type Freight = {
     id: string;
     freightType: 'comum' | 'agregamento' | 'frete completo' | 'frete de retorno';
-    origin: string;
-    destinations: string[];
+    origin: any; // Changed from string to any to accommodate object
+    destinations: any[]; // Changed from string[] to any[]
     createdAt: any; // Can be a server timestamp
     companyId: string;
     companyName?: string;

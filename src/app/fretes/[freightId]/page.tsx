@@ -14,7 +14,6 @@ import { Badge } from '@/components/ui/badge';
 import { format } from "date-fns";
 import { ptBR } from 'date-fns/locale';
 
-// This is a simplified version of the Freight type from actions, adapted for details display
 type FreightDetails = Freight & {
     contact?: {
         fullName: string;
@@ -43,9 +42,6 @@ type FreightDetails = Freight & {
         itemPackagingDetails?: { value: string }[];
         companyPreference: 'price' | 'quality' | 'cost_benefit';
     },
-    // The detailed objects for origin and destinations
-    origin: any;
-    destinations: any[];
 };
 
 export default function FreightDetailsPage() {
@@ -91,9 +87,9 @@ export default function FreightDetailsPage() {
             <h4 className="font-semibold text-lg">{title}</h4>
             <div className="flex items-center gap-3 text-sm text-muted-foreground">
                 <MapPin className="h-4 w-4 flex-shrink-0" />
-                <span><strong>Endereço:</strong> {location.city}, {location.state} (Bairro: {location.neighborhood})</span>
+                <span><strong>Endereço:</strong> {location?.city}, {location?.state} (Bairro: {location?.neighborhood})</span>
             </div>
-            {location.dateTime && (
+            {location?.dateTime && (
                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
                     <Clock className="h-4 w-4 flex-shrink-0" />
                     <span><strong>Data:</strong> {format(new Date(location.dateTime.seconds * 1000), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
@@ -102,13 +98,13 @@ export default function FreightDetailsPage() {
             <div className="flex items-center gap-3 text-sm text-muted-foreground">
                  <Building className="h-4 w-4 flex-shrink-0" />
                 <span>
-                    <strong>Detalhes:</strong> Tipo: {location.locationType} | Andar: {location.floor} | Acesso: {location.accessType || 'N/A'}
+                    <strong>Detalhes:</strong> Tipo: {location?.locationType} | Andar: {location?.floor} | Acesso: {location?.accessType || 'N/A'}
                 </span>
             </div>
              <div className="flex items-center gap-3 text-sm text-muted-foreground">
                  <Truck className="h-4 w-4 flex-shrink-0" />
                 <span>
-                    <strong>Distância Carga/Descarga:</strong> {location.distance} metros
+                    <strong>Distância Carga/Descarga:</strong> {location?.distance} metros
                 </span>
             </div>
         </div>
@@ -193,10 +189,8 @@ export default function FreightDetailsPage() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        {/* Pass the detailed origin object */}
                         {freight.origin && renderLocationDetails(freight.origin, "Origem")}
                         <Separator />
-                        {/* Pass the detailed destinations objects */}
                         {freight.destinations?.map((dest: any, index: number) => (
                            <div key={index} className="space-y-2">
                              {renderLocationDetails(dest, `Destino ${index + 1}`)}
@@ -297,5 +291,4 @@ export default function FreightDetailsPage() {
             </div>
         </div>
     );
-
-    
+}
