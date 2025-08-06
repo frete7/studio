@@ -1,7 +1,7 @@
 
 'use client';
 import { SidebarProvider, Sidebar, SidebarTrigger, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
-import { Home, Users, Truck, Package, Settings, PanelLeft, CreditCard, Shapes, Type, Container } from 'lucide-react';
+import { Home, Users, Truck, Package, Settings, PanelLeft, CreditCard, Shapes, Type, Container, DollarSign } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ const navItems = [
   { href: '/admin', label: 'Dashboard', icon: Home },
   { href: '/admin/users', label: 'Usuários', icon: Users },
   { href: '/admin/freight', label: 'Fretes', icon: Package },
+  { href: '/admin/billing', label: 'Faturamento', icon: DollarSign },
   { href: '/admin/vehicles', label: 'Veículos', icon: Truck },
   { href: '/admin/vehicle-types', label: 'Tipos de Veículos', icon: Type },
   { href: '/admin/categories', label: 'Categorias', icon: Shapes },
