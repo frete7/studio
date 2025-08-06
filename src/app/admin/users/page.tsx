@@ -1,18 +1,19 @@
+import type { Metadata } from 'next';
+import UsersClient from './users-client';
 
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+export const metadata: Metadata = {
+    title: 'Gerenciamento de Usuários | Frete7 Admin',
+    description: 'Visualize e gerencie os usuários da plataforma.',
+};
 
 export default function AdminUsersPage() {
-  return (
-    <div>
-        <Card>
-            <CardHeader>
-                <CardTitle>Gerenciamento de Usuários</CardTitle>
-                <CardDescription>Visualize e gerencie os usuários da plataforma.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <p>Em breve: uma tabela com todos os usuários, com opções para editar, visualizar perfil e alterar a função.</p>
-            </CardContent>
-        </Card>
-    </div>
-  );
+    return (
+        <div>
+            <div className="mb-8">
+                <h1 className="text-3xl font-bold font-headline text-primary">Gerenciamento de Usuários</h1>
+                <p className="text-foreground/70">Visualize e gerencie todos os motoristas e empresas cadastrados.</p>
+            </div>
+            <UsersClient />
+        </div>
+    );
 }

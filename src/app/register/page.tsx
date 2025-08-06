@@ -12,17 +12,27 @@ import { Label } from '@/components/ui/label';
 import { Truck, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 export default function RegisterPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [role, setRole] = useState<'driver' | 'company'>('driver');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!role) {
+        toast({
+            variant: "destructive",
+            title: "Erro no Cadastro",
+            description: "Por favor, selecione se você é um motorista ou uma empresa.",
+        });
+        return;
+    }
     setIsLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -33,7 +43,7 @@ export default function RegisterPage() {
         uid: user.uid,
         name: name,
         email: email,
-        role: "user", // Default role for new users
+        role: role,
         createdAt: serverTimestamp(),
       });
       
@@ -67,9 +77,22 @@ export default function RegisterPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleRegister} className="space-y-4">
+             <div className="space-y-3">
+                <Label>Você é:</Label>
+                <RadioGroup defaultValue="driver" onValueChange={(value: 'driver' | 'company') => setRole(value)} className="flex gap-4">
+                    <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="driver" id="r-driver" />
+                        <Label htmlFor="r-driver">Motorista</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="company" id="r-company" />
+                        <Label htmlFor="r-company">Empresa</Label>
+                    </div>
+                </RadioGroup>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="name">Nome Completo</Label>
-              <Input id="name" type="text" placeholder="Seu nome" required value={name} onChange={(e) => setName(e.target.value)} />
+              <Input id="name" type="text" placeholder="Seu nome ou nome da empresa" required value={name} onChange={(e) => setName(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -94,3 +117,4 @@ export default function RegisterPage() {
     </div>
   );
 }
+
