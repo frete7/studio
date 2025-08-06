@@ -1,14 +1,20 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Permite que um usuário crie, leia e atualize seu próprio documento,
-    // mas não altere sua própria função (role).
     match /users/{userId} {
-      // Qualquer usuário autenticado pode ler os perfis de usuário para verificar a role.
+      // Allow authenticated users to read any user profile (for role checking)
       allow read: if request.auth != null;
-      // Um usuário só pode criar ou atualizar seu próprio documento.
-      allow create, update: if request.auth != null && request.auth.uid == userId && request.resource.data.role == resource.data.role;
-      allow delete: if false; // Ninguém pode deletar
+      
+      // Allow users to create their own profile with specific fields
+      allow create: if request.auth.uid == userId 
+                    && request.resource.data.keys().hasAll(['uid', 'name', 'email', 'role', 'createdAt'])
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.email == request.auth.token.email
+                    && request.resource.data.role in ['driver', 'company'];
+
+      // Allow users to update only their own profile
+      allow update: if request.auth.uid == userId;
     }
   }
 }
