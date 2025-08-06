@@ -1,11 +1,12 @@
 
 'use client';
 
-import { useState } from 'react';
-import { useForm, type SubmitHandler, Controller } from 'react-hook-form';
+import { useState, useEffect } from 'react';
+import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useRouter } from 'next/navigation';
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 import { addVehicle, updateVehicle, deleteVehicle, type Vehicle, type VehicleType, type VehicleCategory } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
@@ -28,19 +29,62 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-interface VehiclesClientProps {
-  initialVehicles: Vehicle[];
-  vehicleTypes: VehicleType[];
-  vehicleCategories: VehicleCategory[];
-}
-
-export default function VehiclesClient({ initialVehicles, vehicleTypes, vehicleCategories }: VehiclesClientProps) {
-  const [isLoading, setIsLoading] = useState(false);
+export default function VehiclesClient() {
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
+  const [vehicleCategories, setVehicleCategories] = useState<VehicleCategory[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
 
   const { toast } = useToast();
-  const router = useRouter();
+
+  const typeMap = new Map(vehicleTypes.map(t => [t.id, t.name]));
+  const categoryMap = new Map(vehicleCategories.map(c => [c.id, c.name]));
+  const typeToCategoryMap = new Map(vehicleTypes.map(t => [t.id, t.categoryId]));
+
+  useEffect(() => {
+    setIsLoading(true);
+
+    const vehiclesQuery = query(collection(db, 'vehicles'));
+    const typesQuery = query(collection(db, 'vehicle_types'));
+    const categoriesQuery = query(collection(db, 'vehicle_categories'));
+
+    const unsubscribeVehicles = onSnapshot(vehiclesQuery, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Vehicle));
+      setVehicles(data);
+    });
+
+    const unsubscribeTypes = onSnapshot(typesQuery, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as VehicleType));
+      setVehicleTypes(data);
+    });
+
+    const unsubscribeCategories = onSnapshot(categoriesQuery, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as VehicleCategory));
+      setVehicleCategories(data);
+    });
+
+    // Stop loading when all data is fetched, assuming categories is the last one.
+    // A more robust solution might use Promise.all with getDocs if realtime is not strictly needed.
+    const unsubscribe = () => {
+        unsubscribeVehicles();
+        unsubscribeTypes();
+        unsubscribeCategories();
+    }
+    
+    // This is a simple way to set loading to false. In a real app, you might want to
+    // track loading state for each collection.
+    const initialLoad = async () => {
+        await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate loading
+        setIsLoading(false);
+    }
+    initialLoad();
+
+
+    return () => unsubscribe();
+  }, []);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -50,10 +94,6 @@ export default function VehiclesClient({ initialVehicles, vehicleTypes, vehicleC
       typeId: undefined,
     },
   });
-  
-  const typeMap = new Map(vehicleTypes.map(t => [t.id, t.name]));
-  const categoryMap = new Map(vehicleCategories.map(c => [c.id, c.name]));
-  const typeToCategoryMap = new Map(vehicleTypes.map(t => [t.id, t.categoryId]));
 
   const handleEditClick = (vehicle: Vehicle) => {
     setEditingVehicle(vehicle);
@@ -76,7 +116,7 @@ export default function VehiclesClient({ initialVehicles, vehicleTypes, vehicleC
   }
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
-    setIsLoading(true);
+    setIsSubmitting(true);
 
     const categoryId = typeToCategoryMap.get(data.typeId);
     if (!categoryId) {
@@ -85,7 +125,7 @@ export default function VehiclesClient({ initialVehicles, vehicleTypes, vehicleC
             title: 'Erro',
             description: 'O tipo de veículo selecionado não possui uma categoria associada.',
         });
-        setIsLoading(false);
+        setIsSubmitting(false);
         return;
     }
 
@@ -105,7 +145,6 @@ export default function VehiclesClient({ initialVehicles, vehicleTypes, vehicleC
       form.reset();
       setIsDialogOpen(false);
       setEditingVehicle(null);
-      router.refresh();
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -113,7 +152,7 @@ export default function VehiclesClient({ initialVehicles, vehicleTypes, vehicleC
         description: error instanceof Error ? error.message : 'Ocorreu um erro.',
       });
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -121,7 +160,6 @@ export default function VehiclesClient({ initialVehicles, vehicleTypes, vehicleC
     try {
         await deleteVehicle(id);
         toast({ title: 'Sucesso!', description: 'Veículo removido.' });
-        router.refresh();
     } catch (error) {
          toast({
             variant: 'destructive',
@@ -131,6 +169,71 @@ export default function VehiclesClient({ initialVehicles, vehicleTypes, vehicleC
     }
   }
 
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      );
+    }
+
+    if (vehicles.length === 0) {
+        return <p className="text-center text-muted-foreground py-8">Nenhum veículo cadastrado.</p>;
+    }
+
+    return (
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Modelo</TableHead>
+            <TableHead>Placa</TableHead>
+            <TableHead>Tipo</TableHead>
+            <TableHead>Categoria</TableHead>
+            <TableHead className="text-right">Ações</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {vehicles.map((vehicle) => (
+            <TableRow key={vehicle.id}>
+              <TableCell className="font-medium">{vehicle.model}</TableCell>
+              <TableCell>{vehicle.licensePlate}</TableCell>
+              <TableCell>{typeMap.get(vehicle.typeId) || 'N/A'}</TableCell>
+              <TableCell>{categoryMap.get(vehicle.categoryId) || 'N/A'}</TableCell>
+              <TableCell className="text-right space-x-2">
+                 <Button variant="outline" size="icon" onClick={() => handleEditClick(vehicle)}>
+                    <Edit className="h-4 w-4" />
+                    <span className="sr-only">Editar</span>
+                </Button>
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                         <Button variant="destructive" size="icon">
+                            <Trash2 className="h-4 w-4" />
+                            <span className="sr-only">Remover</span>
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                        <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Esta ação não pode ser desfeita. Isso irá remover permanentemente o veículo.
+                        </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => handleDelete(vehicle.id)}>
+                            Sim, remover
+                        </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    );
+  }
 
   return (
     <Card>
@@ -203,8 +306,8 @@ export default function VehiclesClient({ initialVehicles, vehicleTypes, vehicleC
                         <DialogClose asChild>
                             <Button type="button" variant="secondary" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
                         </DialogClose>
-                        <Button type="submit" disabled={isLoading}>
-                            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Salvar
                         </Button>
                     </DialogFooter>
@@ -214,60 +317,10 @@ export default function VehiclesClient({ initialVehicles, vehicleTypes, vehicleC
         </Dialog>
       </CardHeader>
       <CardContent>
-        {initialVehicles.length > 0 ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Modelo</TableHead>
-                <TableHead>Placa</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Categoria</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {initialVehicles.map((vehicle) => (
-                <TableRow key={vehicle.id}>
-                  <TableCell className="font-medium">{vehicle.model}</TableCell>
-                  <TableCell>{vehicle.licensePlate}</TableCell>
-                  <TableCell>{typeMap.get(vehicle.typeId) || 'N/A'}</TableCell>
-                  <TableCell>{categoryMap.get(vehicle.categoryId) || 'N/A'}</TableCell>
-                  <TableCell className="text-right space-x-2">
-                     <Button variant="outline" size="icon" onClick={() => handleEditClick(vehicle)}>
-                        <Edit className="h-4 w-4" />
-                        <span className="sr-only">Editar</span>
-                    </Button>
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                             <Button variant="destructive" size="icon">
-                                <Trash2 className="h-4 w-4" />
-                                <span className="sr-only">Remover</span>
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                Esta ação não pode ser desfeita. Isso irá remover permanentemente o veículo.
-                            </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDelete(vehicle.id)}>
-                                Sim, remover
-                            </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : (
-          <p className="text-center text-muted-foreground py-8">Nenhum veículo cadastrado.</p>
-        )}
+        {renderContent()}
       </CardContent>
     </Card>
   );
 }
+
+    

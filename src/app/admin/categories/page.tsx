@@ -7,9 +7,6 @@ export const metadata: Metadata = {
     description: 'Gerencie as categorias de veículos da plataforma.',
 };
 
-// This page is forced to be dynamic to re-fetch data on demand.
-export const revalidate = 0;
-
 export default function AdminCategoriesPage() {
     return (
         <div>
@@ -21,3 +18,5 @@ export default function AdminCategoriesPage() {
         </div>
     );
 }
+
+    

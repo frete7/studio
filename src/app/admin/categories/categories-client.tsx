@@ -5,7 +5,6 @@ import { useState, useEffect } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useRouter } from 'next/navigation';
 import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
@@ -58,7 +57,6 @@ export default function CategoriesClient() {
   const [editingCategory, setEditingCategory] = useState<VehicleCategory | null>(null);
 
   const { toast } = useToast();
-  const router = useRouter();
 
 
   useEffect(() => {
@@ -119,7 +117,6 @@ export default function CategoriesClient() {
       form.reset();
       setIsDialogOpen(false);
       setEditingCategory(null);
-      // No need for router.refresh() with onSnapshot
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -136,7 +133,6 @@ export default function CategoriesClient() {
         const categoryDoc = doc(db, 'vehicle_categories', id);
         await deleteDoc(categoryDoc);
         toast({ title: 'Sucesso!', description: 'Categoria removida.' });
-        // No need for router.refresh() with onSnapshot
     } catch (error) {
          toast({
             variant: 'destructive',
@@ -244,3 +240,5 @@ export default function CategoriesClient() {
     </Card>
   );
 }
+
+    
