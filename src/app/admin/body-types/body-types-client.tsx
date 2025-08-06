@@ -5,11 +5,11 @@ import { useState, useEffect } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { groupBy } from 'lodash';
 
-import { seedBodyTypes, type BodyType } from '@/app/actions';
+import { type BodyType } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -110,8 +110,45 @@ export default function BodyTypesClient() {
   const handleSeedData = async () => {
       setIsSeeding(true);
       try {
-        await seedBodyTypes();
-        toast({ title: 'Sucesso!', description: 'Dados iniciais cadastrados.' });
+        const bodyTypesToSeed = [
+            { name: 'Graneleiro', group: 'Abertas' },
+            { name: 'Grade Baixa', group: 'Abertas' },
+            { name: 'Prancha', group: 'Abertas' },
+            { name: 'Caçamba', group: 'Abertas' },
+            { name: 'Plataforma', group: 'Abertas' },
+            { name: 'Sider', group: 'Fechadas' },
+            { name: 'Baú', group: 'Fechadas' },
+            { name: 'Baú Frigorífico', group: 'Fechadas' },
+            { name: 'Baú Refrigerado', group: 'Fechadas' },
+            { name: 'Silo', group: 'Especiais' },
+            { name: 'Cegonheiro', group: 'Especiais' },
+            { name: 'Gaiola', group: 'Especiais' },
+            { name: 'Tanque', group: 'Especiais' },
+            { name: 'Bug Porta Container', group: 'Especiais' },
+            { name: 'Munk', group: 'Especiais' },
+            { name: 'Apenas Cavalo', group: 'Especiais' },
+            { name: 'Cavaqueira', group: 'Especiais' },
+            { name: 'Hopper', group: 'Especiais' },
+        ];
+
+        const bodyTypesCollection = collection(db, 'body_types');
+        const snapshot = await getDocs(bodyTypesCollection);
+
+        if (snapshot.empty) {
+            const batch = writeBatch(db);
+            bodyTypesToSeed.forEach((bodyType) => {
+                const docRef = doc(collection(db, 'body_types'));
+                batch.set(docRef, bodyType);
+            });
+            await batch.commit();
+            toast({ title: 'Sucesso!', description: 'Dados iniciais cadastrados.' });
+        } else {
+            toast({
+                variant: 'destructive',
+                title: 'Atenção',
+                description: 'Os dados iniciais já foram cadastrados anteriormente.',
+            });
+        }
       } catch (error) {
         toast({
             variant: 'destructive',
