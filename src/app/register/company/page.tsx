@@ -167,8 +167,7 @@ export default function CompanyRegisterPage() {
         description: "Você será redirecionado para completar seu perfil.",
       });
 
-      // TODO: Redirect to a "complete profile" page
-      router.push('/'); 
+      router.push('/profile'); 
     } catch (error: any) {
        toast({
         variant: "destructive",
