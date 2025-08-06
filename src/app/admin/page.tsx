@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, getCountFromServer, query, where, Timestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { Loader2, ShieldCheck, User, Users } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,8 +14,15 @@ type UserData = {
   role: string;
 };
 
+type DashboardStats = {
+    totalUsers: number;
+    newUsersToday: number;
+    pendingVerifications: number;
+};
+
 export default function AdminPage() {
   const [user, setUser] = useState<UserData | null>(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
@@ -31,12 +38,46 @@ export default function AdminPage() {
 
       if (userDoc.exists() && userDoc.data().role === 'admin') {
         setUser(userDoc.data() as UserData);
+        // Fetch dashboard data only if user is admin
+        fetchDashboardData();
       } else {
         // Not an admin or doc doesn't exist, redirect
         router.push('/');
+        setIsLoading(false);
       }
-      setIsLoading(false);
     });
+    
+    const fetchDashboardData = async () => {
+        try {
+            // Get total users
+            const usersCollection = collection(db, 'users');
+            const totalUsersSnapshot = await getCountFromServer(usersCollection);
+            const totalUsers = totalUsersSnapshot.data().count;
+
+            // Get new users today
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const startOfToday = Timestamp.fromDate(today);
+
+            const newUsersQuery = query(usersCollection, where('createdAt', '>=', startOfToday));
+            const newUsersSnapshot = await getCountFromServer(newUsersQuery);
+            const newUsersToday = newUsersSnapshot.data().count;
+            
+            // Placeholder for pending verifications
+            const pendingVerifications = 0;
+
+            setStats({
+                totalUsers,
+                newUsersToday,
+                pendingVerifications
+            });
+
+        } catch (error) {
+            console.error("Error fetching dashboard data: ", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     return () => unsubscribe();
   }, [router]);
@@ -68,8 +109,8 @@ export default function AdminPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1,234</div>
-            <p className="text-xs text-muted-foreground">+20.1% desde o último mês</p>
+            <div className="text-2xl font-bold">{stats?.totalUsers ?? <Loader2 className="h-6 w-6 animate-spin" />}</div>
+            <p className="text-xs text-muted-foreground">Total de usuários cadastrados</p>
           </CardContent>
         </Card>
         <Card>
@@ -78,7 +119,7 @@ export default function AdminPage() {
             <User className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">+52</div>
+            <div className="text-2xl font-bold">+{stats?.newUsersToday ?? <Loader2 className="h-6 w-6 animate-spin" />}</div>
              <p className="text-xs text-muted-foreground">Usuários cadastrados hoje</p>
           </CardContent>
         </Card>
@@ -88,7 +129,7 @@ export default function AdminPage() {
             <ShieldCheck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">12</div>
+            <div className="text-2xl font-bold">{stats?.pendingVerifications ?? <Loader2 className="h-6 w-6 animate-spin" />}</div>
              <p className="text-xs text-muted-foreground">Perfis aguardando aprovação</p>
           </CardContent>
         </Card>
