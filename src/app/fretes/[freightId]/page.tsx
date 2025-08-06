@@ -42,7 +42,10 @@ type FreightDetails = Freight & {
         needsItemPackaging: boolean;
         itemPackagingDetails?: { value: string }[];
         companyPreference: 'price' | 'quality' | 'cost_benefit';
-    }
+    },
+    // The detailed objects for origin and destinations
+    origin: any;
+    destinations: any[];
 };
 
 export default function FreightDetailsPage() {
@@ -190,13 +193,14 @@ export default function FreightDetailsPage() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        {/* @ts-ignore */}
+                        {/* Pass the detailed origin object */}
                         {freight.origin && renderLocationDetails(freight.origin, "Origem")}
                         <Separator />
-                        {/* @ts-ignore */}
+                        {/* Pass the detailed destinations objects */}
                         {freight.destinations?.map((dest: any, index: number) => (
                            <div key={index} className="space-y-2">
                              {renderLocationDetails(dest, `Destino ${index + 1}`)}
+                             {index < freight.destinations.length -1 && <Separator className="mt-4"/>}
                            </div>
                         ))}
                     </CardContent>
@@ -293,4 +297,5 @@ export default function FreightDetailsPage() {
             </div>
         </div>
     );
-}
+
+    
