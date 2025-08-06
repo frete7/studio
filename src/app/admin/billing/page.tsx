@@ -52,8 +52,8 @@ export default function AdminBillingPage() {
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(12530.50)}</div>
-                <p className="text-xs text-muted-foreground">+5.2% em relação ao mês passado</p>
+                <div className="text-2xl font-bold break-words">{formatCurrency(12530.50)}</div>
+                <p className="text-xs text-muted-foreground break-words">+5.2% em relação ao mês passado</p>
             </CardContent>
         </Card>
         <Card>
@@ -62,8 +62,8 @@ export default function AdminBillingPage() {
                 <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold">+254</div>
-                <p className="text-xs text-muted-foreground">+32 assinantes este mês</p>
+                <div className="text-2xl font-bold break-words">+254</div>
+                <p className="text-xs text-muted-foreground break-words">+32 assinantes este mês</p>
             </CardContent>
         </Card>
         <Card>
@@ -72,8 +72,8 @@ export default function AdminBillingPage() {
                 <CreditCard className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold">+32</div>
-                <p className="text-xs text-muted-foreground">Total de R$ 1.850,00</p>
+                <div className="text-2xl font-bold break-words">+32</div>
+                <p className="text-xs text-muted-foreground break-words">Total de R$ 1.850,00</p>
             </CardContent>
         </Card>
         <Card>
@@ -82,8 +82,8 @@ export default function AdminBillingPage() {
                 <ArrowUpRight className="h-4 w-4 text-destructive" />
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold text-destructive">3.1%</div>
-                <p className="text-xs text-muted-foreground">8 assinantes cancelaram</p>
+                <div className="text-2xl font-bold text-destructive break-words">3.1%</div>
+                <p className="text-xs text-muted-foreground break-words">8 assinantes cancelaram</p>
             </CardContent>
         </Card>
       </div>
