@@ -43,13 +43,17 @@ import {
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Loader2, PlusCircle, Trash2, Edit, Database } from 'lucide-react';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const formSchema = z.object({
   name: z.string().min(2, { message: 'O nome deve ter pelo menos 2 caracteres.' }),
-  group: z.string().min(2, { message: 'O grupo deve ter pelo menos 2 caracteres.' }),
+  group: z.string({ required_error: 'Selecione o grupo.' }),
 });
 
 type FormData = z.infer<typeof formSchema>;
+
+const bodyTypeGroups = ['Abertas', 'Fechadas', 'Especiais'];
 
 export default function BodyTypesClient() {
   const [bodyTypes, setBodyTypes] = useState<BodyType[]>([]);
@@ -88,7 +92,7 @@ export default function BodyTypesClient() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: '',
-      group: '',
+      group: undefined,
     },
   });
 
@@ -291,23 +295,55 @@ export default function BodyTypesClient() {
                 <DialogHeader>
                     <DialogTitle>{editingBodyType ? 'Editar' : 'Adicionar'} Tipo de Carroceria</DialogTitle>
                 </DialogHeader>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
-                    <Input {...form.register('name')} placeholder="Ex: Baú, Sider" />
-                    {form.formState.errors.name && <p className="text-sm text-destructive">{form.formState.errors.name.message}</p>}
-                    
-                    <Input {...form.register('group')} placeholder="Grupo (Ex: Abertas, Fechadas)" />
-                    {form.formState.errors.group && <p className="text-sm text-destructive">{form.formState.errors.group.message}</p>}
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
+                      <FormField
+                          control={form.control}
+                          name="group"
+                          render={({ field }) => (
+                              <FormItem>
+                                  <FormLabel>Grupo</FormLabel>
+                                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                      <FormControl>
+                                      <SelectTrigger>
+                                          <SelectValue placeholder="Selecione o Grupo..." />
+                                      </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                          {bodyTypeGroups.map(group => (
+                                              <SelectItem key={group} value={group}>{group}</SelectItem>
+                                          ))}
+                                      </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                              </FormItem>
+                          )}
+                      />
+                      <FormField
+                          control={form.control}
+                          name="name"
+                          render={({ field }) => (
+                              <FormItem>
+                                  <FormLabel>Nome da Carroceria</FormLabel>
+                                  <FormControl>
+                                      <Input placeholder="Ex: Baú, Sider" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                              </FormItem>
+                          )}
+                      />
 
-                    <DialogFooter>
-                        <DialogClose asChild>
-                            <Button type="button" variant="secondary">Cancelar</Button>
-                        </DialogClose>
-                        <Button type="submit" disabled={isSubmitting}>
-                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Salvar
-                        </Button>
-                    </DialogFooter>
-                </form>
+                      <DialogFooter>
+                          <DialogClose asChild>
+                              <Button type="button" variant="secondary">Cancelar</Button>
+                          </DialogClose>
+                          <Button type="submit" disabled={isSubmitting}>
+                              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                              Salvar
+                          </Button>
+                      </DialogFooter>
+                  </form>
+                </Form>
             </DialogContent>
         </Dialog>
       </CardHeader>
