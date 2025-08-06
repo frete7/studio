@@ -1,49 +1,57 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
     function isAdmin() {
+      // Check if the user document exists and has the role 'admin'
       return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Freights and public data can be read by anyone
-    match /freights/{freightId} {
-      allow read: if true;
-      allow write: if false; // All writes must go through server actions
-    }
-
-    // Plans and other public config data
+    // Public read access for collections needed by anyone
     match /plans/{planId} {
       allow read: if true;
-      allow write: if false;
+      allow write: if isAdmin();
     }
+    
     match /vehicle_types/{typeId} {
       allow read: if true;
-      allow write: if false;
+      allow write: if isAdmin();
     }
-     match /vehicle_categories/{categoryId} {
+    
+    match /vehicle_categories/{categoryId} {
       allow read: if true;
-      allow write: if false;
-    }
-     match /body_types/{bodyId} {
-      allow read: if true;
-      allow write: if false;
+      allow write: if isAdmin();
     }
 
-    // User data
+    match /body_types/{bodyId} {
+        allow read: if true;
+        allow write: if isAdmin();
+    }
+    
+    match /freights/{freightId} {
+      allow read: if true;
+      // Write operations should be handled by server actions,
+      // for now, we allow admins to manage them.
+      // Anonymous users can create through a specific server action (not covered by client rules).
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Rules for the users collection
     match /users/{userId} {
       allow read: if request.auth.uid == userId || isAdmin();
+      
       allow create: if request.auth.uid == userId;
 
-      // User can update their own profile data during completion
-      // Admin can update specific fields for management
-      allow update: if (request.auth.uid == userId && request.resource.data.diff(resource.data).affectedKeys()
-                      .hasOnly(['name', 'tradingName', 'address', 'addressDetails', 'responsible', 'isCarrier', 'photoURL', 'cnpjCard', 'status']))
-                   || (isAdmin() && request.resource.data.diff(resource.data).affectedKeys()
-                      .hasOnly(['status', 'activePlanId', 'activePlanName', 'responsible.document', 'cnpjCard', 'name', 'tradingName', 'cnpj', 'address', 'responsible.name', 'responsible.cpf']));
+      allow update: if (request.auth.uid == userId && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'tradingName', 'address', 'addressDetails', 'responsible', 'isCarrier', 'status', 'photoURL', 'cnpjCard'])) || isAdmin();
+      
+      allow delete: if isAdmin();
+    }
+
+    // Rules for all other collections, default deny
+    match /{path=**}/{document} {
+      allow read, write: if false;
     }
   }
 }
