@@ -4,44 +4,39 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    // Adicionar uma função para verificar se o usuário é o dono do documento
+    function isOwner(userId) {
+      return request.auth.uid == userId;
     }
 
-    match /users/{userId} {
-      allow read: if request.auth.uid == userId || isAdmin();
-      allow create: if request.auth.uid == userId;
-      allow update: if request.auth.uid == userId || isAdmin();
-      allow delete: if isAdmin();
+    // Adicionar uma função para verificar se o usuário é um administrador
+    function isAdmin() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
     
+    match /users/{userId} {
+      // Permite que o usuário leia seu próprio documento ou se for um administrador
+      allow read: if isOwner(userId) || isAdmin();
+      
+      // Permite que o usuário crie seu próprio documento
+      allow create: if isOwner(userId);
+      
+      // Permite que o usuário atualize seu próprio documento ou se for um administrador
+      allow update: if isOwner(userId) || isAdmin();
+
+      // Permite que apenas administradores excluam documentos de usuários
+      allow delete: if isAdmin();
+    }
+
+    // As outras regras permanecem as mesmas
     match /freights/{freightId} {
         allow read: if true;
-        allow create: if true; // Allows anonymous and authenticated users
+        allow create: if true;
         allow update, delete: if isAdmin() || resource.data.companyId == request.auth.uid;
     }
 
-    match /body_types/{docId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    match /vehicle_categories/{docId} {
-        allow read: if true;
-        allow write: if isAdmin();
-    }
-
-    match /vehicle_types/{docId} {
-        allow read: if true;
-        allow write: if isAdmin();
-    }
-    
-    match /vehicles/{docId} {
-        allow read: if true;
-        allow write: if isAdmin();
-    }
-
-    match /plans/{docId} {
+    match /{path=**} {
       allow read: if true;
       allow write: if isAdmin();
     }
