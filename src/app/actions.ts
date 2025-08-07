@@ -35,7 +35,7 @@ export async function updateDocumentStatus(userId: string, docField: 'responsibl
         throw new Error('User ID, document field, and status are required.');
     }
     const userDocRef = doc(db, 'users', userId);
-    
+
     try {
         const userDoc = await getDoc(userDocRef);
         if (!userDoc.exists()) {
@@ -44,23 +44,21 @@ export async function updateDocumentStatus(userId: string, docField: 'responsibl
 
         const userData = userDoc.data();
         const updatePayload: { [key: string]: any } = {};
+        
+        const getDocumentData = (docData: any) => {
+             if (typeof docData === 'string') {
+                return { url: docData, status: 'pending' };
+            }
+            return docData || {};
+        }
 
-        // Use dot notation for precise updates
         if (docField === 'responsible.document') {
             const responsibleData = userData.responsible || {};
-            // Handle case where document might be a string (old format) or an object
-            const documentData = (typeof responsibleData.document === 'string') 
-                ? { url: responsibleData.document, status: 'pending' } 
-                : (responsibleData.document || {});
-            
+            const documentData = getDocumentData(responsibleData.document);
             updatePayload['responsible.document'] = { ...documentData, status: docStatus };
 
         } else { // Handle cnpjCard field
-             // Handle case where cnpjCard might be a string or an object
-             const cnpjCardData = (typeof userData.cnpjCard === 'string')
-                ? { url: userData.cnpjCard, status: 'pending' }
-                : (userData.cnpjCard || {});
-            
+             const cnpjCardData = getDocumentData(userData.cnpjCard);
             updatePayload['cnpjCard'] = { ...cnpjCardData, status: docStatus };
         }
 
