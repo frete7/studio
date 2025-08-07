@@ -47,13 +47,13 @@ const destinationSchema = locationSchema.extend({
 
 const orderDetailsSchema = z.object({
     whatWillBeLoaded: z.string().min(3, "Este campo é obrigatório."),
-    weight: z.string().min(1, "O peso é obrigatório."),
+    weight: z.string().min(1, "O peso é obrigatório.").refine(val => !isNaN(parseFloat(val)) && parseFloat(val) >= 0, { message: "O peso não pode ser negativo." }),
     dimensions: z.object({
-        height: z.string().optional(),
-        width: z.string().optional(),
-        length: z.string().optional(),
+        height: z.string().optional().refine(val => !val || (!isNaN(parseFloat(val)) && parseFloat(val) >= 0), { message: "Altura não pode ser negativa." }),
+        width: z.string().optional().refine(val => !val || (!isNaN(parseFloat(val)) && parseFloat(val) >= 0), { message: "Largura não pode ser negativa." }),
+        length: z.string().optional().refine(val => !val || (!isNaN(parseFloat(val)) && parseFloat(val) >= 0), { message: "Comprimento não pode ser negativo." }),
     }).optional(),
-    cubicMeters: z.string().optional(),
+    cubicMeters: z.string().optional().refine(val => !val || (!isNaN(parseFloat(val)) && parseFloat(val) >= 0), { message: "M³ não pode ser negativo." }),
     whoPaysToll: z.enum(['empresa', 'motorista'], { required_error: "Selecione quem paga o pedágio." }),
     tollTripScope: z.string().optional(),
     needsTracker: z.boolean().default(false),
@@ -504,9 +504,9 @@ function StepOrderDetails() {
             <div>
                 <FormLabel>Dimensões (opcional)</FormLabel>
                 <div className="grid md:grid-cols-3 gap-4 mt-2">
-                     <FormField control={control} name="orderDetails.dimensions.height" render={({ field }) => (<FormItem><FormLabel className="text-xs">Altura (m)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
-                     <FormField control={control} name="orderDetails.dimensions.width" render={({ field }) => (<FormItem><FormLabel className="text-xs">Largura (m)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
-                     <FormField control={control} name="orderDetails.dimensions.length" render={({ field }) => (<FormItem><FormLabel className="text-xs">Comprimento (m)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
+                     <FormField control={control} name="orderDetails.dimensions.height" render={({ field }) => (<FormItem><FormLabel className="text-xs">Altura (m)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                     <FormField control={control} name="orderDetails.dimensions.width" render={({ field }) => (<FormItem><FormLabel className="text-xs">Largura (m)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                     <FormField control={control} name="orderDetails.dimensions.length" render={({ field }) => (<FormItem><FormLabel className="text-xs">Comprimento (m)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
                 </div>
             </div>
             
