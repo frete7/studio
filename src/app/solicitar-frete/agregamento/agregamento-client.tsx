@@ -687,14 +687,14 @@ function StepOrderDetails() {
                 render={({ field }) => (
                     <FormItem>
                         <FormLabel>Idade mínima do veículo para agregar (Opcional)</FormLabel>
-                         <Select onValueChange={field.onChange} defaultValue={field.value}>
+                         <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl>
                             <SelectTrigger>
                                 <SelectValue placeholder="Selecione o ano" />
                             </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                                <SelectItem value="">Nenhuma</SelectItem>
+                                <SelectItem value="none">Nenhuma</SelectItem>
                                 {vehicleAgeYears.map(year => (
                                     <SelectItem key={year} value={year}>{year}</SelectItem>
                                 ))}
@@ -790,6 +790,7 @@ export default function AgregamentoClient({ companyId }: { companyId: string }) 
         specificCourses: [],
         benefits: [],
         paymentMethods: [],
+        minimumVehicleAge: undefined,
       }
     }
   });
