@@ -246,127 +246,124 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
   };
 
   return (
-    <>
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Lista de Colaboradores</CardTitle>
-        {collaborators.length > 0 && (
-            <DialogTrigger asChild>
-                <Button onClick={handleAddNewClick}>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Adicionar Novo
-                </Button>
-            </DialogTrigger>
-        )}
-      </CardHeader>
-      <CardContent>
-        {renderContent()}
-      </CardContent>
-    </Card>
-    
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-2xl">
-            <DialogHeader>
-            <DialogTitle>{editingCollaborator ? 'Editar' : 'Adicionar'} Colaborador</DialogTitle>
-            </DialogHeader>
-            <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
-                <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Nome Completo</FormLabel>
-                    <FormControl><Input placeholder="Nome do colaborador" {...field} /></FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-                <div className="grid md:grid-cols-2 gap-4">
-                    <FormField
-                        control={form.control}
-                        name="cpf"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>CPF</FormLabel>
-                                <FormControl><Input 
-                                    placeholder="000.000.000-00" 
-                                    {...field}
-                                    onChange={(e) => field.onChange(handleMask(e.target.value, 'cpf'))}
-                                /></FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                    <FormField
-                        control={form.control}
-                        name="department"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Setor Responsável</FormLabel>
-                                <FormControl><Input placeholder="Ex: Logística, Financeiro" {...field} /></FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                </div>
-                <div className="grid md:grid-cols-2 gap-4">
-                    <FormField
-                        control={form.control}
-                        name="phone"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Telefone (com DDD)</FormLabel>
-                                <FormControl><Input 
-                                    placeholder="(00) 00000-0000" 
-                                    {...field}
-                                    onChange={(e) => field.onChange(handleMask(e.target.value, 'phone'))} 
-                                /></FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                    <FormField
-                        control={form.control}
-                        name="confirmPhone"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Confirmar Telefone</FormLabel>
-                                <FormControl><Input 
-                                    placeholder="Confirme o telefone" 
-                                    {...field}
-                                    onChange={(e) => field.onChange(handleMask(e.target.value, 'phone'))}
-                                /></FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                </div>
-                <FormField
-                control={form.control}
-                name="internalId"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>ID Interno (Opcional)</FormLabel>
-                    <FormControl><Input placeholder="ID ou código interno" {...field} /></FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-                <DialogFooter>
-                <DialogClose asChild>
-                    <Button type="button" variant="secondary">Cancelar</Button>
-                </DialogClose>
-                <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Salvar
-                </Button>
-                </DialogFooter>
-            </form>
-            </Form>
-        </DialogContent>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Lista de Colaboradores</CardTitle>
+          {collaborators.length > 0 && (
+              <DialogTrigger asChild>
+                  <Button onClick={handleAddNewClick}>
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Adicionar Novo
+                  </Button>
+              </DialogTrigger>
+          )}
+        </CardHeader>
+        <CardContent>
+          {renderContent()}
+        </CardContent>
+      </Card>
+      
+      <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+          <DialogTitle>{editingCollaborator ? 'Editar' : 'Adicionar'} Colaborador</DialogTitle>
+          </DialogHeader>
+          <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
+              <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                  <FormItem>
+                  <FormLabel>Nome Completo</FormLabel>
+                  <FormControl><Input placeholder="Nome do colaborador" {...field} /></FormControl>
+                  <FormMessage />
+                  </FormItem>
+              )}
+              />
+              <div className="grid md:grid-cols-2 gap-4">
+                  <FormField
+                      control={form.control}
+                      name="cpf"
+                      render={({ field }) => (
+                          <FormItem>
+                              <FormLabel>CPF</FormLabel>
+                              <FormControl><Input 
+                                  placeholder="000.000.000-00" 
+                                  {...field}
+                                  onChange={(e) => field.onChange(handleMask(e.target.value, 'cpf'))}
+                              /></FormControl>
+                              <FormMessage />
+                          </FormItem>
+                      )}
+                  />
+                  <FormField
+                      control={form.control}
+                      name="department"
+                      render={({ field }) => (
+                          <FormItem>
+                              <FormLabel>Setor Responsável</FormLabel>
+                              <FormControl><Input placeholder="Ex: Logística, Financeiro" {...field} /></FormControl>
+                              <FormMessage />
+                          </FormItem>
+                      )}
+                  />
+              </div>
+              <div className="grid md:grid-cols-2 gap-4">
+                  <FormField
+                      control={form.control}
+                      name="phone"
+                      render={({ field }) => (
+                          <FormItem>
+                              <FormLabel>Telefone (com DDD)</FormLabel>
+                              <FormControl><Input 
+                                  placeholder="(00) 00000-0000" 
+                                  {...field}
+                                  onChange={(e) => field.onChange(handleMask(e.target.value, 'phone'))} 
+                              /></FormControl>
+                              <FormMessage />
+                          </FormItem>
+                      )}
+                  />
+                  <FormField
+                      control={form.control}
+                      name="confirmPhone"
+                      render={({ field }) => (
+                          <FormItem>
+                              <FormLabel>Confirmar Telefone</FormLabel>
+                              <FormControl><Input 
+                                  placeholder="Confirme o telefone" 
+                                  {...field}
+                                  onChange={(e) => field.onChange(handleMask(e.target.value, 'phone'))}
+                              /></FormControl>
+                              <FormMessage />
+                          </FormItem>
+                      )}
+                  />
+              </div>
+              <FormField
+              control={form.control}
+              name="internalId"
+              render={({ field }) => (
+                  <FormItem>
+                  <FormLabel>ID Interno (Opcional)</FormLabel>
+                  <FormControl><Input placeholder="ID ou código interno" {...field} /></FormControl>
+                  <FormMessage />
+                  </FormItem>
+              )}
+              />
+              <DialogFooter>
+              <DialogClose asChild>
+                  <Button type="button" variant="secondary">Cancelar</Button>
+              </DialogClose>
+              <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Salvar
+              </Button>
+              </DialogFooter>
+          </form>
+          </Form>
+      </DialogContent>
     </Dialog>
-    </>
   );
 }
-
