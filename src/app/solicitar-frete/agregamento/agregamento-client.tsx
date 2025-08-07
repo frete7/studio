@@ -8,7 +8,8 @@ import { z } from 'zod';
 import { collection, onSnapshot, query, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { groupBy, mapValues } from 'lodash';
-import { useRouter } from 'next/navigation';
+import { useRouter, redirect } from 'next/navigation';
+import Link from 'next/link';
 
 import { type Collaborator, type BodyType, type VehicleType, type VehicleCategory, addAggregationFreight } from '@/app/actions';
 import { Button } from '@/components/ui/button';
@@ -59,6 +60,7 @@ const orderDetailsSchema = z.object({
     minimumVehicleAge: z.string().optional(),
     paymentMethods: z.array(z.string()).optional(),
     benefits: z.array(z.object({ value: z.string().min(1, "O benefício não pode ser vazio.") })).optional(),
+    isPriceToCombine: z.boolean().default(false),
 }).refine(data => {
     if (data.whoPaysToll === undefined) return true; // It's optional, so if it's not there, it's fine.
     return data.tollTripScope !== undefined;
@@ -91,7 +93,6 @@ const priceTableEntrySchema = z.object({
 const vehicleSelectionSchema = z.object({
     id: z.string(),
     name: z.string(),
-    isPriceToCombine: z.boolean().default(false),
     priceTable: z.array(priceTableEntrySchema)
       .optional()
       .refine((table) => {
@@ -106,12 +107,6 @@ const vehicleSelectionSchema = z.object({
           message: "O valor da faixa não pode ser menor que o da faixa anterior.",
           path: [],
       }),
-}).refine(data => {
-    if (data.isPriceToCombine) return true;
-    return data.priceTable && data.priceTable.length > 0;
-}, {
-    message: "Defina pelo menos uma faixa de preço ou marque 'Valor a Combinar'.",
-    path: ['priceTable'], 
 });
 
 
@@ -128,6 +123,14 @@ const formSchema = z.object({
   requiredVehicles: z.array(vehicleSelectionSchema).refine(value => value.length > 0, {
     message: "Você deve selecionar pelo menos um tipo de veículo.",
   })
+}).refine(data => {
+    if (data.orderDetails.isPriceToCombine) return true;
+    
+    // If not "Valor a Combinar", every selected vehicle must have a valid price table
+    return data.requiredVehicles.every(v => v.priceTable && v.priceTable.length > 0);
+}, {
+    message: "Defina a tabela de preços para todos os veículos selecionados ou marque 'Valor a Combinar'.",
+    path: ['requiredVehicles'],
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -187,6 +190,29 @@ function StepCollaborators({ companyId }: { companyId: string }) {
   const filteredCollaborators = collaborators.filter(c => 
     c.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+  
+  if (isLoading) {
+      return (
+        <div className="flex justify-center items-center h-40">
+            <Loader2 className="h-8 w-8 animate-spin text-primary"/>
+        </div>
+      );
+  }
+
+  if (collaborators.length === 0) {
+      return (
+        <div className="text-center py-10 space-y-4">
+            <h3 className="text-xl font-semibold">Nenhum Colaborador Encontrado</h3>
+            <p className="text-muted-foreground">Você precisa cadastrar pelo menos um colaborador para poder criar uma solicitação de agregamento.</p>
+            <Button asChild>
+                <Link href="/profile/collaborators">
+                    <PlusCircle className="mr-2 h-4 w-4"/>
+                    Cadastrar Colaborador
+                </Link>
+            </Button>
+        </div>
+      )
+  }
 
   return (
     <div className="space-y-6">
@@ -210,11 +236,7 @@ function StepCollaborators({ companyId }: { companyId: string }) {
         render={() => (
           <FormItem>
             <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
-                {isLoading ? (
-                    <div className="flex justify-center items-center h-40">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary"/>
-                    </div>
-                ) : filteredCollaborators.length > 0 ? (
+                {filteredCollaborators.length > 0 ? (
                     filteredCollaborators.map((item) => (
                         <FormField
                             key={item.id}
@@ -252,7 +274,7 @@ function StepCollaborators({ companyId }: { companyId: string }) {
                         />
                     ))
                 ) : (
-                    <p className="text-center text-muted-foreground py-10">Nenhum colaborador encontrado.</p>
+                    <p className="text-center text-muted-foreground py-10">Nenhum colaborador encontrado com o termo "{searchTerm}".</p>
                 )}
             </div>
             <FormMessage />
@@ -859,7 +881,7 @@ function PriceTable({ vehicleIndex }: { vehicleIndex: number }) {
     const handleAddRow = () => {
         const tableData = getValues(`requiredVehicles.${vehicleIndex}.priceTable`);
         const lastRow = tableData && tableData.length > 0 ? tableData[tableData.length - 1] : null;
-        const newStartKm = lastRow && lastRow.kmEnd ? Number(lastRow.kmEnd) + 1 : 0;
+        const newStartKm = lastRow && lastRow.kmEnd ? Number(lastRow.kmEnd) : 0;
         append({ kmStart: newStartKm, kmEnd: '', price: '' });
     };
 
@@ -874,7 +896,7 @@ function PriceTable({ vehicleIndex }: { vehicleIndex: number }) {
                             render={({ field: itemField }) => (
                                 <FormItem>
                                      {index === 0 && <FormLabel className="text-xs">De (km)</FormLabel>}
-                                    <FormControl><Input type="number" placeholder="Km inicial" {...itemField} readOnly={index > 0} /></FormControl>
+                                    <FormControl><Input type="number" placeholder="Km inicial" {...itemField} readOnly /></FormControl>
                                     <FormMessage />
                                 </FormItem>
                             )}
@@ -933,13 +955,15 @@ function StepVehicleAndBodywork({ allData }: { allData: any }) {
     const { groupedBodyworks, groupedVehicleTypes } = allData;
     const requiredBodyworks = watch('requiredBodyworks');
     const requiredVehicles = watch('requiredVehicles');
+    const isPriceToCombine = watch('orderDetails.isPriceToCombine');
+
     const isVehicleSelectionEnabled = requiredBodyworks && requiredBodyworks.length > 0;
 
     const selectedVehicleIds = requiredVehicles.map((v: any) => v.id);
 
     const handleVehicleSelection = (vehicle: any, checked: boolean) => {
         if (checked) {
-            append({ id: vehicle.id, name: vehicle.name, isPriceToCombine: false, priceTable: [] });
+            append({ id: vehicle.id, name: vehicle.name, priceTable: [] });
         } else {
             const indexToRemove = fields.findIndex(field => (field as any).id === vehicle.id);
             if (indexToRemove !== -1) {
@@ -966,7 +990,7 @@ function StepVehicleAndBodywork({ allData }: { allData: any }) {
                             <FormLabel className="text-base font-semibold">Tipos de Carroceria</FormLabel>
                             <FormDescription>Selecione um ou mais tipos de carroceria que o veículo deve ter.</FormDescription>
                         </div>
-                        <Accordion type="multiple" className="w-full">
+                        <Accordion type="multiple" className="w-full" defaultValue={Object.keys(groupedBodyworks)}>
                             {Object.entries(groupedBodyworks).map(([group, types]: [string, any]) => (
                                 <AccordionItem key={group} value={group}>
                                     <AccordionTrigger>{group}</AccordionTrigger>
@@ -1010,15 +1034,15 @@ function StepVehicleAndBodywork({ allData }: { allData: any }) {
              <div className="space-y-4">
                 <div className="mb-4">
                     <FormLabel className="text-base font-semibold">Tipos de Veículo</FormLabel>
-                    <FormDescription>Selecione os veículos e defina uma tabela de preços para cada um.</FormDescription>
+                    <FormDescription>Selecione os veículos que podem realizar o serviço.</FormDescription>
                     {!isVehicleSelectionEnabled && (
                         <p className="text-sm text-yellow-600 mt-2">Selecione ao menos um tipo de carroceria para habilitar a seleção de veículos.</p>
                     )}
                 </div>
 
-                <Accordion type="multiple" className="w-full" disabled={!isVehicleSelectionEnabled}>
+                <Accordion type="multiple" className="w-full" defaultValue={Object.keys(groupedVehicleTypes)}>
                     {Object.entries(groupedVehicleTypes).map(([category, types]: [string, any]) => (
-                        <AccordionItem key={category} value={category}>
+                        <AccordionItem key={category} value={category} disabled={!isVehicleSelectionEnabled}>
                              <AccordionTrigger>{category}</AccordionTrigger>
                              <AccordionContent>
                                 <div className="grid grid-cols-2 gap-4 p-2">
@@ -1041,32 +1065,36 @@ function StepVehicleAndBodywork({ allData }: { allData: any }) {
                 <FormField control={control} name="requiredVehicles" render={({ fieldState }) => <FormMessage>{fieldState.error?.root?.message}</FormMessage>} />
              </div>
 
-             {/* Lista de Veículos Selecionados e Tabelas de Preço */}
-            {fields.length > 0 && (
-                <div className="space-y-4">
-                    <h3 className="font-semibold text-lg">Tabelas de Preço</h3>
-                     {fields.map((field, index) => {
-                        const isToCombine = watch(`requiredVehicles.${index}.isPriceToCombine`);
-                        return (
+             <Separator />
+
+             {/* Tabela de Preços Global */}
+             <div className="space-y-4">
+                  <FormField
+                    control={control}
+                    name="orderDetails.isPriceToCombine"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                                <FormLabel className="text-base">Valor a Combinar</FormLabel>
+                                <FormDescription>Marque esta opção se o valor for negociado diretamente com o motorista.</FormDescription>
+                            </div>
+                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                        </FormItem>
+                    )}
+                />
+
+                 {!isPriceToCombine && fields.length > 0 && (
+                    <div className="space-y-4">
+                        <h3 className="font-semibold text-lg">Tabelas de Preço</h3>
+                        <p className="text-sm text-muted-foreground">Defina as faixas de preço por KM para cada tipo de veículo selecionado.</p>
+                        {fields.map((field, index) => (
                             <Card key={field.id} className="p-4">
                                 <CardHeader className="flex flex-row justify-between items-start p-2">
                                     <p className="font-medium flex items-center gap-2"><Truck className="h-5 w-5 text-primary" /> {(field as any).name}</p>
-                                    <FormField
-                                        control={control}
-                                        name={`requiredVehicles.${index}.isPriceToCombine`}
-                                        render={({ field: switchField }) => (
-                                            <FormItem className="flex items-center gap-2 space-y-0">
-                                                <FormControl><Switch checked={switchField.value} onCheckedChange={switchField.onChange} /></FormControl>
-                                                <FormLabel className="text-sm font-normal">Valor a Combinar</FormLabel>
-                                            </FormItem>
-                                        )}
-                                    />
                                 </CardHeader>
-                                {!isToCombine && (
-                                    <CardContent className="p-2">
-                                        <PriceTable vehicleIndex={index} />
-                                    </CardContent>
-                                )}
+                                <CardContent className="p-2">
+                                    <PriceTable vehicleIndex={index} />
+                                </CardContent>
                                  <FormField
                                     control={control}
                                     name={`requiredVehicles.${index}`}
@@ -1075,36 +1103,39 @@ function StepVehicleAndBodywork({ allData }: { allData: any }) {
                                     )}
                                 />
                             </Card>
-                        )
-                     })}
-                </div>
-            )}
+                        ))}
+                    </div>
+                )}
+             </div>
         </div>
     );
 }
 
-function SummaryView({ data, onEdit, allData }: { data: FormData; onEdit: (step: number) => void; allData: any }) {
+function SummaryView({ data, onEdit, allData, companyId }: { data: FormData; onEdit: (step: number) => void; allData: any, companyId: string }) {
     const { origin, destinations, orderDetails, requiredVehicles, requiredBodyworks, responsibleCollaborators } = data;
     const [collaboratorNames, setCollaboratorNames] = useState<string[]>([]);
     
     useEffect(() => {
         const fetchNames = async () => {
             if(responsibleCollaborators.length > 0){
-                // This is a simplified fetch. In a real app, you might already have this data
-                // or fetch it from a context or a dedicated hook.
-                const colls = await getDocs(query(collection(db, `users/${companyId}/collaborators`)));
-                const names = colls.docs
-                    .filter(doc => responsibleCollaborators.includes(doc.id))
-                    .map(doc => doc.data().name);
+                const collaboratorsCollection = collection(db, `users/${companyId}/collaborators`);
+                const q = query(collaboratorsCollection);
+                const colls = await getDocs(q);
+                const namesMap = new Map(colls.docs.map(d => [d.id, d.data().name]));
+                const names = responsibleCollaborators.map(id => namesMap.get(id) || id);
                 setCollaboratorNames(names);
             }
         };
-        // This is a pseudo-call, as we don't have companyId here.
-        // A better implementation would pass the full collaborator objects or the names map.
-        // For now, we'll just show the count.
-    }, [responsibleCollaborators]);
+        fetchNames();
+    }, [responsibleCollaborators, companyId]);
     
-    const bodyworkNames = requiredBodyworks.map(id => allData.groupedBodyworks[Object.keys(allData.groupedBodyworks).find(group => allData.groupedBodyworks[group].some((bw: any) => bw.id === id)) as string]?.find((bw: any) => bw.id === id)?.name || id);
+    const getBodyworkNames = () => {
+        if (!requiredBodyworks || !allData.groupedBodyworks) return [];
+        const allTypes: BodyType[] = Object.values(allData.groupedBodyworks).flat();
+        return requiredBodyworks.map(id => allTypes.find(bw => bw.id === id)?.name || id);
+    }
+
+    const bodyworkNames = getBodyworkNames();
 
 
     const SummarySection = ({ title, stepIndex, children }: { title: string, stepIndex: number, children: React.ReactNode }) => (
@@ -1148,7 +1179,7 @@ function SummaryView({ data, onEdit, allData }: { data: FormData; onEdit: (step:
     return (
         <div className="space-y-6 text-sm max-h-[70vh] overflow-y-auto pr-4">
             <SummarySection title="Responsáveis" stepIndex={0}>
-                <DetailItem label="Colaboradores" value={`${responsibleCollaborators.length} selecionado(s)`} />
+                <DetailItem label="Colaboradores" value={collaboratorNames.join(', ')} />
             </SummarySection>
 
             <SummarySection title="Rota" stepIndex={1}>
@@ -1193,15 +1224,14 @@ function SummaryView({ data, onEdit, allData }: { data: FormData; onEdit: (step:
 
             <SummarySection title="Veículos e Carrocerias" stepIndex={3}>
                 <DetailItem label="Carrocerias" value={bodyworkNames.join(', ')} />
-                <Separator className="my-2"/>
-                <p className="font-medium text-foreground/80">Veículos e Preços:</p>
-                <div className="space-y-4">
-                    {requiredVehicles.map((v, i) => (
-                        <div key={i} className="p-2 border rounded-md">
-                            <p className="font-semibold">{v.name}</p>
-                            {v.isPriceToCombine ? (
-                                <p>Valor a Combinar</p>
-                            ) : (
+                <DetailItem label="Valor a Combinar" value={orderDetails.isPriceToCombine} isBool />
+                {!orderDetails.isPriceToCombine && <Separator className="my-2" />}
+                {!orderDetails.isPriceToCombine && <p className="font-medium text-foreground/80">Veículos e Preços:</p>}
+                {!orderDetails.isPriceToCombine && (
+                    <div className="space-y-4">
+                        {requiredVehicles.map((v, i) => (
+                            <div key={i} className="p-2 border rounded-md">
+                                <p className="font-semibold">{v.name}</p>
                                 <table className="w-full mt-1">
                                     <thead><tr className="text-left"><th className="px-1">De (km)</th><th className="px-1">Até (km)</th><th className="px-1">Valor (R$)</th></tr></thead>
                                     <tbody>
@@ -1210,10 +1240,10 @@ function SummaryView({ data, onEdit, allData }: { data: FormData; onEdit: (step:
                                         ))}
                                     </tbody>
                                 </table>
-                            )}
-                        </div>
-                    ))}
-                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </SummarySection>
         </div>
     );
@@ -1262,12 +1292,13 @@ export default function AgregamentoClient({ companyId, companyName }: { companyI
         minimumVehicleAge: 'none',
         loadingTimes: [],
         trackerType: '',
-        tollTripScope: undefined,
-        driverHelpScope: undefined,
-        whoPaysHelper: undefined,
-        loadingOrder: undefined,
-        cargoType: undefined,
-        whoPaysToll: undefined,
+        tollTripScope: '',
+        driverHelpScope: '',
+        whoPaysHelper: '',
+        loadingOrder: '',
+        cargoType: '',
+        whoPaysToll: '',
+        isPriceToCombine: false,
       },
       requiredBodyworks: [],
       requiredVehicles: [],
@@ -1399,7 +1430,7 @@ export default function AgregamentoClient({ companyId, companyName }: { companyI
               <Button onClick={prevStep} variant="outline" disabled={currentStep === 0 || isSubmitting}>
                   Voltar
               </Button>
-              <Button onClick={nextStep} disabled={isSubmitting || (currentStep === 3 && isDataLoading)}>
+              <Button onClick={nextStep} disabled={isSubmitting || (currentStep === 0 && allData.vehicleTypes.length === 0) || (currentStep === 3 && isDataLoading)}>
                   {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {currentStep < steps.length - 1 ? 'Próximo' : 'Revisar e Enviar'}
               </Button>
@@ -1416,7 +1447,7 @@ export default function AgregamentoClient({ companyId, companyName }: { companyI
                     Por favor, revise todos os dados antes de finalizar.
                 </p>
                 </DialogHeader>
-                <SummaryView data={getValues()} onEdit={handleEditFromSummary} allData={allData} />
+                <SummaryView data={getValues()} onEdit={handleEditFromSummary} allData={allData} companyId={companyId} />
                 <DialogFooter>
                 <DialogClose asChild>
                     <Button type="button" variant="secondary">Cancelar</Button>
@@ -1430,7 +1461,7 @@ export default function AgregamentoClient({ companyId, companyName }: { companyI
     </Dialog>
 
     {/* Modal de Sucesso */}
-    <Dialog open={isSuccessOpen} onOpenChange={setIsSuccessOpen}>
+    <Dialog open={isSuccessOpen} onOpenChange={(open) => { if (!open) router.push('/profile')}}>
         <DialogContent>
                 <DialogHeader>
                 <div className="flex flex-col items-center text-center gap-4 py-4">
