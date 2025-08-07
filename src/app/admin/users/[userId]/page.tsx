@@ -12,7 +12,6 @@ import { Mail, Phone, Calendar, User, ShieldCheck, Truck, FileText, ArrowLeft, L
 import Link from 'next/link';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { useEffect, useState } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useForm, FormProvider } from 'react-hook-form';
@@ -158,7 +157,6 @@ export default function UserDetailsPage() {
   const [isEditUserDialogOpen, setIsEditUserDialogOpen] = useState(false);
   const [isSubmittingEditUser, setIsSubmittingEditUser] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const router = useRouter();
   const params = useParams();
   const userId = params.userId as string;
   const { toast } = useToast();
@@ -169,7 +167,10 @@ export default function UserDetailsPage() {
 
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId) {
+        setIsLoading(false);
+        return;
+    };
     
     const fetchCompanyStats = async (companyId: string) => {
         try {
@@ -209,23 +210,9 @@ export default function UserDetailsPage() {
         }
     }
 
-    const authUnsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (!currentUser) {
-        router.push('/login');
-        return;
-      }
-      const adminDocRef = doc(db, 'users', currentUser.uid);
-      const adminDoc = await getDoc(adminDocRef);
-
-      if (!adminDoc.exists() || adminDoc.data().role !== 'admin') {
-        router.push('/');
-        return;
-      }
-
-      // If user is admin, set up the listener for the user's document
-      const userDocRef = doc(db, 'users', userId);
-      const userUnsubscribe = onSnapshot(userDocRef, (doc) => {
-         if (doc.exists()) {
+    const userDocRef = doc(db, 'users', userId);
+    const unsubscribe = onSnapshot(userDocRef, (doc) => {
+        if (doc.exists()) {
             const userData = { ...doc.data(), uid: doc.id } as UserProfile;
             setUser(userData);
             setSelectedPlanId(userData.activePlanId || 'none');
@@ -245,15 +232,13 @@ export default function UserDetailsPage() {
             notFound();
         }
         setIsLoading(false);
-      });
-      
-      // Return cleanup function for user listener
-      return () => userUnsubscribe();
+    }, (error) => {
+        console.error("Error fetching user details:", error);
+        setIsLoading(false);
     });
-
-    // Return cleanup function for auth listener
-    return () => authUnsubscribe();
-  }, [userId, router, toast, form]);
+      
+    return () => unsubscribe();
+  }, [userId, toast, form]);
   
   const handleStatusChange = async (newStatus: UserProfile['status']) => {
     if (!user || !newStatus) return;
@@ -269,7 +254,7 @@ export default function UserDetailsPage() {
         toast({
             variant: "destructive",
             title: "Erro ao atualizar",
-            description: "Não foi possível alterar o status do usuário.",
+            description: error instanceof Error ? `Falha ao atualizar: ${error.code || error.message}` : 'Ocorreu um erro desconhecido.',
         });
         console.error("Failed to update user status:", error);
     }
@@ -291,7 +276,7 @@ export default function UserDetailsPage() {
           toast({
               variant: 'destructive',
               title: 'Erro ao atribuir plano',
-              description: error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.',
+              description: error instanceof Error ? `Falha ao atribuir plano: ${error.code || error.message}` : 'Ocorreu um erro desconhecido.',
           });
       } finally {
           setIsSubmittingPlan(false);
@@ -310,7 +295,7 @@ export default function UserDetailsPage() {
            toast({
               variant: 'destructive',
               title: 'Erro ao atualizar documento',
-              description: error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.',
+              description: error instanceof Error ? `Falha ao atualizar o status do documento: ${error.code || error.message}` : 'Ocorreu um erro desconhecido.',
           });
       }
   }
@@ -326,7 +311,7 @@ export default function UserDetailsPage() {
         toast({
             variant: 'destructive',
             title: 'Erro ao atualizar usuário',
-            description: error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.',
+            description: error instanceof Error ? `Falha ao atualizar os dados do usuário: ${error.code || error.message}` : 'Ocorreu um erro desconhecido.',
         });
     } finally {
         setIsSubmittingEditUser(false);

@@ -1,10 +1,14 @@
 
 'use client';
 import { SidebarProvider, Sidebar, SidebarTrigger, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
-import { Home, Users, Truck, Package, Settings, PanelLeft, CreditCard, Shapes, Type, Container, DollarSign } from 'lucide-react';
+import { Home, Users, Truck, Package, Settings, PanelLeft, CreditCard, Shapes, Type, Container, DollarSign, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { useEffect, useState } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
 
 const navItems = [
   { href: '/admin', label: 'Dashboard', icon: Home },
@@ -25,6 +29,49 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (!currentUser) {
+        router.push('/login');
+        return;
+      }
+
+      try {
+        const userDocRef = doc(db, 'users', currentUser.uid);
+        const userDoc = await getDoc(userDocRef);
+
+        if (userDoc.exists() && userDoc.data().role === 'admin') {
+          setIsAuthorized(true);
+        } else {
+          router.push('/');
+        }
+      } catch (error) {
+        console.error("Authorization check failed:", error);
+        router.push('/');
+      } finally {
+        setIsLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [router]);
+  
+  if (isLoading) {
+    return (
+        <div className="flex h-screen items-center justify-center bg-muted/40">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        </div>
+    );
+  }
+
+  if (!isAuthorized) {
+    // This can be a blank screen or a loader while redirecting
+    return null;
+  }
 
   return (
     <SidebarProvider>

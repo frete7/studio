@@ -2,7 +2,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, collection, getCountFromServer, query, where, Timestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
@@ -28,32 +27,23 @@ export default function AdminDashboardPage() {
   const [user, setUser] = useState<UserData | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (!currentUser) {
-        router.push('/login');
-        return;
-      }
-
-      const userDocRef = doc(db, 'users', currentUser.uid);
-      const userDoc = await getDoc(userDocRef);
-
-      if (userDoc.exists() && userDoc.data().role === 'admin') {
-        setUser(userDoc.data() as UserData);
-        await fetchDashboardData();
-      } else {
-        router.push('/');
-      }
-      
-      setIsLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [router]);
+    // The layout now handles authorization. We just need to fetch the data.
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+        const userDocRef = doc(db, 'users', currentUser.uid);
+        getDoc(userDocRef).then(userDoc => {
+            if (userDoc.exists()) {
+                setUser(userDoc.data() as UserData);
+            }
+        });
+        fetchDashboardData();
+    }
+  }, []);
   
   const fetchDashboardData = async () => {
+      setIsLoading(true);
       try {
           // User stats
           const usersCollection = collection(db, 'users');
@@ -98,7 +88,6 @@ export default function AdminDashboardPage() {
 
       } catch (error) {
           console.error("Error fetching dashboard data: ", error);
-          // Fallback stats on error to prevent crash
           if (!stats) {
             setStats({
               totalUsers: 0,
@@ -109,6 +98,8 @@ export default function AdminDashboardPage() {
               completedFreights: 0,
             })
           }
+      } finally {
+        setIsLoading(false);
       }
   };
 
