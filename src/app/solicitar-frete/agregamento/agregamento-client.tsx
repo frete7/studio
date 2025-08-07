@@ -12,13 +12,16 @@ import { type Collaborator } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Loader2, User, Search, PlusCircle, Trash2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Switch } from '@/components/ui/switch';
 
 // =================================================================
 // Schemas e Tipos
@@ -29,12 +32,45 @@ const locationSchema = z.object({
   city: z.string().min(1, "A cidade é obrigatória."),
 });
 
+const orderDetailsSchema = z.object({
+    whatWillBeLoaded: z.string().min(3, "Este campo é obrigatório."),
+    whoPaysToll: z.enum(['empresa', 'motorista'], { required_error: "Selecione quem paga o pedágio." }),
+    tollTripScope: z.enum(['apenas_ida', 'apenas_volta', 'ida_e_volta']).optional(),
+    needsTracker: z.boolean().default(false),
+    trackerType: z.string().optional(),
+    cargoType: z.enum(['paletizado', 'granel', 'caixas', 'sacos', 'outros'], { required_error: "Selecione o tipo de carga." }),
+    isDangerousCargo: z.boolean().default(false),
+    driverNeedsToHelp: z.boolean().default(false),
+    driverHelpScope: z.enum(['apenas_carregamento', 'apenas_descarregamento', 'carga_e_descarga']).optional(),
+    needsHelper: z.boolean().default(false),
+    whoPaysHelper: z.enum(['empresa', 'motorista']).optional(),
+    hasInvoice: z.boolean().default(false),
+    driverNeedsToIssueInvoice: z.boolean().default(false),
+    driverNeedsANTT: z.boolean().default(false),
+    minimumVehicleAge: z.string().optional(),
+    paymentMethods: z.string().optional(),
+}).refine(data => data.whoPaysToll ? data.tollTripScope : true, {
+    message: "Selecione o trecho do pedágio.",
+    path: ['tollTripScope'],
+}).refine(data => !data.needsTracker || (data.trackerType && data.trackerType.length > 0), {
+    message: "Especifique o tipo de rastreador.",
+    path: ['trackerType'],
+}).refine(data => !data.driverNeedsToHelp || data.driverHelpScope, {
+    message: "Selecione quando o motorista precisa ajudar.",
+    path: ['driverHelpScope'],
+}).refine(data => !data.needsHelper || data.whoPaysHelper, {
+    message: "Selecione quem paga pelo ajudante.",
+    path: ['whoPaysHelper'],
+});
+
+
 const formSchema = z.object({
   responsibleCollaborators: z.array(z.string()).refine(value => value.some(item => item), {
     message: "Você deve selecionar pelo menos um colaborador.",
   }),
   origin: locationSchema,
   destinations: z.array(locationSchema).min(1, "Adicione pelo menos um destino."),
+  orderDetails: orderDetailsSchema,
   // Outras etapas virão aqui
 });
 
@@ -45,7 +81,7 @@ type IBGECity = { id: number; nome: string; };
 const steps = [
   { id: 1, name: 'Responsáveis', fields: ['responsibleCollaborators'] },
   { id: 2, name: 'Rota', fields: ['origin', 'destinations'] },
-  { id: 3, name: 'Detalhes do Veículo', fields: [] },
+  { id: 3, name: 'Informações do Pedido', fields: ['orderDetails'] },
   { id: 4, name: 'Requisitos Adicionais', fields: [] },
 ];
 
@@ -307,6 +343,290 @@ function StepRoute() {
     );
 }
 
+function StepOrderDetails() {
+    const { control } = useFormContext();
+    const whoPaysToll = useWatch({ control, name: "orderDetails.whoPaysToll" });
+    const needsTracker = useWatch({ control, name: "orderDetails.needsTracker" });
+    const driverNeedsToHelp = useWatch({ control, name: "orderDetails.driverNeedsToHelp" });
+    const needsHelper = useWatch({ control, name: "orderDetails.needsHelper" });
+
+    return (
+        <div className="space-y-8">
+            <div>
+                <h2 className="text-2xl font-semibold">3. Informações do Pedido</h2>
+                <p className="text-muted-foreground">Detalhes sobre a carga, operação e requisitos.</p>
+            </div>
+            <Separator />
+
+            <FormField
+                control={control}
+                name="orderDetails.whatWillBeLoaded"
+                render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>O que será carregado?</FormLabel>
+                        <FormControl>
+                            <Textarea placeholder="Descreva a carga. Ex: Soja, peças automotivas, produtos de limpeza..." {...field} />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+
+            <div className="space-y-4">
+                 <FormField
+                    control={control}
+                    name="orderDetails.whoPaysToll"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Quem paga o pedágio?</FormLabel>
+                             <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecione uma opção" />
+                                </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="empresa">Empresa</SelectItem>
+                                    <SelectItem value="motorista">Motorista</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
+                {whoPaysToll && (
+                     <FormField
+                        control={control}
+                        name="orderDetails.tollTripScope"
+                        render={({ field }) => (
+                            <FormItem className="pl-4 border-l-2 ml-2">
+                                <FormLabel>O pedágio cobre qual trecho?</FormLabel>
+                                <FormControl>
+                                    <RadioGroup
+                                        onValueChange={field.onChange}
+                                        defaultValue={field.value}
+                                        className="flex flex-col gap-2 pt-2"
+                                    >
+                                        <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="apenas_ida" /></FormControl><FormLabel className="font-normal">Apenas Ida</FormLabel></FormItem>
+                                        <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="apenas_volta" /></FormControl><FormLabel className="font-normal">Apenas Volta</FormLabel></FormItem>
+                                        <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="ida_e_volta" /></FormControl><FormLabel className="font-normal">Ida e Volta</FormLabel></FormItem>
+                                    </RadioGroup>
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                )}
+            </div>
+            
+            <div className="space-y-4">
+                <FormField
+                    control={control}
+                    name="orderDetails.needsTracker"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                                <FormLabel>Precisa de Rastreador?</FormLabel>
+                            </div>
+                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                        </FormItem>
+                    )}
+                />
+                 {needsTracker && (
+                     <FormField
+                        control={control}
+                        name="orderDetails.trackerType"
+                        render={({ field }) => (
+                            <FormItem className="pl-4 border-l-2 ml-2">
+                                <FormLabel>Qual?</FormLabel>
+                                <FormControl><Input placeholder="Ex: Sascar, Omnilink" {...field} /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                 )}
+            </div>
+
+             <FormField
+                control={control}
+                name="orderDetails.cargoType"
+                render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Tipo de Carga</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Selecione o tipo de carga" />
+                            </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                <SelectItem value="paletizado">Paletizado</SelectItem>
+                                <SelectItem value="granel">A Granel</SelectItem>
+                                <SelectItem value="caixas">Em Caixas</SelectItem>
+                                <SelectItem value="sacos">Sacos</SelectItem>
+                                <SelectItem value="outros">Outros</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+
+            <FormField
+                control={control}
+                name="orderDetails.isDangerousCargo"
+                render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                            <FormLabel>Carga Perigosa?</FormLabel>
+                        </div>
+                        <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                    </FormItem>
+                )}
+            />
+
+            <div className="space-y-4">
+                <FormField
+                    control={control}
+                    name="orderDetails.driverNeedsToHelp"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                                <FormLabel>Precisa de ajuda do motorista?</FormLabel>
+                            </div>
+                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                        </FormItem>
+                    )}
+                />
+                 {driverNeedsToHelp && (
+                     <FormField
+                        control={control}
+                        name="orderDetails.driverHelpScope"
+                        render={({ field }) => (
+                            <FormItem className="pl-4 border-l-2 ml-2">
+                                <FormLabel>Onde o motorista precisa ajudar?</FormLabel>
+                                 <FormControl>
+                                    <RadioGroup
+                                        onValueChange={field.onChange}
+                                        defaultValue={field.value}
+                                        className="flex flex-col gap-2 pt-2"
+                                    >
+                                        <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="apenas_carregamento" /></FormControl><FormLabel className="font-normal">Apenas no Carregamento</FormLabel></FormItem>
+                                        <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="apenas_descarregamento" /></FormControl><FormLabel className="font-normal">Apenas no Descarregamento</FormLabel></FormItem>
+                                        <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="carga_e_descarga" /></FormControl><FormLabel className="font-normal">Carga e Descarga</FormLabel></FormItem>
+                                    </RadioGroup>
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                 )}
+            </div>
+
+             <div className="space-y-4">
+                <FormField
+                    control={control}
+                    name="orderDetails.needsHelper"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                                <FormLabel>Precisa de Ajudante?</FormLabel>
+                            </div>
+                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                        </FormItem>
+                    )}
+                />
+                 {needsHelper && (
+                     <FormField
+                        control={control}
+                        name="orderDetails.whoPaysHelper"
+                        render={({ field }) => (
+                            <FormItem className="pl-4 border-l-2 ml-2">
+                                <FormLabel>Quem paga o ajudante?</FormLabel>
+                                 <FormControl>
+                                    <RadioGroup
+                                        onValueChange={field.onChange}
+                                        defaultValue={field.value}
+                                        className="flex flex-col gap-2 pt-2"
+                                    >
+                                        <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="empresa" /></FormControl><FormLabel className="font-normal">Empresa</FormLabel></FormItem>
+                                        <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="motorista" /></FormControl><FormLabel className="font-normal">Motorista</FormLabel></FormItem>
+                                    </RadioGroup>
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                 )}
+            </div>
+
+            <FormField
+                control={control}
+                name="orderDetails.hasInvoice"
+                render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                            <FormLabel>Mercadoria possui Nota Fiscal?</FormLabel>
+                        </div>
+                        <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                    </FormItem>
+                )}
+            />
+
+             <FormField
+                control={control}
+                name="orderDetails.driverNeedsToIssueInvoice"
+                render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                            <FormLabel>Motorista precisa emitir Nota Fiscal?</FormLabel>
+                        </div>
+                        <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                    </FormItem>
+                )}
+            />
+
+            <FormField
+                control={control}
+                name="orderDetails.driverNeedsANTT"
+                render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                            <FormLabel>Motorista precisa ter ANTT?</FormLabel>
+                        </div>
+                        <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                    </FormItem>
+                )}
+            />
+
+            <FormField
+                control={control}
+                name="orderDetails.minimumVehicleAge"
+                render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Idade mínima do veículo para agregar (Opcional)</FormLabel>
+                        <FormControl><Input placeholder="Ex: 2015" {...field} type="number" /></FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+            <FormField
+                control={control}
+                name="orderDetails.paymentMethods"
+                render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Formas de Pagamento (Opcional)</FormLabel>
+                        <FormControl><Input placeholder="Ex: Depósito, PIX" {...field} /></FormControl>
+                         <FormDescription>Descreva como o motorista será pago.</FormDescription>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+        </div>
+    );
+}
+
 // =================================================================
 // Componente Principal
 // =================================================================
@@ -320,6 +640,16 @@ export default function AgregamentoClient({ companyId }: { companyId: string }) 
       responsibleCollaborators: [],
       origin: { state: '', city: '' },
       destinations: [{ state: '', city: '' }],
+      orderDetails: {
+        whatWillBeLoaded: '',
+        needsTracker: false,
+        isDangerousCargo: false,
+        driverNeedsToHelp: false,
+        needsHelper: false,
+        hasInvoice: false,
+        driverNeedsToIssueInvoice: false,
+        driverNeedsANTT: false
+      }
     }
   });
 
@@ -368,6 +698,7 @@ export default function AgregamentoClient({ companyId }: { companyId: string }) 
               <form onSubmit={handleSubmit(processForm)}>
                   {currentStep === 0 && <StepCollaborators companyId={companyId} />}
                   {currentStep === 1 && <StepRoute />}
+                  {currentStep === 2 && <StepOrderDetails />}
                   {/* Outras etapas virão aqui */}
               </form>
           </FormProvider>
