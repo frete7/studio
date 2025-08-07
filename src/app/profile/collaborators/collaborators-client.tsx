@@ -67,9 +67,9 @@ const freightTypeVariants = cva(
     variants: {
       freightType: {
         comum: "border-transparent bg-sky-500 text-white hover:bg-sky-600",
-        agregamento: "border-transparent bg-amber-500 text-white hover:bg-amber-600",
-        "frete-completo": "border-transparent bg-purple-500 text-white hover:bg-purple-600",
-        "frete-retorno": "border-transparent bg-green-500 text-white hover:bg-green-600",
+        agregamento: "border-transparent bg-blue-500 text-white hover:bg-blue-600",
+        "frete-completo": "border-transparent bg-green-500 text-white hover:bg-green-600",
+        "frete-retorno": "border-transparent bg-orange-500 text-white hover:bg-orange-600",
       },
     },
     defaultVariants: {
