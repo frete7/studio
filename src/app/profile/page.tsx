@@ -41,6 +41,11 @@ export default function ProfilePage() {
                     if (doc.exists()) {
                         const userProfile = { ...doc.data(), uid: doc.id } as UserProfile;
                         setProfile(userProfile);
+
+                        if (userProfile.role === 'admin') {
+                            router.push('/admin');
+                            return;
+                        }
                         
                         const isProfilePage = window.location.pathname.startsWith('/profile');
                         const isAuthPage = window.location.pathname.startsWith('/login') || window.location.pathname.startsWith('/register');
