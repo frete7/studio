@@ -30,7 +30,7 @@ export async function updateUserStatus(uid: string, status: string) {
 }
 
 
-export async function updateDocumentStatus(userId: string, docField: 'responsible.document' | 'cnpjCard', docStatus: 'approved' | 'rejected') {
+export async function updateDocumentStatus(userId: string, docField: 'responsible.document' | 'cnpjCard', docStatus: string) {
     if (!userId || !docField || !docStatus) {
         throw new Error('User ID, document field, and status are required.');
     }
@@ -100,13 +100,19 @@ export async function updateUserByAdmin(userId: string, data: any): Promise<void
         }
         
         const userData = userDoc.data();
-        const updateData: {[key: string]: any} = {
-            'name': data.name,
-            'tradingName': data.tradingName,
-            'cnpj': data.cnpj,
-            'address': data.address,
-            'responsible.name': data.responsibleName,
-            'responsible.cpf': data.responsibleCpf,
+        
+        // Build the update object safely
+        const updateData = {
+            name: data.name,
+            tradingName: data.tradingName,
+            cnpj: data.cnpj,
+            address: data.address,
+            // Ensure responsible object exists before merging
+            responsible: {
+                ...(userData.responsible || {}), // Keep existing responsible data
+                name: data.responsibleName,
+                cpf: data.responsibleCpf,
+            }
         };
 
         await updateDoc(userDocRef, updateData);
@@ -333,5 +339,3 @@ export type Freight = {
     companyName?: string;
     status: 'ativo' | 'concluido' | 'pendente' | 'cancelado';
 }
-
-    
