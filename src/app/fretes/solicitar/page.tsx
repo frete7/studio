@@ -17,7 +17,7 @@ const freightOptions = [
         icon: <Truck className="h-10 w-10 text-blue-500" />,
         buttonText: 'Solicitar Agregamento',
         buttonClass: 'bg-blue-500 hover:bg-blue-600',
-        href: '/solicitar-frete'
+        href: '/solicitar-frete/agregamento'
     },
     {
         title: 'Frete Completo',
