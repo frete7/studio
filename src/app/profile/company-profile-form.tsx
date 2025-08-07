@@ -10,7 +10,7 @@ import { db, app } from '@/lib/firebase';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import Image from 'next/image';
 
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent, CardDescription, CardHeader, CardFooter, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
@@ -417,7 +417,7 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
                                          <Badge variant="outline" className="capitalize">{getDocStatusLabel(responsibleDocumentProps.status)}</Badge>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <a href={responsibleDocumentProps.url} target="_blank" rel="noopener noreferrer" className={cn(Button.styles({ variant: 'outline', size: 'sm' }))}>
+                                        <a href={responsibleDocumentProps.url} target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>
                                             <ExternalLink className="mr-2 h-4 w-4" /> Ver
                                         </a>
                                     </div>
@@ -435,7 +435,7 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
                                          <Badge variant="outline" className="capitalize">{getDocStatusLabel(cnpjCardProps.status)}</Badge>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                         <a href={cnpjCardProps.url} target="_blank" rel="noopener noreferrer" className={cn(Button.styles({ variant: 'outline', size: 'sm' }))}>
+                                         <a href={cnpjCardProps.url} target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>
                                             <ExternalLink className="mr-2 h-4 w-4" /> Ver
                                         </a>
                                     </div>
