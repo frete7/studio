@@ -5,8 +5,10 @@ import { useState, useEffect } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { collection, onSnapshot, query } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
-import { addCollaborator, updateCollaborator, deleteCollaborator, getCollaborators, type Collaborator } from '@/app/actions';
+import { addCollaborator, updateCollaborator, deleteCollaborator, type Collaborator } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,14 +24,40 @@ const formSchema = z.object({
   internalId: z.string().optional(),
   cpf: z.string().min(14, { message: 'CPF inválido.' }).max(14, { message: 'CPF inválido.' }),
   department: z.string().min(2, { message: 'O setor é obrigatório.' }),
-  phone: z.string().min(10, { message: 'Telefone inválido.' }),
-  confirmPhone: z.string().min(10, { message: 'Confirmação inválida.' }),
+  phone: z.string().min(14, { message: 'Telefone inválido.' }), // (XX) XXXXX-XXXX
+  confirmPhone: z.string().min(14, { message: 'Confirmação inválida.' }),
 }).refine(data => data.phone === data.confirmPhone, {
     message: "Os telefones não coincidem.",
     path: ["confirmPhone"],
 });
 
 type FormData = z.infer<typeof formSchema>;
+
+const handleMask = (value: string, maskType: 'cpf' | 'phone') => {
+    const unmasked = value.replace(/\D/g, '');
+    if (maskType === 'cpf') {
+      return unmasked
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+        .substring(0, 14);
+    }
+    if (maskType === 'phone') {
+      if (unmasked.length > 10) { // Celular
+        return unmasked
+          .replace(/(\d{2})(\d)/, '($1) $2')
+          .replace(/(\d{5})(\d)/, '$1-$2')
+          .substring(0, 15);
+      } else { // Fixo
+        return unmasked
+          .replace(/(\d{2})(\d)/, '($1) $2')
+          .replace(/(\d{4})(\d)/, '$1-$2')
+          .substring(0, 14);
+      }
+    }
+    return value;
+};
+
 
 export default function CollaboratorsClient({ companyId }: { companyId: string }) {
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
@@ -40,22 +68,33 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
   const { toast } = useToast();
 
   useEffect(() => {
-    const loadCollaborators = async () => {
-      setIsLoading(true);
-      try {
-        const data = await getCollaborators(companyId);
+    setIsLoading(true);
+    if (!companyId) {
+        setIsLoading(false);
+        return;
+    };
+    
+    const collaboratorsCollection = collection(db, 'users', companyId, 'collaborators');
+    const q = query(collaboratorsCollection);
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const data: Collaborator[] = [];
+        querySnapshot.forEach((doc) => {
+            data.push({ ...doc.data(), id: doc.id } as Collaborator);
+        });
         setCollaborators(data);
-      } catch (error) {
+        setIsLoading(false);
+    }, (error) => {
+        console.error("Error fetching collaborators: ", error);
         toast({
             variant: "destructive",
             title: "Erro ao buscar colaboradores",
             description: "Não foi possível carregar a lista de colaboradores."
         });
-      } finally {
         setIsLoading(false);
-      }
-    };
-    loadCollaborators();
+    });
+
+    return () => unsubscribe();
   }, [companyId, toast]);
 
   const form = useForm<FormData>({
@@ -69,29 +108,6 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
       confirmPhone: ''
     },
   });
-  
-  const handleMask = (value: string, mask: 'cpf' | 'phone') => {
-      let unmasked = value.replace(/\D/g, '');
-      if (mask === 'cpf') {
-          return unmasked
-              .replace(/(\d{3})(\d)/, '$1.$2')
-              .replace(/(\d{3})(\d)/, '$1.$2')
-              .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
-              .substring(0, 14);
-      }
-      if (mask === 'phone') {
-          if (unmasked.length > 10) {
-              return unmasked
-                  .replace(/(\d{2})(\d{5})(\d{4})$/, '($1) $2-$3')
-                  .substring(0, 15);
-          }
-          return unmasked
-              .replace(/(\d{2})(\d{4})(\d{4})$/, '($1) $2-$3')
-              .substring(0, 14);
-      }
-      return value;
-  };
-
 
   const handleEditClick = (collaborator: Collaborator) => {
     setEditingCollaborator(collaborator);
@@ -108,7 +124,14 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
 
   const handleAddNewClick = () => {
     setEditingCollaborator(null);
-    form.reset();
+    form.reset({
+        name: '',
+        internalId: '',
+        cpf: '',
+        department: '',
+        phone: '',
+        confirmPhone: ''
+    });
     setIsDialogOpen(true);
   };
 
@@ -116,17 +139,13 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
     setIsSubmitting(true);
     const { confirmPhone, ...collaboratorData } = data;
     try {
-      let updatedList = [...collaborators];
       if (editingCollaborator) {
         await updateCollaborator(companyId, editingCollaborator.id, collaboratorData);
-        updatedList = updatedList.map(c => c.id === editingCollaborator.id ? { ...c, ...collaboratorData } : c);
         toast({ title: 'Sucesso!', description: 'Colaborador atualizado.' });
       } else {
-        const newCollaborator = await addCollaborator(companyId, collaboratorData);
-        updatedList.push(newCollaborator);
+        await addCollaborator(companyId, collaboratorData);
         toast({ title: 'Sucesso!', description: 'Novo colaborador adicionado.' });
       }
-      setCollaborators(updatedList);
       form.reset();
       setIsDialogOpen(false);
       setEditingCollaborator(null);
@@ -144,7 +163,6 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
   const handleDelete = async (id: string) => {
     try {
       await deleteCollaborator(companyId, id);
-      setCollaborators(collaborators.filter(c => c.id !== id));
       toast({ title: 'Sucesso!', description: 'Colaborador removido.' });
     } catch (error) {
       toast({
@@ -231,114 +249,116 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Lista de Colaboradores</CardTitle>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={handleAddNewClick} disabled={collaborators.length === 0}>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Adicionar Novo
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>{editingCollaborator ? 'Editar' : 'Adicionar'} Colaborador</DialogTitle>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nome Completo</FormLabel>
-                      <FormControl><Input placeholder="Nome do colaborador" {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                 <div className="grid md:grid-cols-2 gap-4">
-                     <FormField
-                        control={form.control}
-                        name="cpf"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>CPF</FormLabel>
-                                <FormControl><Input 
-                                    placeholder="000.000.000-00" 
-                                    {...field}
-                                    onChange={(e) => field.onChange(handleMask(e.target.value, 'cpf'))}
-                                /></FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                     <FormField
-                        control={form.control}
-                        name="department"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Setor Responsável</FormLabel>
-                                <FormControl><Input placeholder="Ex: Logística, Financeiro" {...field} /></FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                </div>
-                 <div className="grid md:grid-cols-2 gap-4">
+        {collaborators.length > 0 && (
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+                <Button onClick={handleAddNewClick}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Adicionar Novo
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-2xl">
+                <DialogHeader>
+                <DialogTitle>{editingCollaborator ? 'Editar' : 'Adicionar'} Colaborador</DialogTitle>
+                </DialogHeader>
+                <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
                     <FormField
-                        control={form.control}
-                        name="phone"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Telefone (com DDD)</FormLabel>
-                                <FormControl><Input 
-                                    placeholder="(00) 00000-0000" 
-                                    {...field}
-                                    onChange={(e) => field.onChange(handleMask(e.target.value, 'phone'))} 
-                                /></FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Nome Completo</FormLabel>
+                        <FormControl><Input placeholder="Nome do colaborador" {...field} /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
                     />
-                     <FormField
-                        control={form.control}
-                        name="confirmPhone"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Confirmar Telefone</FormLabel>
-                                <FormControl><Input 
-                                    placeholder="Confirme o telefone" 
-                                    {...field}
-                                    onChange={(e) => field.onChange(handleMask(e.target.value, 'phone'))}
-                                /></FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
+                    <div className="grid md:grid-cols-2 gap-4">
+                        <FormField
+                            control={form.control}
+                            name="cpf"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>CPF</FormLabel>
+                                    <FormControl><Input 
+                                        placeholder="000.000.000-00" 
+                                        {...field}
+                                        onChange={(e) => field.onChange(handleMask(e.target.value, 'cpf'))}
+                                    /></FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="department"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Setor Responsável</FormLabel>
+                                    <FormControl><Input placeholder="Ex: Logística, Financeiro" {...field} /></FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+                    <div className="grid md:grid-cols-2 gap-4">
+                        <FormField
+                            control={form.control}
+                            name="phone"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Telefone (com DDD)</FormLabel>
+                                    <FormControl><Input 
+                                        placeholder="(00) 00000-0000" 
+                                        {...field}
+                                        onChange={(e) => field.onChange(handleMask(e.target.value, 'phone'))} 
+                                    /></FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="confirmPhone"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Confirmar Telefone</FormLabel>
+                                    <FormControl><Input 
+                                        placeholder="Confirme o telefone" 
+                                        {...field}
+                                        onChange={(e) => field.onChange(handleMask(e.target.value, 'phone'))}
+                                    /></FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+                    <FormField
+                    control={form.control}
+                    name="internalId"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>ID Interno (Opcional)</FormLabel>
+                        <FormControl><Input placeholder="ID ou código interno" {...field} /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
                     />
-                </div>
-                <FormField
-                  control={form.control}
-                  name="internalId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>ID Interno (Opcional)</FormLabel>
-                      <FormControl><Input placeholder="ID ou código interno" {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <DialogFooter>
-                  <DialogClose asChild>
-                    <Button type="button" variant="secondary">Cancelar</Button>
-                  </DialogClose>
-                  <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Salvar
-                  </Button>
-                </DialogFooter>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+                    <DialogFooter>
+                    <DialogClose asChild>
+                        <Button type="button" variant="secondary">Cancelar</Button>
+                    </DialogClose>
+                    <Button type="submit" disabled={isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Salvar
+                    </Button>
+                    </DialogFooter>
+                </form>
+                </Form>
+            </DialogContent>
+            </Dialog>
+        )}
       </CardHeader>
       <CardContent>
         {renderContent()}

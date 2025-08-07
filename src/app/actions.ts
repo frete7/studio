@@ -388,21 +388,9 @@ export async function deleteCollaborator(companyId: string, collaboratorId: stri
   try {
     const collaboratorDoc = doc(db, 'users', companyId, 'collaborators', collaboratorId);
     await deleteDoc(collaboratorDoc);
-  } catch (error: any) {
+  } catch (error: any)
+  {
     console.error("Error deleting collaborator: ", error);
     throw new Error(`Falha ao deletar o colaborador: ${error.message}`);
-  }
-}
-
-export async function getCollaborators(companyId: string): Promise<Collaborator[]> {
-  if (!companyId) return [];
-  try {
-    const collaboratorsCollection = collection(db, 'users', companyId, 'collaborators');
-    const q = query(collaboratorsCollection);
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Collaborator));
-  } catch (error) {
-    console.error("Error fetching collaborators: ", error);
-    return [];
   }
 }
