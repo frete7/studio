@@ -7,7 +7,7 @@ import {
   type OptimizeRouteOutput,
 } from '@/ai/flows/optimize-route';
 import { db } from '@/lib/firebase';
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, updateDoc, writeBatch, where, getCountFromServer, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, updateDoc, writeBatch, where, getCountFromServer, serverTimestamp, Timestamp } from 'firebase/firestore';
 
 export async function getOptimizedRoute(
   input: OptimizeRouteInput
@@ -619,7 +619,23 @@ export async function getFreightsByCollaborator(companyId: string, collaboratorI
             return [];
         }
         
-        return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Freight));
+        return snapshot.docs.map(doc => {
+            const data = doc.data();
+            const createdAt = data.createdAt;
+
+            // Convert Firestore Timestamp to a serializable format (ISO string)
+            let serializableCreatedAt = null;
+            if (createdAt && typeof createdAt.toDate === 'function') {
+                serializableCreatedAt = createdAt.toDate().toISOString();
+            }
+
+            return {
+                ...data,
+                id: data.id, // Use the custom ID from the document data
+                firestoreId: doc.id, // Keep the firestore id if needed
+                createdAt: serializableCreatedAt,
+            } as Freight;
+        });
 
     } catch (error) {
         console.error("Error fetching freights by collaborator: ", error);

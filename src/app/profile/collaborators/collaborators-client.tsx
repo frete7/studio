@@ -577,7 +577,7 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
                                         <Badge className={freightTypeVariants({ freightType: freight.freightType })}>{getFreightTypeLabel(freight.freightType)}</Badge>
                                     </TableCell>
                                      <TableCell>
-                                        {new Date(freight.createdAt.seconds * 1000).toLocaleDateString('pt-BR')}
+                                        {freight.createdAt ? new Date(freight.createdAt).toLocaleDateString('pt-BR') : 'N/A'}
                                     </TableCell>
                                     <TableCell>
                                         <Badge variant={getStatusVariant(freight.status)}>{getStatusLabel(freight.status)}</Badge>
