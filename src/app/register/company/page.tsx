@@ -175,7 +175,6 @@ export default function CompanyRegisterPage() {
         role: 'company',
         status: 'incomplete',
         createdAt: serverTimestamp(),
-        // Initialize the full data structure to prevent future errors
         responsible: {
             name: '',
             cpf: '',
@@ -410,3 +409,5 @@ export default function CompanyRegisterPage() {
     </div>
   );
 }
+
+    
