@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useForm, FormProvider, useFormContext } from 'react-hook-form';
+import { useForm, FormProvider, useFormContext, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { collection, onSnapshot, query } from 'firebase/firestore';
@@ -15,32 +15,42 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { Loader2, User, Search } from 'lucide-react';
+import { Loader2, User, Search, PlusCircle, Trash2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // =================================================================
 // Schemas e Tipos
 // =================================================================
 
+const locationSchema = z.object({
+  state: z.string().min(1, "O estado é obrigatório."),
+  city: z.string().min(1, "A cidade é obrigatória."),
+});
+
 const formSchema = z.object({
   responsibleCollaborators: z.array(z.string()).refine(value => value.some(item => item), {
     message: "Você deve selecionar pelo menos um colaborador.",
   }),
+  origin: locationSchema,
+  destinations: z.array(locationSchema).min(1, "Adicione pelo menos um destino."),
   // Outras etapas virão aqui
 });
 
 type FormData = z.infer<typeof formSchema>;
+type IBGEState = { id: number; sigla: string; nome: string; };
+type IBGECity = { id: number; nome: string; };
 
 const steps = [
   { id: 1, name: 'Responsáveis', fields: ['responsibleCollaborators'] },
-  { id: 2, name: 'Detalhes do Veículo', fields: [] },
-  { id: 3, name: 'Rota e Operação', fields: [] },
+  { id: 2, name: 'Rota', fields: ['origin', 'destinations'] },
+  { id: 3, name: 'Detalhes do Veículo', fields: [] },
   { id: 4, name: 'Requisitos Adicionais', fields: [] },
 ];
 
 // =================================================================
-// Componente da Etapa 1
+// Componentes das Etapas
 // =================================================================
 
 function StepCollaborators({ companyId }: { companyId: string }) {
@@ -155,6 +165,141 @@ function StepCollaborators({ companyId }: { companyId: string }) {
   );
 }
 
+function LocationSelector({ nestName, label }: { nestName: string, label: string }) {
+    const { control, watch, setValue } = useFormContext();
+    
+    const [states, setStates] = useState<IBGEState[]>([]);
+    const [cities, setCities] = useState<IBGECity[]>([]);
+    const [isLoadingStates, setIsLoadingStates] = useState(false);
+    const [isLoadingCities, setIsLoadingCities] = useState(false);
+
+    const selectedState = watch(`${nestName}.state`);
+
+    useEffect(() => {
+        setIsLoadingStates(true);
+        fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome')
+            .then(res => res.json())
+            .then(data => {
+                setStates(data);
+                setIsLoadingStates(false);
+            });
+    }, []);
+
+    useEffect(() => {
+        if (selectedState) {
+            setIsLoadingCities(true);
+            setValue(`${nestName}.city`, '', { shouldValidate: true });
+            fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${selectedState}/municipios?orderBy=nome`)
+                .then(res => res.json())
+                .then(data => {
+                    setCities(data);
+                    setIsLoadingCities(false);
+                });
+        }
+    }, [selectedState, nestName, setValue]);
+
+    return (
+        <div className="space-y-4">
+            <p className="font-medium">{label}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                    control={control}
+                    name={`${nestName}.state`}
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Estado (UF)</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoadingStates}>
+                                <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder={isLoadingStates ? "Carregando..." : "Selecione"} />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    {states.map(state => (
+                                        <SelectItem key={state.id} value={state.sigla}>{state.nome}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                <FormField
+                    control={control}
+                    name={`${nestName}.city`}
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Cidade</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value} disabled={!selectedState || isLoadingCities}>
+                                <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder={isLoadingCities ? "Carregando..." : "Selecione"} />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    {cities.map(city => (
+                                        <SelectItem key={city.id} value={city.nome}>{city.nome}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+            </div>
+        </div>
+    );
+}
+
+
+function StepRoute() {
+    const { control } = useFormContext();
+    const { fields, append, remove } = useFieldArray({
+        control,
+        name: "destinations",
+    });
+
+    return (
+        <div className="space-y-6">
+            <h2 className="text-2xl font-semibold">2. Rota do Agregamento</h2>
+            <p className="text-muted-foreground">Defina a origem e os destinos que farão parte desta operação.</p>
+            <Separator />
+            
+            <LocationSelector nestName="origin" label="Ponto de Origem" />
+
+            <Separator />
+
+            <div className="space-y-4">
+                 <h3 className="text-lg font-semibold">Destinos</h3>
+                 <div className="space-y-6">
+                    {fields.map((field, index) => (
+                        <Card key={field.id} className="p-4 bg-muted/30">
+                            <div className="flex justify-between items-center mb-2">
+                                <FormLabel>Destino {index + 1}</FormLabel>
+                                {fields.length > 1 && (
+                                     <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}>
+                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                )}
+                            </div>
+                            <LocationSelector nestName={`destinations.${index}`} label="" />
+                        </Card>
+                    ))}
+                 </div>
+                 <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full mt-4"
+                    onClick={() => append({ state: '', city: '' })}
+                >
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Adicionar outro destino
+                </Button>
+                 <FormField control={control} name="destinations" render={() => <FormMessage />} />
+            </div>
+        </div>
+    );
+}
 
 // =================================================================
 // Componente Principal
@@ -167,6 +312,8 @@ export default function AgregamentoClient({ companyId }: { companyId: string }) 
     resolver: zodResolver(formSchema),
     defaultValues: {
       responsibleCollaborators: [],
+      origin: { state: '', city: '' },
+      destinations: [{ state: '', city: '' }],
     }
   });
 
@@ -214,6 +361,7 @@ export default function AgregamentoClient({ companyId }: { companyId: string }) 
           <FormProvider {...methods}>
               <form onSubmit={handleSubmit(processForm)}>
                   {currentStep === 0 && <StepCollaborators companyId={companyId} />}
+                  {currentStep === 1 && <StepRoute />}
                   {/* Outras etapas virão aqui */}
               </form>
           </FormProvider>
