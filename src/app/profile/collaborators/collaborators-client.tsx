@@ -7,8 +7,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { cva } from 'class-variance-authority';
 
-import { addCollaborator, updateCollaborator, deleteCollaborator, getCollaboratorStats, getFreightsByCollaborator, type Collaborator, type CollaboratorStats, type Freight } from '@/app/actions';
+import { addCollaborator, updateCollaborator, deleteCollaborator, getCollaboratorStats, getFreightsByCollaborator, type Collaborator, type CollaboratorStats, type Freight, updateFreightStatus } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -60,6 +61,23 @@ const handleMask = (value: string, maskType: 'cpf' | 'phone') => {
 };
 
 
+const freightTypeVariants = cva(
+  "",
+  {
+    variants: {
+      freightType: {
+        comum: "border-transparent bg-sky-500 text-white hover:bg-sky-600",
+        agregamento: "border-transparent bg-amber-500 text-white hover:bg-amber-600",
+        "frete completo": "border-transparent bg-purple-500 text-white hover:bg-purple-600",
+        "frete de retorno": "border-transparent bg-green-500 text-white hover:bg-green-600",
+      },
+    },
+    defaultVariants: {
+      freightType: "comum",
+    },
+  }
+)
+
 export default function CollaboratorsClient({ companyId }: { companyId: string }) {
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -106,25 +124,44 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
   
    useEffect(() => {
     if (viewingCollaborator) {
-      const fetchStats = async () => {
-        setIsStatsLoading(true);
-        setStats(null);
-        try {
-          const result = await getCollaboratorStats(companyId, viewingCollaborator.id);
-          setStats(result);
-        } catch (error) {
-          toast({
+      fetchCollaboratorStats(viewingCollaborator.id);
+    }
+  }, [viewingCollaborator, companyId]);
+
+  const fetchCollaboratorStats = async (collaboratorId: string) => {
+    setIsStatsLoading(true);
+    setStats(null);
+    try {
+      const result = await getCollaboratorStats(companyId, collaboratorId);
+      setStats(result);
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao buscar estatísticas',
+        description: error instanceof Error ? error.message : 'Ocorreu um erro.',
+      });
+    } finally {
+      setIsStatsLoading(false);
+    }
+  };
+  
+  const fetchCollaboratorFreights = async (collaboratorId: string) => {
+     if (!viewingCollaborator) return;
+    setIsFreightListOpen(true);
+    setIsFreightsLoading(true);
+    try {
+        const freights = await getFreightsByCollaborator(companyId, collaboratorId);
+        setCollaboratorFreights(freights);
+    } catch(error) {
+         toast({
             variant: 'destructive',
-            title: 'Erro ao buscar estatísticas',
+            title: 'Erro ao buscar fretes',
             description: error instanceof Error ? error.message : 'Ocorreu um erro.',
           });
-        } finally {
-          setIsStatsLoading(false);
-        }
-      };
-      fetchStats();
+    } finally {
+        setIsFreightsLoading(false);
     }
-  }, [viewingCollaborator, companyId, toast]);
+  }
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -164,22 +201,30 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
     setIsFormDialogOpen(true);
   };
   
-  const handleViewFreightsClick = async () => {
-    if (!viewingCollaborator) return;
-    setIsFreightListOpen(true);
-    setIsFreightsLoading(true);
-    try {
-        const freights = await getFreightsByCollaborator(companyId, viewingCollaborator.id);
-        setCollaboratorFreights(freights);
-    } catch(error) {
-         toast({
+  const handleViewFreightsClick = async (collaborator: Collaborator) => {
+    setViewingCollaborator(collaborator);
+    await fetchCollaboratorFreights(collaborator.id);
+  }
+
+  const handleUpdateFreightStatus = async (freightId: string, status: Freight['status']) => {
+      try {
+          await updateFreightStatus(freightId, status);
+          toast({
+              title: "Sucesso!",
+              description: "Status do frete atualizado."
+          });
+          // Refresh the list of freights for the current collaborator
+          if(viewingCollaborator) {
+             await fetchCollaboratorFreights(viewingCollaborator.id);
+             await fetchCollaboratorStats(viewingCollaborator.id);
+          }
+      } catch (error) {
+          toast({
             variant: 'destructive',
-            title: 'Erro ao buscar fretes',
+            title: 'Erro ao atualizar status',
             description: error instanceof Error ? error.message : 'Ocorreu um erro.',
           });
-    } finally {
-        setIsFreightsLoading(false);
-    }
+      }
   }
 
 
@@ -332,6 +377,16 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
       default: return 'secondary';
     }
   }
+  
+  const getFreightTypeLabel = (type: Freight['freightType']): string => {
+    const labels = {
+        'comum': 'Comum',
+        'agregamento': 'Agregamento',
+        'frete completo': 'Completo',
+        'frete de retorno': 'Retorno',
+    };
+    return labels[type] || 'N/A';
+  }
 
   return (
     <>
@@ -468,7 +523,7 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
                     value={stats?.totalFreights ?? 0} 
                     icon={<BarChart className="h-4 w-4 text-muted-foreground" />} 
                     isLoading={isStatsLoading}
-                    onClick={handleViewFreightsClick}
+                    onClick={() => viewingCollaborator && handleViewFreightsClick(viewingCollaborator)}
                 />
                 <StatCard 
                     title="Fretes Ativos" 
@@ -504,9 +559,11 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Rota</TableHead>
+                                <TableHead>Rota / ID</TableHead>
+                                <TableHead>Tipo</TableHead>
                                 <TableHead>Data</TableHead>
-                                <TableHead className="text-right">Status</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead className="text-right">Ação</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -517,10 +574,18 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
                                         <div className="text-sm text-muted-foreground">{freight.id}</div>
                                     </TableCell>
                                      <TableCell>
+                                        <Badge className={freightTypeVariants({ freightType: freight.freightType })}>{getFreightTypeLabel(freight.freightType)}</Badge>
+                                    </TableCell>
+                                     <TableCell>
                                         {new Date(freight.createdAt.seconds * 1000).toLocaleDateString('pt-BR')}
                                     </TableCell>
-                                    <TableCell className="text-right">
+                                    <TableCell>
                                         <Badge variant={getStatusVariant(freight.status)}>{getStatusLabel(freight.status)}</Badge>
+                                    </TableCell>
+                                     <TableCell className="text-right">
+                                        {freight.status === 'ativo' && (
+                                            <Button size="sm" variant="outline" onClick={() => handleUpdateFreightStatus(freight.id, 'concluido')}>Concluir</Button>
+                                        )}
                                     </TableCell>
                                 </TableRow>
                             ))}

@@ -483,6 +483,30 @@ export async function addCompleteFreight(companyId: string, companyName: string,
     return generatedId;
 }
 
+export async function updateFreightStatus(freightId: string, status: Freight['status']): Promise<void> {
+    if (!freightId || !status) {
+        throw new Error('ID do frete e novo status são obrigatórios.');
+    }
+    try {
+        // Since we don't have the original document ID from firestore, we have to query for it based on our custom ID
+        const freightsCollection = collection(db, 'freights');
+        const q = query(freightsCollection, where('id', '==', freightId));
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+            throw new Error(`Frete com ID ${freightId} não encontrado.`);
+        }
+        
+        const firestoreDocId = snapshot.docs[0].id;
+        const freightDocRef = doc(db, 'freights', firestoreDocId);
+        await updateDoc(freightDocRef, { status: status });
+
+    } catch (error: any) {
+        console.error("Error updating freight status: ", error);
+        throw new Error(`Falha ao atualizar o status do frete: ${error.code || error.message}`);
+    }
+}
+
 
 // Collaborators Actions
 export type Collaborator = {
