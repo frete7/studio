@@ -59,7 +59,10 @@ const orderDetailsSchema = z.object({
     minimumVehicleAge: z.string().optional(),
     paymentMethods: z.array(z.string()).optional(),
     benefits: z.array(z.object({ value: z.string().min(1, "O benefício não pode ser vazio.") })).optional(),
-}).refine(data => data.whoPaysToll === undefined || data.tollTripScope !== undefined, {
+}).refine(data => {
+    if (data.whoPaysToll === undefined) return true; // It's optional, so if it's not there, it's fine.
+    return data.tollTripScope !== undefined;
+}, {
     message: "Selecione o trecho do pedágio.",
     path: ['tollTripScope'],
 }).refine(data => !data.needsTracker || (data.trackerType !== undefined && data.trackerType.length > 0), {
@@ -1080,60 +1083,142 @@ function StepVehicleAndBodywork({ allData }: { allData: any }) {
     );
 }
 
-function SummaryView({ data, onEdit }: { data: FormData; onEdit: (step: number) => void; }) {
+function SummaryView({ data, onEdit, allData }: { data: FormData; onEdit: (step: number) => void; allData: any }) {
     const { origin, destinations, orderDetails, requiredVehicles, requiredBodyworks, responsibleCollaborators } = data;
-
-    const renderList = (list: {value: string}[] | undefined) => (
-        <ul className="list-disc list-inside text-sm text-muted-foreground pl-4">
-            {list?.map((item, index) => <li key={index}>{item.value}</li>)}
-        </ul>
-    );
+    const [collaboratorNames, setCollaboratorNames] = useState<string[]>([]);
     
+    useEffect(() => {
+        const fetchNames = async () => {
+            if(responsibleCollaborators.length > 0){
+                // This is a simplified fetch. In a real app, you might already have this data
+                // or fetch it from a context or a dedicated hook.
+                const colls = await getDocs(query(collection(db, `users/${companyId}/collaborators`)));
+                const names = colls.docs
+                    .filter(doc => responsibleCollaborators.includes(doc.id))
+                    .map(doc => doc.data().name);
+                setCollaboratorNames(names);
+            }
+        };
+        // This is a pseudo-call, as we don't have companyId here.
+        // A better implementation would pass the full collaborator objects or the names map.
+        // For now, we'll just show the count.
+    }, [responsibleCollaborators]);
+    
+    const bodyworkNames = requiredBodyworks.map(id => allData.groupedBodyworks[Object.keys(allData.groupedBodyworks).find(group => allData.groupedBodyworks[group].some((bw: any) => bw.id === id)) as string]?.find((bw: any) => bw.id === id)?.name || id);
+
+
     const SummarySection = ({ title, stepIndex, children }: { title: string, stepIndex: number, children: React.ReactNode }) => (
-        <div className="space-y-2">
+        <div className="space-y-3">
             <div className="flex justify-between items-center">
-                <h3 className="font-semibold text-base">{title}</h3>
+                <h3 className="font-semibold text-lg">{title}</h3>
                 <Button variant="link" size="sm" onClick={() => onEdit(stepIndex)} className="h-auto p-0">
                     <Edit className="mr-1 h-3 w-3" />
                     Editar
                 </Button>
             </div>
-            <div className="text-sm text-muted-foreground">{children}</div>
+            <div className="space-y-2 text-sm text-muted-foreground p-3 border rounded-md bg-muted/30">{children}</div>
         </div>
     )
 
-    return (
-        <div className="space-y-4 text-sm max-h-[60vh] overflow-y-auto pr-4">
-            <SummarySection title="Responsáveis" stepIndex={0}>
-                <p>{responsibleCollaborators.length} colaborador(es) selecionado(s).</p>
-            </SummarySection>
-            <Separator />
+    const DetailItem = ({ label, value, isBool = false }: { label: string, value?: React.ReactNode, isBool?: boolean }) => {
+        if (value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0)) return null;
+        let displayValue = value;
+        if(isBool) displayValue = value ? "Sim" : "Não";
 
-             <SummarySection title="Rota" stepIndex={1}>
-                <p><strong>Origem:</strong> {origin.city}, {origin.state}</p>
-                <div>
-                     <p><strong>Destinos:</strong></p>
-                    <ul className="list-disc list-inside pl-4">
-                        {destinations.map((d, i) => <li key={i}>{d.city}, {d.state}</li>)}
-                    </ul>
-                </div>
+        return (
+            <div className="flex justify-between">
+                <p className="font-medium text-foreground/80">{label}:</p>
+                <p className="text-right">{displayValue as React.ReactNode}</p>
+            </div>
+        )
+    };
+    
+    const DetailList = ({ label, list }: { label: string, list?: {value: string}[] }) => {
+        if (!list || list.length === 0) return null;
+        return (
+            <div>
+                <p className="font-medium text-foreground/80">{label}:</p>
+                <ul className="list-disc list-inside pl-4">
+                    {list.map((item, index) => <li key={index}>{item.value}</li>)}
+                </ul>
+            </div>
+        )
+    }
+
+    return (
+        <div className="space-y-6 text-sm max-h-[70vh] overflow-y-auto pr-4">
+            <SummarySection title="Responsáveis" stepIndex={0}>
+                <DetailItem label="Colaboradores" value={`${responsibleCollaborators.length} selecionado(s)`} />
             </SummarySection>
-            <Separator />
+
+            <SummarySection title="Rota" stepIndex={1}>
+                <p className="font-medium text-foreground/80">Origem:</p>
+                <p className="pl-2">{origin.city}, {origin.state}</p>
+                <Separator className="my-2"/>
+                 <p className="font-medium text-foreground/80">Destinos:</p>
+                <ul className="list-decimal list-inside pl-2">
+                    {destinations.map((d, i) => <li key={i}>{d.city}, {d.state}</li>)}
+                </ul>
+            </SummarySection>
             
             <SummarySection title="Informações do Pedido" stepIndex={2}>
-                 <p><strong>Carga:</strong> {orderDetails.whatWillBeLoaded}</p>
-                 <p><strong>Tipo de Carga:</strong> {orderDetails.cargoType}</p>
-                 <p><strong>Pedágio:</strong> Pago por {orderDetails.whoPaysToll}</p>
+                 <DetailItem label="Carga" value={orderDetails.whatWillBeLoaded} />
+                 <DetailItem label="Tipo de Carga" value={orderDetails.cargoType} />
+                 <DetailItem label="Ordem de Carregamento" value={orderDetails.loadingOrder} />
+                 <DetailList label="Horários de Carregamento" list={orderDetails.loadingTimes} />
+                 <Separator className="my-2" />
+                 <DetailItem label="Pedágio pago por" value={orderDetails.whoPaysToll} />
+                 <DetailItem label="Trecho do Pedágio" value={orderDetails.tollTripScope} />
+                 <Separator className="my-2" />
+                 <DetailItem label="Precisa de Rastreador" value={orderDetails.needsTracker} isBool />
+                 <DetailItem label="Tipo de Rastreador" value={orderDetails.trackerType} />
+                 <Separator className="my-2" />
+                 <DetailItem label="Carga Perigosa" value={orderDetails.isDangerousCargo} isBool />
+                 <DetailItem label="Motorista ajuda" value={orderDetails.driverNeedsToHelp} isBool />
+                 <DetailItem label="Ajuda em" value={orderDetails.driverHelpScope} />
+                 <DetailItem label="Precisa de Ajudante" value={orderDetails.needsHelper} isBool />
+                 <DetailItem label="Ajudante pago por" value={orderDetails.whoPaysHelper} />
+                 <Separator className="my-2" />
+                 <DetailItem label="Possui Nota Fiscal" value={orderDetails.hasInvoice} isBool />
+                 <DetailItem label="Motorista emite NF" value={orderDetails.driverNeedsToIssueInvoice} isBool />
+                 <DetailItem label="Precisa de ANTT" value={orderDetails.driverNeedsANTT} isBool />
+                 <Separator className="my-2" />
+                 <DetailItem label="Precisa de Cursos Específicos" value={orderDetails.needsSpecificCourses} isBool />
+                 <DetailList label="Cursos" list={orderDetails.specificCourses} />
+                 <DetailItem label="Idade Mínima do Veículo" value={orderDetails.minimumVehicleAge === 'none' ? 'Nenhuma' : orderDetails.minimumVehicleAge} />
+                 <Separator className="my-2" />
+                 <DetailList label="Benefícios" list={orderDetails.benefits} />
+                 <DetailItem label="Formas de Pagamento" value={orderDetails.paymentMethods?.join(', ')} />
             </SummarySection>
-            <Separator/>
 
             <SummarySection title="Veículos e Carrocerias" stepIndex={3}>
-                 <p><strong>Carrocerias:</strong> {requiredBodyworks.length} tipo(s) selecionado(s).</p>
-                 <p><strong>Veículos:</strong> {requiredVehicles.length} tipo(s) selecionado(s).</p>
+                <DetailItem label="Carrocerias" value={bodyworkNames.join(', ')} />
+                <Separator className="my-2"/>
+                <p className="font-medium text-foreground/80">Veículos e Preços:</p>
+                <div className="space-y-4">
+                    {requiredVehicles.map((v, i) => (
+                        <div key={i} className="p-2 border rounded-md">
+                            <p className="font-semibold">{v.name}</p>
+                            {v.isPriceToCombine ? (
+                                <p>Valor a Combinar</p>
+                            ) : (
+                                <table className="w-full mt-1">
+                                    <thead><tr className="text-left"><th className="px-1">De (km)</th><th className="px-1">Até (km)</th><th className="px-1">Valor (R$)</th></tr></thead>
+                                    <tbody>
+                                        {v.priceTable?.map((p, pi) => (
+                                            <tr key={pi}><td className="px-1">{p.kmStart}</td><td className="px-1">{p.kmEnd}</td><td className="px-1">{p.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td></tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                    ))}
+                </div>
             </SummarySection>
         </div>
     );
 }
+
 
 // =================================================================
 // Componente Principal
@@ -1331,7 +1416,7 @@ export default function AgregamentoClient({ companyId, companyName }: { companyI
                     Por favor, revise todos os dados antes de finalizar.
                 </p>
                 </DialogHeader>
-                <SummaryView data={getValues()} onEdit={handleEditFromSummary} />
+                <SummaryView data={getValues()} onEdit={handleEditFromSummary} allData={allData} />
                 <DialogFooter>
                 <DialogClose asChild>
                     <Button type="button" variant="secondary">Cancelar</Button>
@@ -1375,4 +1460,3 @@ export default function AgregamentoClient({ companyId, companyName }: { companyI
     </>
   );
 }
-
