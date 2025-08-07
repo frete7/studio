@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
-import { addCollaborator, updateCollaborator, deleteCollaborator, type Collaborator } from '@/app/actions';
+import { addCollaborator, updateCollaborator, deleteCollaborator, getCollaboratorStats, type Collaborator, type CollaboratorStats } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,6 +66,8 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [editingCollaborator, setEditingCollaborator] = useState<Collaborator | null>(null);
   const [viewingCollaborator, setViewingCollaborator] = useState<Collaborator | null>(null);
+  const [stats, setStats] = useState<CollaboratorStats | null>(null);
+  const [isStatsLoading, setIsStatsLoading] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -97,6 +99,28 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
 
     return () => unsubscribe();
   }, [companyId, toast]);
+  
+   useEffect(() => {
+    if (viewingCollaborator) {
+      const fetchStats = async () => {
+        setIsStatsLoading(true);
+        setStats(null);
+        try {
+          const result = await getCollaboratorStats(companyId, viewingCollaborator.id);
+          setStats(result);
+        } catch (error) {
+          toast({
+            variant: 'destructive',
+            title: 'Erro ao buscar estatísticas',
+            description: error instanceof Error ? error.message : 'Ocorreu um erro.',
+          });
+        } finally {
+          setIsStatsLoading(false);
+        }
+      };
+      fetchStats();
+    }
+  }, [viewingCollaborator, companyId, toast]);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -250,14 +274,18 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
     );
   };
   
-  const StatCard = ({ title, value, icon }: { title: string, value: string | number, icon: React.ReactNode }) => (
+  const StatCard = ({ title, value, icon, isLoading }: { title: string, value: string | number, icon: React.ReactNode, isLoading?: boolean }) => (
     <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">{title}</CardTitle>
             {icon}
         </CardHeader>
         <CardContent>
-            <div className="text-2xl font-bold">{value}</div>
+             {isLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+            ) : (
+                <div className="text-2xl font-bold">{value}</div>
+            )}
         </CardContent>
     </Card>
   )
@@ -393,13 +421,26 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
             </p>
           </DialogHeader>
           <div className="py-4 space-y-6">
-             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <StatCard title="Fretes do Colaborador" value="12" icon={<User className="h-4 w-4 text-muted-foreground" />} />
-                <StatCard title="Fretes Cadastrados" value="25" icon={<BarChart className="h-4 w-4 text-muted-foreground" />} />
-                <StatCard title="Fretes Ativos" value="8" icon={<PackageSearch className="h-4 w-4 text-muted-foreground" />} />
-                <StatCard title="Fretes Concluídos" value="17" icon={<PackageCheck className="h-4 w-4 text-muted-foreground" />} />
+             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <StatCard 
+                    title="Fretes Cadastrados" 
+                    value={stats?.totalFreights ?? 0} 
+                    icon={<BarChart className="h-4 w-4 text-muted-foreground" />} 
+                    isLoading={isStatsLoading}
+                />
+                <StatCard 
+                    title="Fretes Ativos" 
+                    value={stats?.activeFreights ?? 0} 
+                    icon={<PackageSearch className="h-4 w-4 text-muted-foreground" />} 
+                    isLoading={isStatsLoading}
+                />
+                <StatCard 
+                    title="Fretes Concluídos" 
+                    value={stats?.completedFreights ?? 0} 
+                    icon={<PackageCheck className="h-4 w-4 text-muted-foreground" />} 
+                    isLoading={isStatsLoading}
+                />
             </div>
-            {/* Aqui você pode adicionar mais detalhes, gráficos ou uma tabela de fretes */}
           </div>
           <DialogFooter>
             <Button onClick={() => setViewingCollaborator(null)}>Fechar</Button>

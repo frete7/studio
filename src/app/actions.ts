@@ -7,7 +7,7 @@ import {
   type OptimizeRouteOutput,
 } from '@/ai/flows/optimize-route';
 import { db } from '@/lib/firebase';
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, updateDoc, writeBatch } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, updateDoc, writeBatch, where, getCountFromServer } from 'firebase/firestore';
 
 export async function getOptimizedRoute(
   input: OptimizeRouteInput
@@ -413,6 +413,7 @@ export type Freight = {
     companyId: string;
     companyName?: string;
     status: 'ativo' | 'concluido' | 'pendente' | 'cancelado';
+    collaboratorId?: string; // Add collaboratorId
 }
 
 // Collaborators Actions
@@ -463,4 +464,47 @@ export async function deleteCollaborator(companyId: string, collaboratorId: stri
   }
 }
 
+export type CollaboratorStats = {
+    totalFreights: number;
+    activeFreights: number;
+    completedFreights: number;
+};
+
+export async function getCollaboratorStats(companyId: string, collaboratorId: string): Promise<CollaboratorStats> {
+    if (!companyId || !collaboratorId) {
+        throw new Error('ID da empresa e do colaborador são obrigatórios.');
+    }
+    
+    try {
+        const freightsCollection = collection(db, 'freights');
+        
+        // Base query for the collaborator
+        const baseQuery = query(
+            freightsCollection,
+            where('companyId', '==', companyId),
+            where('collaboratorId', '==', collaboratorId)
+        );
+
+        // Get total freights
+        const totalSnapshot = await getCountFromServer(baseQuery);
+
+        // Get active freights
+        const activeQuery = query(baseQuery, where('status', '==', 'ativo'));
+        const activeSnapshot = await getCountFromServer(activeQuery);
+        
+        // Get completed freights
+        const completedQuery = query(baseQuery, where('status', '==', 'concluido'));
+        const completedSnapshot = await getCountFromServer(completedQuery);
+
+        return {
+            totalFreights: totalSnapshot.data().count,
+            activeFreights: activeSnapshot.data().count,
+            completedFreights: completedSnapshot.data().count,
+        };
+
+    } catch (error) {
+        console.error("Error fetching collaborator stats: ", error);
+        throw new Error('Falha ao buscar as estatísticas do colaborador.');
+    }
+}
     
