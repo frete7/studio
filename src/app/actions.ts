@@ -45,30 +45,21 @@ export async function updateDocumentStatus(userId: string, docField: 'responsibl
         const userData = userDoc.data();
         const updatePayload: { [key: string]: any } = {};
         
-        // Helper to safely get document data, handling old string format and non-existent data
         const getDocumentData = (docData: any) => {
              if (typeof docData === 'string') {
-                return { url: docData, status: 'pending' }; // Convert old format
+                return { url: docData, status: 'pending' }; 
             }
-            return docData || {}; // Return existing object or a new empty one
+            return docData || {}; 
         }
 
         if (docField === 'responsible.document') {
             const responsibleData = userData.responsible || {};
             const documentData = getDocumentData(responsibleData.document);
-            // Always rebuild the object to ensure url is preserved
             updatePayload['responsible.document'] = { ...documentData, status: docStatus };
 
-        } else { // Handle cnpjCard field
+        } else { 
              const cnpjCardData = getDocumentData(userData.cnpjCard);
-             // Always rebuild the object to ensure url is preserved
             updatePayload['cnpjCard'] = { ...cnpjCardData, status: docStatus };
-        }
-
-        // If any document is rejected, set main user status to 'incomplete'
-        // to signal that the user needs to re-upload.
-        if (docStatus === 'rejected') {
-            updatePayload['status'] = 'incomplete';
         }
         
         await updateDoc(userDocRef, updatePayload);
@@ -109,18 +100,13 @@ export async function updateUserByAdmin(userId: string, data: any): Promise<void
         }
         
         const userData = userDoc.data();
-
-        // Build the update object safely, preserving existing data in 'responsible'
-        const updateData = {
-            name: data.name,
-            tradingName: data.tradingName,
-            cnpj: data.cnpj,
-            address: data.address,
-            responsible: {
-                ...(userData.responsible || {}), // Preserve other responsible fields
-                name: data.responsibleName,
-                cpf: data.responsibleCpf,
-            },
+        const updateData: {[key: string]: any} = {
+            'name': data.name,
+            'tradingName': data.tradingName,
+            'cnpj': data.cnpj,
+            'address': data.address,
+            'responsible.name': data.responsibleName,
+            'responsible.cpf': data.responsibleCpf,
         };
 
         await updateDoc(userDocRef, updateData);
