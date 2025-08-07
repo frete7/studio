@@ -8,7 +8,7 @@ import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { User, Clock, ShieldCheck, Loader2, Users, ArrowRight, Package, ShieldAlert, Undo2, Edit } from "lucide-react";
+import { User, Clock, ShieldCheck, Loader2, Users, ArrowRight, Package, ShieldAlert, Undo2, Edit, BarChart } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
@@ -176,6 +176,27 @@ export default function CompanyDashboardPage() {
                                     <Button asChild className='w-full'>
                                         <Link href="/company-dashboard/my-freights">
                                             Gerenciar Fretes <ArrowRight className="ml-2 h-4 w-4"/>
+                                        </Link>
+                                    </Button>
+                                </CardFooter>
+                            </Card>
+                            <Card className="flex flex-col">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <BarChart className="h-5 w-5 text-primary" />
+                                        Estatísticas
+                                    </CardTitle>
+                                    <CardDescription>
+                                       Visualize o desempenho da sua operação.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="flex-grow">
+                                    <p className='text-sm text-muted-foreground'>Acompanhe métricas chave e tome decisões baseadas em dados.</p>
+                                </CardContent>
+                                <CardFooter>
+                                    <Button asChild className='w-full'>
+                                        <Link href="/company-dashboard/statistics">
+                                            Ver Estatísticas <ArrowRight className="ml-2 h-4 w-4"/>
                                         </Link>
                                     </Button>
                                 </CardFooter>
