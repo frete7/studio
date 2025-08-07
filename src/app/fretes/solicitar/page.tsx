@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Truck, Box, CornerDownLeft } from 'lucide-react';
+import { Truck, Box, CornerDownLeft, ArrowLeft } from 'lucide-react';
 
 export const metadata: Metadata = {
     title: 'Solicitar Frete | Frete7',
@@ -41,6 +41,14 @@ export default function RequestFreightTypePage() {
     return (
         <div className="container mx-auto px-4 py-12">
             <div className="max-w-4xl mx-auto">
+                 <div className="mb-8">
+                     <Button asChild variant="outline">
+                        <Link href="/profile/my-freights">
+                            <ArrowLeft className="mr-2 h-4 w-4" />
+                            Voltar para Meus Fretes
+                        </Link>
+                    </Button>
+                </div>
                 <div className="text-center mb-12">
                     <h1 className="text-4xl font-bold font-headline text-primary">Solicitar um Frete</h1>
                     <p className="mt-2 text-lg text-foreground/70">
