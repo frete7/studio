@@ -2,58 +2,11 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    function isAdmin() {
-      // Check if the user is an admin by reading their role from the users collection
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-
-    match /users/{userId} {
-      // Admins can read any user profile. Users can only read their own.
-      allow read: if request.auth.uid == userId || isAdmin();
-      // Allow user creation for signup
-      allow create: if true;
-      // Users can update their own profile, Admins can update any.
-      allow update: if request.auth.uid == userId || isAdmin();
-    }
-    
-    // This rule allows a company to manage its own collaborators subcollection
-    match /users/{companyId}/collaborators/{collaboratorId} {
-        allow read, write: if request.auth.uid == companyId || isAdmin();
-    }
-
-    // Rules for app configuration collections, readable by authenticated users, writable by admins.
-    match /plans/{planId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
-    }
-    match /vehicle_categories/{categoryId} {
-       allow read: if isAuthenticated();
-       allow write: if isAdmin();
-    }
-    match /vehicle_types/{typeId} {
-       allow read: if isAuthenticated();
-       allow write: if isAdmin();
-    }
-    match /body_types/{typeId} {
-       allow read: if isAuthenticated();
-       allow write: if isAdmin();
-    }
-    match /vehicles/{vehicleId} {
-       allow read: if isAuthenticated();
-       allow write: if isAdmin();
-    }
-    
-    // Freights can be read by any authenticated user, and created by them too.
-    // Only admins or the company that created the freight can modify it.
-    match /freights/{freightId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isAdmin() || request.auth.uid == resource.data.companyId;
+    // Default to locked down
+    match /{document=**} {
+      // Allow read/write access to any authenticated user.
+      // WARNING: This is very permissive and should be secured before production.
+      allow read, write: if request.auth != null;
     }
   }
 }
