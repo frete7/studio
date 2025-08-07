@@ -3,55 +3,67 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Helper functions
     function isAdmin() {
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     function isAuthenticated() {
-        return request.auth != null;
+      return request.auth != null;
     }
 
-    // Regras para a coleção principal 'users'.
+    // By default, no one can read or write to any document.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Rule for the 'users' collection
     match /users/{userId} {
       allow read: if request.auth.uid == userId || isAdmin();
-      allow create: if request.auth.uid == userId || isAdmin();
+      allow create: if true;
       allow update: if request.auth.uid == userId || isAdmin();
-      allow delete: if isAdmin();
     }
-
-    // Regra específica para a subcoleção 'collaborators'.
-    // Esta regra permite que a empresa (dona do documento) ou um admin gerencie os colaboradores.
+    
+    // Rule for the 'collaborators' subcollection
     match /users/{companyId}/collaborators/{collaboratorId} {
       allow read, write: if request.auth.uid == companyId || isAdmin();
     }
+    
+    // Rules for app-wide configuration data (readable by any logged-in user)
+    match /plans/{planId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
 
-    match /freights/{freightId} {
-      allow read: if true;
-      allow create: if isAuthenticated();
-      allow update, delete: if isAdmin() || (isAuthenticated() && resource.data.companyId == request.auth.uid);
+    match /vehicle_types/{typeId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
     
-    // Coleções gerenciadas principalmente por Admins
-    match /plans/{planId} {
-        allow read: if isAuthenticated();
-        allow write: if isAdmin();
+    match /vehicle_categories/{categoryId} {
+       allow read: if isAuthenticated();
+       allow write: if isAdmin();
     }
+
+    match /body_types/{bodyId} {
+       allow read: if isAuthenticated();
+       allow write: if isAdmin();
+    }
+    
     match /vehicles/{vehicleId} {
-        allow read: if isAuthenticated();
-        allow write: if isAdmin();
+       allow read: if isAuthenticated();
+       allow write: if isAdmin();
     }
-     match /vehicle_types/{typeId} {
-        allow read: if isAuthenticated();
-        allow write: if isAdmin();
-    }
-     match /vehicle_categories/{categoryId} {
-        allow read: if isAuthenticated();
-        allow write: if isAdmin();
-    }
-     match /body_types/{typeId} {
-        allow read: if isAuthenticated();
-        allow write: if isAdmin();
+
+    // Rules for freights
+    match /freights/{freightId} {
+      // Anyone can see active freights, but only authenticated users can see full details (enforced by app logic)
+      allow read: if true; 
+      // Authenticated users can create freights (companies/drivers)
+      allow create: if isAuthenticated();
+      // Only admins or the company that created it can update/delete
+      allow update, delete: if isAdmin() || request.auth.uid == resource.data.companyId;
     }
   }
 }
