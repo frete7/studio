@@ -4,13 +4,15 @@ service cloud.firestore {
   match /databases/{database}/documents {
     
     function isAdmin() {
+      // Check if the user document exists and has the 'admin' role.
       return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     match /users/{userId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth.uid == userId;
+      allow read: if true;
+      allow create: if request.auth.uid != null;
+      // Allow user to update their own document, or an admin to update any user document.
       allow update: if request.auth.uid == userId || isAdmin();
       allow delete: if isAdmin();
     }
@@ -21,34 +23,29 @@ service cloud.firestore {
     }
     
     match /vehicle_categories/{categoryId} {
-        allow read: if true;
-        allow write: if isAdmin();
-    }
-    
-    match /body_types/{bodyId} {
-        allow read: if true;
-        allow write: if isAdmin();
-    }
-
-    match /plans/{planId} {
-        allow read: if true;
-        allow write: if isAdmin();
-    }
-
-    match /freights/{freightId} {
-        // Logged-in users can read, only admins can modify
-        allow read: if request.auth != null;
-        allow write: if isAdmin();
-    }
-    
-    // Allow anonymous freight requests to be created
-    match /freights/{freightId} {
-      allow create: if request.auth == null;
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     match /vehicles/{vehicleId} {
       allow read: if true;
       allow write: if isAdmin();
     }
+
+    match /plans/{planId} {
+       allow read: if true;
+       allow write: if isAdmin();
+    }
+    
+    match /freights/{freightId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /body_types/{bodyId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
   }
 }
