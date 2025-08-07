@@ -16,7 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Loader2, PlusCircle, Trash2, Edit } from 'lucide-react';
+import { Loader2, PlusCircle, Trash2, Edit, User, BarChart, Package, PackageCheck, PackageSearch } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
 const formSchema = z.object({
@@ -63,8 +63,9 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [editingCollaborator, setEditingCollaborator] = useState<Collaborator | null>(null);
+  const [viewingCollaborator, setViewingCollaborator] = useState<Collaborator | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -119,7 +120,7 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
       phone: collaborator.phone,
       confirmPhone: collaborator.phone,
     });
-    setIsDialogOpen(true);
+    setIsFormDialogOpen(true);
   };
 
   const handleAddNewClick = () => {
@@ -132,7 +133,7 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
         phone: '',
         confirmPhone: ''
     });
-    setIsDialogOpen(true);
+    setIsFormDialogOpen(true);
   };
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
@@ -147,7 +148,7 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
         toast({ title: 'Sucesso!', description: 'Novo colaborador adicionado.' });
       }
       form.reset();
-      setIsDialogOpen(false);
+      setIsFormDialogOpen(false);
       setEditingCollaborator(null);
     } catch (error) {
       toast({
@@ -208,7 +209,11 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
         <TableBody>
           {collaborators.map((c) => (
             <TableRow key={c.id}>
-              <TableCell className="font-medium">{c.name}</TableCell>
+              <TableCell className="font-medium">
+                  <button onClick={() => setViewingCollaborator(c)} className="hover:underline text-primary font-semibold">
+                    {c.name}
+                  </button>
+              </TableCell>
               <TableCell className="hidden sm:table-cell">{c.department}</TableCell>
               <TableCell className="hidden md:table-cell">{c.cpf}</TableCell>
               <TableCell className="hidden md:table-cell">{c.phone}</TableCell>
@@ -244,126 +249,165 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
       </Table>
     );
   };
-
-  return (
-    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Lista de Colaboradores</CardTitle>
-          {collaborators.length > 0 && (
-              <DialogTrigger asChild>
-                  <Button onClick={handleAddNewClick}>
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  Adicionar Novo
-                  </Button>
-              </DialogTrigger>
-          )}
+  
+  const StatCard = ({ title, value, icon }: { title: string, value: string | number, icon: React.ReactNode }) => (
+    <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">{title}</CardTitle>
+            {icon}
         </CardHeader>
         <CardContent>
-          {renderContent()}
+            <div className="text-2xl font-bold">{value}</div>
         </CardContent>
-      </Card>
+    </Card>
+  )
+
+  return (
+    <>
+      <Dialog open={isFormDialogOpen} onOpenChange={setIsFormDialogOpen}>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Lista de Colaboradores</CardTitle>
+            {collaborators.length > 0 && (
+                <DialogTrigger asChild>
+                    <Button onClick={handleAddNewClick}>
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Adicionar Novo
+                    </Button>
+                </DialogTrigger>
+            )}
+          </CardHeader>
+          <CardContent>
+            {renderContent()}
+          </CardContent>
+        </Card>
+        
+        <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+            <DialogTitle>{editingCollaborator ? 'Editar' : 'Adicionar'} Colaborador</DialogTitle>
+            </DialogHeader>
+            <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
+                <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Nome Completo</FormLabel>
+                    <FormControl><Input placeholder="Nome do colaborador" {...field} /></FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+                <div className="grid md:grid-cols-2 gap-4">
+                    <FormField
+                        control={form.control}
+                        name="cpf"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>CPF</FormLabel>
+                                <FormControl><Input 
+                                    placeholder="000.000.000-00" 
+                                    {...field}
+                                    onChange={(e) => field.onChange(handleMask(e.target.value, 'cpf'))}
+                                /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="department"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Setor Responsável</FormLabel>
+                                <FormControl><Input placeholder="Ex: Logística, Financeiro" {...field} /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
+                <div className="grid md:grid-cols-2 gap-4">
+                    <FormField
+                        control={form.control}
+                        name="phone"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Telefone (com DDD)</FormLabel>
+                                <FormControl><Input 
+                                    placeholder="(00) 00000-0000" 
+                                    {...field}
+                                    onChange={(e) => field.onChange(handleMask(e.target.value, 'phone'))} 
+                                /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="confirmPhone"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Confirmar Telefone</FormLabel>
+                                <FormControl><Input 
+                                    placeholder="Confirme o telefone" 
+                                    {...field}
+                                    onChange={(e) => field.onChange(handleMask(e.target.value, 'phone'))}
+                                /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
+                <FormField
+                control={form.control}
+                name="internalId"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>ID Interno (Opcional)</FormLabel>
+                    <FormControl><Input placeholder="ID ou código interno" {...field} /></FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+                <DialogFooter>
+                <DialogClose asChild>
+                    <Button type="button" variant="secondary">Cancelar</Button>
+                </DialogClose>
+                <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Salvar
+                </Button>
+                </DialogFooter>
+            </form>
+            </Form>
+        </DialogContent>
+      </Dialog>
       
-      <DialogContent className="sm:max-w-2xl">
+       <Dialog open={!!viewingCollaborator} onOpenChange={(open) => !open && setViewingCollaborator(null)}>
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
-          <DialogTitle>{editingCollaborator ? 'Editar' : 'Adicionar'} Colaborador</DialogTitle>
+            <DialogTitle className="text-2xl">Dashboard do Colaborador</DialogTitle>
+             <p className="text-muted-foreground pt-1">
+                Resumo de atividades de <span className="font-semibold text-primary">{viewingCollaborator?.name}</span>.
+            </p>
           </DialogHeader>
-          <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
-              <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                  <FormItem>
-                  <FormLabel>Nome Completo</FormLabel>
-                  <FormControl><Input placeholder="Nome do colaborador" {...field} /></FormControl>
-                  <FormMessage />
-                  </FormItem>
-              )}
-              />
-              <div className="grid md:grid-cols-2 gap-4">
-                  <FormField
-                      control={form.control}
-                      name="cpf"
-                      render={({ field }) => (
-                          <FormItem>
-                              <FormLabel>CPF</FormLabel>
-                              <FormControl><Input 
-                                  placeholder="000.000.000-00" 
-                                  {...field}
-                                  onChange={(e) => field.onChange(handleMask(e.target.value, 'cpf'))}
-                              /></FormControl>
-                              <FormMessage />
-                          </FormItem>
-                      )}
-                  />
-                  <FormField
-                      control={form.control}
-                      name="department"
-                      render={({ field }) => (
-                          <FormItem>
-                              <FormLabel>Setor Responsável</FormLabel>
-                              <FormControl><Input placeholder="Ex: Logística, Financeiro" {...field} /></FormControl>
-                              <FormMessage />
-                          </FormItem>
-                      )}
-                  />
-              </div>
-              <div className="grid md:grid-cols-2 gap-4">
-                  <FormField
-                      control={form.control}
-                      name="phone"
-                      render={({ field }) => (
-                          <FormItem>
-                              <FormLabel>Telefone (com DDD)</FormLabel>
-                              <FormControl><Input 
-                                  placeholder="(00) 00000-0000" 
-                                  {...field}
-                                  onChange={(e) => field.onChange(handleMask(e.target.value, 'phone'))} 
-                              /></FormControl>
-                              <FormMessage />
-                          </FormItem>
-                      )}
-                  />
-                  <FormField
-                      control={form.control}
-                      name="confirmPhone"
-                      render={({ field }) => (
-                          <FormItem>
-                              <FormLabel>Confirmar Telefone</FormLabel>
-                              <FormControl><Input 
-                                  placeholder="Confirme o telefone" 
-                                  {...field}
-                                  onChange={(e) => field.onChange(handleMask(e.target.value, 'phone'))}
-                              /></FormControl>
-                              <FormMessage />
-                          </FormItem>
-                      )}
-                  />
-              </div>
-              <FormField
-              control={form.control}
-              name="internalId"
-              render={({ field }) => (
-                  <FormItem>
-                  <FormLabel>ID Interno (Opcional)</FormLabel>
-                  <FormControl><Input placeholder="ID ou código interno" {...field} /></FormControl>
-                  <FormMessage />
-                  </FormItem>
-              )}
-              />
-              <DialogFooter>
-              <DialogClose asChild>
-                  <Button type="button" variant="secondary">Cancelar</Button>
-              </DialogClose>
-              <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Salvar
-              </Button>
-              </DialogFooter>
-          </form>
-          </Form>
-      </DialogContent>
-    </Dialog>
+          <div className="py-4 space-y-6">
+             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <StatCard title="Fretes do Colaborador" value="12" icon={<User className="h-4 w-4 text-muted-foreground" />} />
+                <StatCard title="Fretes Cadastrados" value="25" icon={<BarChart className="h-4 w-4 text-muted-foreground" />} />
+                <StatCard title="Fretes Ativos" value="8" icon={<PackageSearch className="h-4 w-4 text-muted-foreground" />} />
+                <StatCard title="Fretes Concluídos" value="17" icon={<PackageCheck className="h-4 w-4 text-muted-foreground" />} />
+            </div>
+            {/* Aqui você pode adicionar mais detalhes, gráficos ou uma tabela de fretes */}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setViewingCollaborator(null)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
+
+    
