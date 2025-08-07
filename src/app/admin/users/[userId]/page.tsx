@@ -59,8 +59,8 @@ type UserProfile = {
     foundationDate?: string;
     tradingName?: string;
     address?: string;
-    activePlanName?: string;
     activePlanId?: string;
+    activePlanName?: string;
     responsible?: {
         name: string;
         cpf: string;
@@ -228,7 +228,7 @@ export default function UserDetailsPage() {
          if (doc.exists()) {
             const userData = { ...doc.data(), uid: doc.id } as UserProfile;
             setUser(userData);
-            setSelectedPlanId(userData.activePlanId || '');
+            setSelectedPlanId(userData.activePlanId || 'none');
             form.reset({
                 name: userData.name,
                 tradingName: userData.tradingName,
@@ -280,9 +280,9 @@ export default function UserDetailsPage() {
       
       setIsSubmittingPlan(true);
       try {
-          const planIdToAssign = selectedPlanId;
+          const planIdToAssign = selectedPlanId === 'none' ? '' : selectedPlanId;
           const selectedPlan = plans.find(p => p.id === planIdToAssign);
-          const planName = selectedPlan ? selectedPlan.name : 'Básico'; // Handle 'none' case
+          const planName = selectedPlan ? selectedPlan.name : 'Básico';
 
           await assignPlanToUser(user.uid, planIdToAssign, planName);
           toast({ title: 'Sucesso!', description: 'Plano atribuído ao usuário.' });
@@ -587,12 +587,12 @@ export default function UserDetailsPage() {
                                     <DialogTitle>Atribuir Plano Manualmente</DialogTitle>
                                 </DialogHeader>
                                 <div className="py-4">
-                                    <Select onValueChange={setSelectedPlanId} defaultValue={user.activePlanId || ''}>
+                                    <Select onValueChange={setSelectedPlanId} defaultValue={user.activePlanId || 'none'}>
                                         <SelectTrigger>
                                             <SelectValue placeholder="Selecione um plano..." />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="">Nenhum (Plano Básico)</SelectItem>
+                                            <SelectItem value="none">Nenhum (Plano Básico)</SelectItem>
                                             {plans.map(plan => (
                                                 <SelectItem key={plan.id} value={plan.id}>{plan.name}</SelectItem>
                                             ))}
