@@ -48,6 +48,7 @@ export async function updateDocumentStatus(userId: string, docField: 'responsibl
         // Use dot notation for precise updates
         if (docField === 'responsible.document') {
             const responsibleData = userData.responsible || {};
+            // Handle case where document might be a string (old format) or an object
             const documentData = (typeof responsibleData.document === 'string') 
                 ? { url: responsibleData.document, status: 'pending' } 
                 : (responsibleData.document || {});
@@ -55,6 +56,7 @@ export async function updateDocumentStatus(userId: string, docField: 'responsibl
             updatePayload['responsible.document'] = { ...documentData, status: docStatus };
 
         } else { // Handle cnpjCard field
+             // Handle case where cnpjCard might be a string or an object
              const cnpjCardData = (typeof userData.cnpjCard === 'string')
                 ? { url: userData.cnpjCard, status: 'pending' }
                 : (userData.cnpjCard || {});
@@ -63,6 +65,7 @@ export async function updateDocumentStatus(userId: string, docField: 'responsibl
         }
 
         // If any document is rejected, set main user status to 'incomplete'
+        // to signal that the user needs to re-upload.
         if (docStatus === 'rejected') {
             updatePayload['status'] = 'incomplete';
         }
