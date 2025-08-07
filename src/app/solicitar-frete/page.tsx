@@ -121,12 +121,12 @@ const formSchema = z.object({
     message: "Você deve selecionar pelo menos um tipo de veículo.",
   }),
   isPriceToCombine: z.boolean().default(false),
-  price: z.coerce.number().optional(),
+  price: z.string().optional(),
 }).refine(data => {
     if(data.isPriceToCombine) return true;
-    return data.price !== undefined && data.price > 0;
+    return data.price !== undefined && data.price !== '' && !isNaN(parseFloat(data.price)) && parseFloat(data.price) > 0;
 }, {
-    message: 'O valor do frete é obrigatório se não for a combinar.',
+    message: 'O valor do frete é obrigatório e deve ser maior que zero, se não for a combinar.',
     path: ['price'],
 });
 
@@ -883,7 +883,7 @@ export default function RequestFreightPage() {
           loadingDate: undefined,
           loadingTime: '',
           paymentType: 'entrega',
-          whoPaysToll: undefined,
+          whoPaysToll: '',
           tollTripScope: '',
           customPayment: {
               type: undefined,
@@ -896,7 +896,7 @@ export default function RequestFreightPage() {
       requiredBodyworks: [],
       requiredVehicles: [],
       isPriceToCombine: false,
-      price: undefined
+      price: ''
     }
   });
 
@@ -1042,5 +1042,3 @@ export default function RequestFreightPage() {
     </div>
   );
 }
-
-    
