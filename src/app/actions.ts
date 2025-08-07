@@ -337,3 +337,5 @@ export type Freight = {
     companyName?: string;
     status: 'ativo' | 'concluido' | 'pendente' | 'cancelado';
 }
+
+    
