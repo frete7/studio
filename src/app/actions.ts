@@ -7,7 +7,7 @@ import {
   type OptimizeRouteOutput,
 } from '@/ai/flows/optimize-route';
 import { db } from '@/lib/firebase';
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, updateDoc, writeBatch } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, updateDoc, writeBatch } from 'firebase/firestore';
 
 export async function getOptimizedRoute(
   input: OptimizeRouteInput
@@ -345,4 +345,64 @@ export type Freight = {
     companyId: string;
     companyName?: string;
     status: 'ativo' | 'concluido' | 'pendente' | 'cancelado';
+}
+
+// Collaborators Actions
+export type Collaborator = {
+  id: string;
+  name: string;
+  internalId?: string;
+  cpf: string;
+  department: string;
+  phone: string;
+};
+
+export async function addCollaborator(companyId: string, data: Omit<Collaborator, 'id'>): Promise<Collaborator> {
+  if (!companyId) throw new Error('ID da empresa é obrigatório.');
+  if (!data.name || !data.cpf || !data.department || !data.phone) {
+    throw new Error('Campos obrigatórios estão faltando.');
+  }
+  try {
+    const collaboratorsCollection = collection(db, 'users', companyId, 'collaborators');
+    const docRef = await addDoc(collaboratorsCollection, data);
+    return { id: docRef.id, ...data };
+  } catch (error: any) {
+    console.error("Error adding collaborator: ", error);
+    throw new Error(`Falha ao adicionar o colaborador: ${error.message}`);
+  }
+}
+
+export async function updateCollaborator(companyId: string, collaboratorId: string, data: Partial<Omit<Collaborator, 'id'>>): Promise<void> {
+  if (!companyId || !collaboratorId) throw new Error('ID da empresa e do colaborador são obrigatórios.');
+  try {
+    const collaboratorDoc = doc(db, 'users', companyId, 'collaborators', collaboratorId);
+    await updateDoc(collaboratorDoc, data);
+  } catch (error: any) {
+    console.error("Error updating collaborator: ", error);
+    throw new Error(`Falha ao atualizar o colaborador: ${error.message}`);
+  }
+}
+
+export async function deleteCollaborator(companyId: string, collaboratorId: string): Promise<void> {
+  if (!companyId || !collaboratorId) throw new Error('ID da empresa e do colaborador são obrigatórios.');
+  try {
+    const collaboratorDoc = doc(db, 'users', companyId, 'collaborators', collaboratorId);
+    await deleteDoc(collaboratorDoc);
+  } catch (error: any) {
+    console.error("Error deleting collaborator: ", error);
+    throw new Error(`Falha ao deletar o colaborador: ${error.message}`);
+  }
+}
+
+export async function getCollaborators(companyId: string): Promise<Collaborator[]> {
+  if (!companyId) return [];
+  try {
+    const collaboratorsCollection = collection(db, 'users', companyId, 'collaborators');
+    const q = query(collaboratorsCollection);
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Collaborator));
+  } catch (error) {
+    console.error("Error fetching collaborators: ", error);
+    return [];
+  }
 }

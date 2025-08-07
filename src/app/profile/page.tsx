@@ -39,7 +39,7 @@ export default function ProfilePage() {
                 
                 const unsubscribeSnapshot = onSnapshot(userDocRef, (doc) => {
                     if (doc.exists()) {
-                        const userProfile = doc.data() as UserProfile;
+                        const userProfile = { ...doc.data(), uid: doc.id } as UserProfile;
                         setProfile(userProfile);
                         
                         const isProfilePage = window.location.pathname.startsWith('/profile');
@@ -138,7 +138,7 @@ export default function ProfilePage() {
                                 </CardContent>
                                 <CardFooter>
                                     <Button asChild className='w-full'>
-                                        <Link href="#">
+                                        <Link href="/profile/collaborators">
                                             Gerenciar Colaboradores <ArrowRight className="ml-2 h-4 w-4"/>
                                         </Link>
                                     </Button>
