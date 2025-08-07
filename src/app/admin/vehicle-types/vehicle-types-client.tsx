@@ -5,10 +5,10 @@ import { useState, useEffect } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query } from 'firebase/firestore';
+import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
-import { type VehicleType, type VehicleCategory } from '@/app/actions';
+import { type VehicleType, type VehicleCategory, addVehicleType, updateVehicleType, deleteVehicleType } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -119,12 +119,10 @@ export default function VehicleTypesClient() {
     setIsSubmitting(true);
     try {
       if (editingVehicle) {
-        const vehicleTypeDoc = doc(db, 'vehicle_types', editingVehicle.id);
-        await updateDoc(vehicleTypeDoc, formData);
+        await updateVehicleType(editingVehicle.id, formData);
         toast({ title: 'Sucesso!', description: 'Tipo de veículo atualizado.' });
       } else {
-        const vehicleTypesCollection = collection(db, 'vehicle_types');
-        await addDoc(vehicleTypesCollection, formData);
+        await addVehicleType(formData);
         toast({ title: 'Sucesso!', description: 'Novo tipo de veículo adicionado.' });
       }
       form.reset();
@@ -143,8 +141,7 @@ export default function VehicleTypesClient() {
 
   const handleDelete = async (id: string) => {
     try {
-        const vehicleTypeDoc = doc(db, 'vehicle_types', id);
-        await deleteDoc(vehicleTypeDoc);
+        await deleteVehicleType(id);
         toast({ title: 'Sucesso!', description: 'Tipo de veículo removido.' });
     } catch (error) {
          toast({

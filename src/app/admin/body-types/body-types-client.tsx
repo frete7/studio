@@ -5,11 +5,11 @@ import { useState, useEffect } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, getDocs, writeBatch } from 'firebase/firestore';
+import { collection, onSnapshot, query, getDocs, writeBatch, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { groupBy } from 'lodash';
 
-import { type BodyType } from '@/app/actions';
+import { type BodyType, addBodyType, updateBodyType, deleteBodyType } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -168,11 +168,10 @@ export default function BodyTypesClient() {
     setIsSubmitting(true);
     try {
       if (editingBodyType) {
-        const bodyTypeDoc = doc(db, 'body_types', editingBodyType.id);
-        await updateDoc(bodyTypeDoc, formData);
+        await updateBodyType(editingBodyType.id, formData);
         toast({ title: 'Sucesso!', description: 'Tipo de carroceria atualizado.' });
       } else {
-        await addDoc(collection(db, 'body_types'), formData);
+        await addBodyType(formData);
         toast({ title: 'Sucesso!', description: 'Novo tipo de carroceria adicionado.' });
       }
       form.reset();
@@ -191,7 +190,7 @@ export default function BodyTypesClient() {
 
   const handleDelete = async (id: string) => {
     try {
-        await deleteDoc(doc(db, 'body_types', id));
+        await deleteBodyType(id);
         toast({ title: 'Sucesso!', description: 'Tipo de carroceria removido.' });
     } catch (error) {
          toast({

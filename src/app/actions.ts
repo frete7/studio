@@ -313,6 +313,43 @@ export type BodyType = {
   group: string;
 };
 
+export async function addBodyType(data: Omit<BodyType, 'id'>): Promise<BodyType> {
+  if (!data.name || !data.group) {
+    throw new Error('Nome e grupo são obrigatórios.');
+  }
+  try {
+    const docRef = await addDoc(collection(db, 'body_types'), data);
+    return { id: docRef.id, ...data };
+  } catch (error: any) {
+    console.error("Error adding body type: ", error);
+    throw new Error(`Falha ao adicionar o tipo de carroceria: ${error.message}`);
+  }
+}
+
+export async function updateBodyType(id: string, data: Partial<Omit<BodyType, 'id'>>): Promise<void> {
+  if (!id) {
+    throw new Error('O ID do tipo de carroceria é obrigatório.');
+  }
+  try {
+    await updateDoc(doc(db, 'body_types', id), data);
+  } catch (error: any) {
+    console.error("Error updating body type: ", error);
+    throw new Error(`Falha ao atualizar o tipo de carroceria: ${error.message}`);
+  }
+}
+
+export async function deleteBodyType(id: string): Promise<void> {
+  if (!id) {
+    throw new Error('O ID do tipo de carroceria é obrigatório.');
+  }
+  try {
+    await deleteDoc(doc(db, 'body_types', id));
+  } catch (error: any) {
+    console.error("Error deleting body type: ", error);
+    throw new Error(`Falha ao deletar o tipo de carroceria: ${error.message}`);
+  }
+}
+
 // Plans Actions
 export type Plan = {
     id: string;
