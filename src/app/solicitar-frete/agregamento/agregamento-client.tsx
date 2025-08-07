@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useForm, FormProvider, useFormContext, useFieldArray } from 'react-hook-form';
+import { useForm, FormProvider, useFormContext, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { collection, onSnapshot, query } from 'firebase/firestore';
@@ -259,6 +259,10 @@ function StepRoute() {
         name: "destinations",
     });
 
+    const allDestinations = useWatch({ control, name: "destinations" });
+    const lastDestination = allDestinations[allDestinations.length - 1];
+    const isAddDisabled = !lastDestination || !lastDestination.state || !lastDestination.city;
+
     return (
         <div className="space-y-6">
             <h2 className="text-2xl font-semibold">2. Rota do Agregamento</h2>
@@ -291,10 +295,12 @@ function StepRoute() {
                     variant="outline"
                     className="w-full mt-4"
                     onClick={() => append({ state: '', city: '' })}
+                    disabled={isAddDisabled}
                 >
                     <PlusCircle className="mr-2 h-4 w-4" />
                     Adicionar outro destino
                 </Button>
+                {isAddDisabled && <p className="text-center text-muted-foreground text-sm mt-2">Preencha o destino atual para adicionar um novo.</p>}
                  <FormField control={control} name="destinations" render={() => <FormMessage />} />
             </div>
         </div>
