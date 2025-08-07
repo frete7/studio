@@ -8,7 +8,7 @@ import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { User, Clock, ShieldCheck, Loader2, Users, ArrowRight } from "lucide-react";
+import { User, Clock, ShieldCheck, Loader2, Users, ArrowRight, Package } from "lucide-react";
 import CompanyProfileForm from './company-profile-form';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -123,7 +123,7 @@ export default function ProfilePage() {
                                     <Button variant="outline" className='w-full' disabled>Editar Perfil</Button>
                                 </CardFooter>
                             </Card>
-                             <Card className="flex flex-col">
+                            <Card className="flex flex-col">
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
                                         <Users className="h-5 w-5 text-primary" />
@@ -134,12 +134,33 @@ export default function ProfilePage() {
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent className="flex-grow">
-                                     <p className='text-sm text-muted-foreground'>Controle as permissões de acesso dos seus funcionários.</p>
+                                    <p className='text-sm text-muted-foreground'>Controle as permissões de acesso dos seus funcionários.</p>
                                 </CardContent>
                                 <CardFooter>
                                     <Button asChild className='w-full'>
                                         <Link href="#">
                                             Gerenciar Colaboradores <ArrowRight className="ml-2 h-4 w-4"/>
+                                        </Link>
+                                    </Button>
+                                </CardFooter>
+                            </Card>
+                             <Card className="flex flex-col">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Package className="h-5 w-5 text-primary" />
+                                        Fretes
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Anuncie e gerencie suas solicitações de frete.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="flex-grow">
+                                    <p className='text-sm text-muted-foreground'>Acompanhe o status de suas cargas em tempo real.</p>
+                                </CardContent>
+                                <CardFooter>
+                                    <Button asChild className='w-full'>
+                                        <Link href="/solicitar-frete">
+                                            Gerenciar Fretes <ArrowRight className="ml-2 h-4 w-4"/>
                                         </Link>
                                     </Button>
                                 </CardFooter>
