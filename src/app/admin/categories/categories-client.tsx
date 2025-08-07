@@ -5,10 +5,10 @@ import { useState, useEffect } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query } from 'firebase/firestore';
+import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
-import { type VehicleCategory } from '@/app/actions';
+import { addVehicleCategory, updateVehicleCategory, deleteVehicleCategory, type VehicleCategory } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -106,12 +106,10 @@ export default function CategoriesClient() {
     setIsSubmitting(true);
     try {
       if (editingCategory) {
-        const categoryDoc = doc(db, 'vehicle_categories', editingCategory.id);
-        await updateDoc(categoryDoc, { name: formData.name });
+        await updateVehicleCategory(editingCategory.id, { name: formData.name });
         toast({ title: 'Sucesso!', description: 'Categoria atualizada.' });
       } else {
-        const categoriesCollection = collection(db, 'vehicle_categories');
-        await addDoc(categoriesCollection, { name: formData.name });
+        await addVehicleCategory({ name: formData.name });
         toast({ title: 'Sucesso!', description: 'Nova categoria adicionada.' });
       }
       form.reset();
@@ -130,8 +128,7 @@ export default function CategoriesClient() {
 
   const handleDelete = async (id: string) => {
     try {
-        const categoryDoc = doc(db, 'vehicle_categories', id);
-        await deleteDoc(categoryDoc);
+        await deleteVehicleCategory(id);
         toast({ title: 'Sucesso!', description: 'Categoria removida.' });
     } catch (error) {
          toast({
@@ -240,5 +237,3 @@ export default function CategoriesClient() {
     </Card>
   );
 }
-
-    
