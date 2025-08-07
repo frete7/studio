@@ -47,6 +47,8 @@ const orderDetailsSchema = z.object({
     hasInvoice: z.boolean().default(false),
     driverNeedsToIssueInvoice: z.boolean().default(false),
     driverNeedsANTT: z.boolean().default(false),
+    needsSpecificCourses: z.boolean().default(false),
+    specificCourses: z.array(z.object({ value: z.string().min(1, "O nome do curso não pode ser vazio.") })).optional(),
     minimumVehicleAge: z.string().optional(),
     paymentMethods: z.string().optional(),
 }).refine(data => data.whoPaysToll ? data.tollTripScope : true, {
@@ -61,6 +63,9 @@ const orderDetailsSchema = z.object({
 }).refine(data => !data.needsHelper || data.whoPaysHelper, {
     message: "Selecione quem paga pelo ajudante.",
     path: ['whoPaysHelper'],
+}).refine(data => !data.needsSpecificCourses || (data.specificCourses && data.specificCourses.length > 0), {
+    message: "Adicione pelo menos um curso.",
+    path: ['specificCourses'],
 });
 
 
@@ -289,7 +294,7 @@ function LocationSelector({ nestName, label }: { nestName: string, label: string
 
 
 function StepRoute() {
-    const { control } = useFormContext();
+    const { control, formState: { errors } } = useFormContext();
     const { fields, append, remove } = useFieldArray({
         control,
         name: "destinations",
@@ -337,11 +342,55 @@ function StepRoute() {
                     Adicionar outro destino
                 </Button>
                 {isAddDisabled && <p className="text-center text-muted-foreground text-sm mt-2">Preencha o destino atual para adicionar um novo.</p>}
-                 <FormField control={control} name="destinations" render={() => <FormMessage />} />
+                 <FormField control={control} name="destinations" render={() => <FormMessage className="text-center" />} />
             </div>
         </div>
     );
 }
+
+function ConditionalListInput({ controlName, switchName, label, placeholder }: { controlName: string, switchName: string, label: string, placeholder: string }) {
+    const { control } = useFormContext();
+    const { fields, append, remove } = useFieldArray({ control, name: controlName });
+    const switchValue = useWatch({ control, name: switchName });
+
+    if (!switchValue) return null;
+
+    return (
+        <div className="space-y-4 pl-4 border-l-2 ml-2">
+            <FormLabel>{label}</FormLabel>
+            {fields.map((field, index) => (
+                <div key={field.id} className="flex items-center gap-2">
+                    <FormField
+                        control={control}
+                        name={`${controlName}.${index}.value`}
+                        render={({ field: itemField }) => (
+                            <FormItem className="flex-1">
+                                <FormControl>
+                                    <Input placeholder={`${placeholder} #${index + 1}`} {...itemField} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                </div>
+            ))}
+            <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => append({ value: "" })}
+            >
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Adicionar
+            </Button>
+            <FormField control={control} name={controlName} render={({fieldState}) => <FormMessage>{fieldState.error?.message}</FormMessage>} />
+        </div>
+    );
+}
+
 
 function StepOrderDetails() {
     const { control } = useFormContext();
@@ -600,6 +649,27 @@ function StepOrderDetails() {
                 )}
             />
 
+            <div className="space-y-2">
+                <FormField
+                    control={control}
+                    name="orderDetails.needsSpecificCourses"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                                <FormLabel>Motorista precisa ter algum curso específico?</FormLabel>
+                            </div>
+                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                        </FormItem>
+                    )}
+                />
+                 <ConditionalListInput
+                    controlName="orderDetails.specificCourses"
+                    switchName="orderDetails.needsSpecificCourses"
+                    label="Quais cursos?"
+                    placeholder="Ex: MOPP, Carga Indivisível"
+                />
+            </div>
+
             <FormField
                 control={control}
                 name="orderDetails.minimumVehicleAge"
@@ -648,7 +718,9 @@ export default function AgregamentoClient({ companyId }: { companyId: string }) 
         needsHelper: false,
         hasInvoice: false,
         driverNeedsToIssueInvoice: false,
-        driverNeedsANTT: false
+        driverNeedsANTT: false,
+        needsSpecificCourses: false,
+        specificCourses: [],
       }
     }
   });
