@@ -215,12 +215,14 @@ export default function Header() {
           ))}
         </nav>
         <div className="hidden md:flex items-center gap-4">
-           <Button asChild>
-              <Link href="/solicitar-frete">
-                Solicitar Frete
-                <Sparkles className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
+            {userRole !== 'company' && (
+                <Button asChild>
+                    <Link href="/fretes/solicitar">
+                        Solicitar Frete
+                        <Sparkles className="ml-2 h-4 w-4" />
+                    </Link>
+                </Button>
+            )}
           {renderAuthSection()}
         </div>
         <div className="md:hidden flex items-center">
@@ -248,9 +250,11 @@ export default function Header() {
                       {link.label}
                     </Link>
                   ))}
-                   <Link href="/solicitar-frete" className="font-semibold text-primary" onClick={() => setIsOpen(false)}>
-                      Solicitar Frete
+                  {userRole !== 'company' && (
+                    <Link href="/fretes/solicitar" className="font-semibold text-primary" onClick={() => setIsOpen(false)}>
+                        Solicitar Frete
                     </Link>
+                  )}
                 </nav>
                 <div className="mt-auto flex flex-col gap-4 pt-6 border-t">
                   {renderMobileAuthSection()}
