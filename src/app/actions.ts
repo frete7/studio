@@ -45,20 +45,23 @@ export async function updateDocumentStatus(userId: string, docField: 'responsibl
         const userData = userDoc.data();
         const updatePayload: { [key: string]: any } = {};
         
+        // Helper to safely get document data, handling old string format and non-existent data
         const getDocumentData = (docData: any) => {
              if (typeof docData === 'string') {
-                return { url: docData, status: 'pending' };
+                return { url: docData, status: 'pending' }; // Convert old format
             }
-            return docData || {};
+            return docData || {}; // Return existing object or a new empty one
         }
 
         if (docField === 'responsible.document') {
             const responsibleData = userData.responsible || {};
             const documentData = getDocumentData(responsibleData.document);
+            // Always rebuild the object to ensure url is preserved
             updatePayload['responsible.document'] = { ...documentData, status: docStatus };
 
         } else { // Handle cnpjCard field
              const cnpjCardData = getDocumentData(userData.cnpjCard);
+             // Always rebuild the object to ensure url is preserved
             updatePayload['cnpjCard'] = { ...cnpjCardData, status: docStatus };
         }
 
@@ -67,7 +70,7 @@ export async function updateDocumentStatus(userId: string, docField: 'responsibl
         if (docStatus === 'rejected') {
             updatePayload['status'] = 'incomplete';
         }
-
+        
         await updateDoc(userDocRef, updatePayload);
 
     } catch (error) {
@@ -99,42 +102,16 @@ export async function updateUserByAdmin(userId: string, data: any): Promise<void
     }
     try {
         const userDocRef = doc(db, 'users', userId);
-        const userDoc = await getDoc(userDocRef);
-        const userData = userDoc.data();
-
-        if (!userData) {
-            throw new Error("Usuário não encontrado.");
-        }
         
-        // Ensure 'responsible' object exists before trying to update its properties
-        const responsibleData = userData.responsible || {};
-
+        // Using dot notation for robust nested updates
         const updateData: any = {
             name: data.name,
             tradingName: data.tradingName,
             cnpj: data.cnpj,
             address: data.address,
-            responsible: {
-                ...responsibleData, // Spread existing responsible data
-                name: data.responsibleName,
-                cpf: data.responsibleCpf,
-            }
+            'responsible.name': data.responsibleName,
+            'responsible.cpf': data.responsibleCpf,
         };
-        
-        // This logic handles migration of old data format to new, if needed
-        if (typeof responsibleData.document === 'string') {
-             updateData.responsible.document = {
-                url: responsibleData.document,
-                status: 'pending'
-            };
-        }
-        if (typeof userData.cnpjCard === 'string') {
-             updateData.cnpjCard = {
-                url: userData.cnpjCard,
-                status: 'pending'
-            };
-        }
-
 
         await updateDoc(userDocRef, updateData);
     } catch (error) {
