@@ -49,10 +49,9 @@ export default function Header() {
           const userData = userDoc.data();
           setUserRole(userData.role);
           
-          // Redirection logic based on user status
           const isProfilePage = pathname.startsWith('/profile');
           const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/register');
-          const allowedPaths = isProfilePage || isAuthPage || pathname.startsWith('/api') || pathname === '/fretes/solicitar';
+          const allowedPaths = isProfilePage || isAuthPage || pathname.startsWith('/api') || pathname === '/fretes/solicitar' || pathname === '/solicitar-frete';
 
           if (userData.status === 'incomplete' && !allowedPaths) {
               router.push('/profile');
@@ -108,7 +107,7 @@ export default function Header() {
   }
 
   const renderAuthSection = () => {
-    if (isLoading) {
+    if (!isClient || isLoading) {
       return <div className="h-10 w-24 rounded-md bg-muted animate-pulse" />;
     }
 
@@ -173,7 +172,7 @@ export default function Header() {
   };
   
   const renderMobileAuthSection = () => {
-     if (isLoading) {
+     if (!isClient || isLoading) {
       return <div className="h-10 w-full rounded-md bg-muted animate-pulse" />;
     }
     
@@ -228,7 +227,7 @@ export default function Header() {
           {renderAuthSection()}
         </div>
         <div className="md:hidden flex items-center">
-         {user && !isLoading && (
+         {isClient && user && !isLoading && (
             <div className="mr-2">
               {renderAuthSection()}
             </div>
