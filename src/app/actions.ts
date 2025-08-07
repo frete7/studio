@@ -102,15 +102,25 @@ export async function updateUserByAdmin(userId: string, data: any): Promise<void
     }
     try {
         const userDocRef = doc(db, 'users', userId);
+        const userDoc = await getDoc(userDocRef);
+
+        if (!userDoc.exists()) {
+            throw new Error("User not found.");
+        }
         
-        // Using dot notation for robust nested updates
-        const updateData: any = {
+        const userData = userDoc.data();
+
+        // Build the update object safely, preserving existing data in 'responsible'
+        const updateData = {
             name: data.name,
             tradingName: data.tradingName,
             cnpj: data.cnpj,
             address: data.address,
-            'responsible.name': data.responsibleName,
-            'responsible.cpf': data.responsibleCpf,
+            responsible: {
+                ...(userData.responsible || {}), // Preserve other responsible fields
+                name: data.responsibleName,
+                cpf: data.responsibleCpf,
+            },
         };
 
         await updateDoc(userDocRef, updateData);
