@@ -29,6 +29,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { Textarea } from '@/components/ui/textarea';
 
 
 // =================================================================
@@ -46,13 +47,15 @@ const destinationSchema = locationSchema.extend({
 
 const orderDetailsSchema = z.object({
     whatWillBeLoaded: z.string().min(3, "Este campo é obrigatório."),
-    weight: z.string().optional(),
+    weight: z.string().min(1, "O peso é obrigatório."),
     dimensions: z.object({
         height: z.string().optional(),
         width: z.string().optional(),
         length: z.string().optional(),
     }).optional(),
     cubicMeters: z.string().optional(),
+    whoPaysToll: z.enum(['empresa', 'motorista'], { required_error: "Selecione quem paga o pedágio." }),
+    tollTripScope: z.string().optional(),
     needsTracker: z.boolean().default(false),
     trackerType: z.string().optional(),
     cargoType: z.enum(['paletizado', 'granel', 'caixas', 'sacos', 'outros']),
@@ -63,7 +66,8 @@ const orderDetailsSchema = z.object({
     needsHelper: z.boolean().default(false),
     whoPaysHelper: z.enum(['empresa', 'motorista']).optional(),
     driverNeedsANTT: z.boolean().default(false),
-    specificCourses: z.string().optional(),
+    needsSpecificCourses: z.boolean().default(false),
+    specificCourses: z.array(z.object({ value: z.string().min(1, "O nome do curso não pode ser vazio.") })).optional(),
     minimumVehicleAge: z.string().optional(),
     loadingDate: z.date().optional(),
     loadingTime: z.string().optional(),
@@ -75,12 +79,18 @@ const orderDetailsSchema = z.object({
         coletaPercentage: z.coerce.number().optional(),
         entregaPercentage: z.coerce.number().optional(),
     }).optional(),
+}).refine(data => data.whoPaysToll === undefined || data.tollTripScope !== undefined, {
+    message: "Selecione o trecho do pedágio.",
+    path: ['tollTripScope'],
 }).refine(data => !data.needsTracker || (data.trackerType && data.trackerType.length > 0), {
     message: "Especifique o tipo de rastreador.",
     path: ['trackerType'],
 }).refine(data => !data.needsHelper || !!data.whoPaysHelper, {
     message: "Selecione quem paga pelo ajudante.",
     path: ['whoPaysHelper'],
+}).refine(data => !data.needsSpecificCourses || (data.specificCourses !== undefined && data.specificCourses.length > 0), {
+    message: "Adicione pelo menos um curso.",
+    path: ['specificCourses'],
 }).refine(data => {
     if (data.paymentType !== 'customizado') return true;
     if (!data.customPayment?.type) return false;
@@ -404,9 +414,54 @@ function StepRoute() {
     );
 }
 
+function ConditionalListInput({ controlName, switchName, label, placeholder, inputType = 'text' }: { controlName: string, switchName?: string, label: string, placeholder: string, inputType?: string }) {
+    const { control } = useFormContext();
+    const { fields, append, remove } = useFieldArray({ control, name: controlName });
+    const switchValue = switchName ? useWatch({ control, name: switchName }) : true;
+
+    if (!switchValue) return null;
+
+    const containerClass = switchName ? "pl-4 border-l-2 ml-2" : "";
+
+    return (
+        <div className={`space-y-4 ${containerClass}`}>
+            <FormLabel>{label}</FormLabel>
+            {fields.map((field, index) => (
+                <div key={field.id} className="flex items-center gap-2">
+                    <FormField
+                        control={control}
+                        name={`${controlName}.${index}.value`}
+                        render={({ field: itemField }) => (
+                            <FormItem className="flex-1">
+                                <FormControl>
+                                    <Input type={inputType} placeholder={`${placeholder} #${index + 1}`} {...itemField} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                </div>
+            ))}
+            <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => append({ value: "" })}
+            >
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Adicionar
+            </Button>
+            <FormField control={control} name={controlName} render={({fieldState}) => <FormMessage>{fieldState.error?.message}</FormMessage>} />
+        </div>
+    );
+}
 
 function StepOrderDetails() {
     const { control, watch } = useFormContext();
+    const whoPaysToll = watch("orderDetails.whoPaysToll");
     const needsTracker = watch("orderDetails.needsTracker");
     const needsHelper = watch("orderDetails.needsHelper");
     const paymentType = watch("orderDetails.paymentType");
@@ -424,7 +479,7 @@ function StepOrderDetails() {
             <FormField control={control} name="orderDetails.whatWillBeLoaded" render={({ field }) => (
                 <FormItem>
                     <FormLabel>O que será carregado?</FormLabel>
-                    <FormControl><Input placeholder="Ex: Soja, autopeças, etc." {...field} /></FormControl>
+                    <FormControl><Textarea placeholder="Ex: Soja, autopeças, etc." {...field} /></FormControl>
                     <FormMessage />
                 </FormItem>
             )} />
@@ -432,7 +487,7 @@ function StepOrderDetails() {
              <div className="grid md:grid-cols-2 gap-4">
                  <FormField control={control} name="orderDetails.weight" render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Qual o peso? (opcional)</FormLabel>
+                        <FormLabel>Qual o peso?</FormLabel>
                         <FormControl><Input type="number" placeholder="Ex: 1500 (em kg)" {...field} /></FormControl>
                         <FormMessage />
                     </FormItem>
@@ -455,6 +510,54 @@ function StepOrderDetails() {
                 </div>
             </div>
             
+             <div className="space-y-4">
+                 <FormField
+                    control={control}
+                    name="orderDetails.whoPaysToll"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Quem paga o pedágio?</FormLabel>
+                             <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecione uma opção" />
+                                </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="empresa">Empresa</SelectItem>
+                                    <SelectItem value="motorista">Motorista</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
+                {whoPaysToll && (
+                     <FormField
+                        control={control}
+                        name="orderDetails.tollTripScope"
+                        render={({ field }) => (
+                            <FormItem className="pl-4 border-l-2 ml-2">
+                                <FormLabel>O pedágio cobre qual trecho?</FormLabel>
+                                <FormControl>
+                                    <RadioGroup
+                                        onValueChange={field.onChange}
+                                        defaultValue={field.value}
+                                        className="flex flex-col gap-2 pt-2"
+                                    >
+                                        <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="apenas_ida" /></FormControl><FormLabel className="font-normal">Apenas Ida</FormLabel></FormItem>
+                                        <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="apenas_volta" /></FormControl><FormLabel className="font-normal">Apenas Volta</FormLabel></FormItem>
+                                        <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="ida_e_volta" /></FormControl><FormLabel className="font-normal">Ida e Volta</FormLabel></FormItem>
+                                    </RadioGroup>
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                )}
+            </div>
+
             <div className="space-y-2">
                  <FormField control={control} name="orderDetails.needsTracker" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-4"><div className="space-y-0.5"><FormLabel>Precisa de Rastreador?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
                 {needsTracker && (
@@ -477,7 +580,28 @@ function StepOrderDetails() {
             </div>
 
             <FormField control={control} name="orderDetails.driverNeedsANTT" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-4"><div className="space-y-0.5"><FormLabel>Motorista precisa ter ANTT?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
-            <FormField control={control} name="orderDetails.specificCourses" render={({ field }) => (<FormItem><FormLabel>Exigir curso específico (opcional)</FormLabel><FormControl><Input placeholder="Ex: MOPP, Carga Indivisível" {...field} /></FormControl><FormMessage /></FormItem>)} />
+            
+            <div className="space-y-2">
+                <FormField
+                    control={control}
+                    name="orderDetails.needsSpecificCourses"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                                <FormLabel>Motorista precisa ter algum curso específico?</FormLabel>
+                            </div>
+                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                        </FormItem>
+                    )}
+                />
+                 <ConditionalListInput
+                    controlName="orderDetails.specificCourses"
+                    switchName="orderDetails.needsSpecificCourses"
+                    label="Quais cursos?"
+                    placeholder="Ex: MOPP, Carga Indivisível"
+                />
+            </div>
+
             <FormField control={control} name="orderDetails.minimumVehicleAge" render={({ field }) => (<FormItem><FormLabel>Idade mínima do veículo (opcional)</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione o ano" /></SelectTrigger></FormControl><SelectContent><SelectItem value="none">Nenhuma</SelectItem>{vehicleAgeYears.map(year => (<SelectItem key={year} value={year}>{year}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
         
             <div className="grid md:grid-cols-2 gap-4">
@@ -566,11 +690,14 @@ export default function RequestFreightPage() {
           needsHelper: false,
           whoPaysHelper: undefined,
           driverNeedsANTT: false,
-          specificCourses: '',
+          needsSpecificCourses: false,
+          specificCourses: [],
           minimumVehicleAge: 'none',
           loadingDate: undefined,
           loadingTime: '',
           paymentType: 'entrega',
+          whoPaysToll: undefined,
+          tollTripScope: '',
           customPayment: {
               type: undefined,
               faturadoDays: undefined,
@@ -690,5 +817,3 @@ export default function RequestFreightPage() {
     </div>
   );
 }
-
-    
