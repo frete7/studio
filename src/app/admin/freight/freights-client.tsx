@@ -145,7 +145,7 @@ export default function FreightsClient() {
                                     </div>
                                     {freight.destinations.length > 1 && (
                                         <Accordion type="single" collapsible className="w-full">
-                                            <AccordionItem value="item-1" className="border-b-0">
+                                            <AccordionItem value={freight.id} className="border-b-0">
                                                 <AccordionTrigger className="text-xs text-primary hover:no-underline py-1">
                                                     e mais {freight.destinations.length - 1} destino(s)
                                                 </AccordionTrigger>
