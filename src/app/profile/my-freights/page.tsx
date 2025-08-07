@@ -6,8 +6,10 @@ import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { getFreightsByCompany, type Freight } from '@/app/actions';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ArrowLeft } from 'lucide-react';
 import MyFreightsClient from './my-freights-client';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
 export default function MyFreightsPage() {
     const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -49,6 +51,14 @@ export default function MyFreightsPage() {
     return (
         <div className="container mx-auto px-4 py-12">
             <div className="max-w-6xl mx-auto">
+                 <div className="mb-8">
+                     <Button asChild variant="outline" className="mb-4">
+                        <Link href="/profile">
+                            <ArrowLeft className="mr-2 h-4 w-4" />
+                            Voltar para o Painel
+                        </Link>
+                    </Button>
+                </div>
                 <MyFreightsClient initialFreights={initialFreights} />
             </div>
         </div>
