@@ -20,7 +20,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, User, Search, PlusCircle, Trash2, Truck, Box, Edit, CheckCircle } from 'lucide-react';
+import { Loader2, User, Search, PlusCircle, Trash2, Truck, Box, Edit, CheckCircle, Info } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -28,6 +28,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 // =================================================================
 // Schemas e Tipos
@@ -41,17 +42,17 @@ const locationSchema = z.object({
 const orderDetailsSchema = z.object({
     whatWillBeLoaded: z.string().min(3, "Este campo é obrigatório."),
     whoPaysToll: z.enum(['empresa', 'motorista'], { required_error: "Selecione quem paga o pedágio." }),
-    tollTripScope: z.enum(['apenas_ida', 'apenas_volta', 'ida_e_volta']).optional(),
+    tollTripScope: z.string().min(1, 'Selecione o trecho do pedágio.'),
     needsTracker: z.boolean().default(false),
     trackerType: z.string().optional(),
     loadingTimes: z.array(z.object({ value: z.string().min(1, "O horário não pode ser vazio.") })).optional(),
-    loadingOrder: z.enum(['chegada', 'nota', 'rota', 'agendamento']).optional(),
+    loadingOrder: z.string().optional(),
     cargoType: z.enum(['paletizado', 'granel', 'caixas', 'sacos', 'outros'], { required_error: "Selecione o tipo de carga." }),
     isDangerousCargo: z.boolean().default(false),
     driverNeedsToHelp: z.boolean().default(false),
-    driverHelpScope: z.enum(['apenas_carregamento', 'apenas_descarregamento', 'carga_e_descarga']).optional(),
+    driverHelpScope: z.string().optional(),
     needsHelper: z.boolean().default(false),
-    whoPaysHelper: z.enum(['empresa', 'motorista']).optional(),
+    whoPaysHelper: z.string().optional(),
     hasInvoice: z.boolean().default(false),
     driverNeedsToIssueInvoice: z.boolean().default(false),
     driverNeedsANTT: z.boolean().default(false),
@@ -61,19 +62,16 @@ const orderDetailsSchema = z.object({
     paymentMethods: z.array(z.string()).optional(),
     benefits: z.array(z.object({ value: z.string().min(1, "O benefício não pode ser vazio.") })).optional(),
     isPriceToCombine: z.boolean().default(false),
-}).refine(data => {
-    if (data.whoPaysToll === undefined) return true; // It's optional, so if it's not there, it's fine.
-    return data.tollTripScope !== undefined;
-}, {
+}).refine(data => data.whoPaysToll === undefined || data.tollTripScope !== undefined, {
     message: "Selecione o trecho do pedágio.",
     path: ['tollTripScope'],
 }).refine(data => !data.needsTracker || (data.trackerType !== undefined && data.trackerType.length > 0), {
     message: "Especifique o tipo de rastreador.",
     path: ['trackerType'],
-}).refine(data => !data.driverNeedsToHelp || data.driverHelpScope !== undefined, {
+}).refine(data => !data.driverNeedsToHelp || (data.driverHelpScope !== undefined && data.driverHelpScope.length > 0), {
     message: "Selecione quando o motorista precisa ajudar.",
     path: ['driverHelpScope'],
-}).refine(data => !data.needsHelper || data.whoPaysHelper !== undefined, {
+}).refine(data => !data.needsHelper || (data.whoPaysHelper !== undefined && data.whoPaysHelper.length > 0), {
     message: "Selecione quem paga pelo ajudante.",
     path: ['whoPaysHelper'],
 }).refine(data => !data.needsSpecificCourses || (data.specificCourses !== undefined && data.specificCourses.length > 0), {
@@ -83,8 +81,8 @@ const orderDetailsSchema = z.object({
 
 const priceTableEntrySchema = z.object({
     kmStart: z.coerce.number().min(0, "Km inicial deve ser no mínimo 0."),
-    kmEnd: z.coerce.number().positive("Km final deve ser maior que zero."),
-    price: z.coerce.number().positive("O valor deve ser positivo."),
+    kmEnd: z.coerce.number().min(0, "Km final não pode ser negativo."),
+    price: z.coerce.number().min(0, "O valor não pode ser negativo."),
 }).refine(data => data.kmEnd > data.kmStart, {
     message: "Km final deve ser maior que o inicial.",
     path: ['kmEnd']
@@ -126,8 +124,7 @@ const formSchema = z.object({
 }).refine(data => {
     if (data.orderDetails.isPriceToCombine) return true;
     
-    // If not "Valor a Combinar", every selected vehicle must have a valid price table
-    return data.requiredVehicles.every(v => v.priceTable && v.priceTable.length > 0);
+    return data.requiredVehicles.every(v => v.priceTable && v.priceTable.length > 0 && v.priceTable.every(p => p.kmEnd > 0 && p.price > 0));
 }, {
     message: "Defina a tabela de preços para todos os veículos selecionados ou marque 'Valor a Combinar'.",
     path: ['requiredVehicles'],
@@ -395,6 +392,13 @@ function StepRoute() {
 
             <div className="space-y-4">
                  <h3 className="text-lg font-semibold">Destinos</h3>
+                 <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertTitle>Atenção</AlertTitle>
+                    <AlertDescription>
+                        Cada destino adicionado gerará uma solicitação de frete distinta com seu próprio código. Isso otimiza o processo, permitindo que você cadastre múltiplas rotas de uma só vez.
+                    </AlertDescription>
+                </Alert>
                  <div className="space-y-6">
                     {fields.map((field, index) => (
                         <Card key={field.id} className="p-4 bg-muted/30">
@@ -792,7 +796,7 @@ function StepOrderDetails() {
                 render={({ field }) => (
                     <FormItem>
                         <FormLabel>Idade mínima do veículo para agregar (Opcional)</FormLabel>
-                         <Select onValueChange={field.onChange} value={field.value || 'none'}>
+                         <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl>
                             <SelectTrigger>
                                 <SelectValue placeholder="Selecione o ano" />
@@ -881,7 +885,7 @@ function PriceTable({ vehicleIndex }: { vehicleIndex: number }) {
     const handleAddRow = () => {
         const tableData = getValues(`requiredVehicles.${vehicleIndex}.priceTable`);
         const lastRow = tableData && tableData.length > 0 ? tableData[tableData.length - 1] : null;
-        const newStartKm = lastRow && lastRow.kmEnd ? Number(lastRow.kmEnd) : 0;
+        const newStartKm = lastRow && lastRow.kmEnd ? Number(lastRow.kmEnd) + 1 : 0;
         append({ kmStart: newStartKm, kmEnd: '', price: '' });
     };
 
