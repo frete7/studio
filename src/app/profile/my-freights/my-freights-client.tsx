@@ -96,7 +96,7 @@ export default function MyFreightsClient({ initialFreights }: { initialFreights:
             <Table>
                 <TableHeader>
                     <TableRow>
-                        <TableHead>Rota</TableHead>
+                        <TableHead>Rota / Pedido</TableHead>
                         <TableHead>Tipo</TableHead>
                         <TableHead>Data</TableHead>
                         <TableHead className="text-right">Ações</TableHead>
@@ -108,6 +108,7 @@ export default function MyFreightsClient({ initialFreights }: { initialFreights:
                             <TableCell>
                                 <div className="font-medium">{f.origin.city} &rarr; {f.destinations[0]?.city}</div>
                                 {f.destinations.length > 1 && <div className="text-xs text-muted-foreground">+{f.destinations.length - 1} outros destinos</div>}
+                                <div className="text-xs text-muted-foreground font-mono">{f.id}</div>
                             </TableCell>
                             <TableCell><Badge className={freightTypeVariants({ freightType: f.freightType })}>{getFreightTypeLabel(f.freightType)}</Badge></TableCell>
                             <TableCell>{f.createdAt ? new Date(f.createdAt).toLocaleDateString('pt-BR') : 'N/A'}</TableCell>
