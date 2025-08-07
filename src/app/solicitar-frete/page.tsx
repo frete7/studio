@@ -13,10 +13,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { groupBy } from 'lodash';
 
 
-import { type Collaborator, type BodyType, type VehicleType, type VehicleCategory } from '@/app/actions';
+import { type Collaborator, type BodyType, type VehicleType, type VehicleCategory, addCompleteFreight } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardFooter } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -29,7 +30,7 @@ import { Switch } from '@/components/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
+import { format, formatISO } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
@@ -832,7 +833,142 @@ function StepVehicleAndBodywork({ allData }: { allData: any }) {
     );
 }
 
+function SummaryView({ data, onEdit, allData, companyId, freightType }: { data: FormData; onEdit: (step: number) => void; allData: any, companyId: string, freightType: string }) {
+    const { origin, destinations, orderDetails, requiredVehicles, requiredBodyworks, responsibleCollaborators, isPriceToCombine, price } = data;
+    const [collaboratorNames, setCollaboratorNames] = useState<string[]>([]);
+    
+    useEffect(() => {
+        const fetchNames = async () => {
+            if(responsibleCollaborators.length > 0){
+                const collaboratorsCollection = collection(db, `users/${companyId}/collaborators`);
+                const q = query(collaboratorsCollection);
+                const colls = await getDocs(q);
+                const namesMap = new Map(colls.docs.map(d => [d.id, d.data().name]));
+                const names = responsibleCollaborators.map(id => namesMap.get(id) || id);
+                setCollaboratorNames(names);
+            }
+        };
+        fetchNames();
+    }, [responsibleCollaborators, companyId]);
+    
+    const getBodyworkNames = () => {
+        if (!requiredBodyworks || !allData.groupedBodyworks) return [];
+        const allTypes: BodyType[] = Object.values(allData.groupedBodyworks).flat();
+        return requiredBodyworks.map(id => allTypes.find(bw => bw.id === id)?.name || id);
+    }
+    
+    const getVehicleNames = () => {
+        if (!requiredVehicles || !allData.vehicleTypes) return [];
+        return requiredVehicles.map(id => allData.vehicleTypes.find((v: VehicleType) => v.id === id)?.name || id);
+    }
 
+    const bodyworkNames = getBodyworkNames();
+    const vehicleNames = getVehicleNames();
+
+
+    const SummarySection = ({ title, stepIndex, children }: { title: string, stepIndex: number, children: React.ReactNode }) => (
+        <div className="space-y-3">
+            <div className="flex justify-between items-center">
+                <h3 className="font-semibold text-lg">{title}</h3>
+                <Button variant="link" size="sm" onClick={() => onEdit(stepIndex)} className="h-auto p-0">
+                    <Edit className="mr-1 h-3 w-3" />
+                    Editar
+                </Button>
+            </div>
+            <div className="space-y-2 text-sm text-muted-foreground p-3 border rounded-md bg-muted/30">{children}</div>
+        </div>
+    )
+
+    const DetailItem = ({ label, value, isBool = false }: { label: string, value?: React.ReactNode, isBool?: boolean }) => {
+        if (value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0)) return null;
+        let displayValue = value;
+        if(isBool) displayValue = value ? "Sim" : "Não";
+
+        return (
+            <div className="flex justify-between">
+                <p className="font-medium text-foreground/80">{label}:</p>
+                <p className="text-right">{displayValue as React.ReactNode}</p>
+            </div>
+        )
+    };
+    
+    const DetailList = ({ label, list }: { label: string, list?: {value: string}[] }) => {
+        if (!list || list.length === 0) return null;
+        return (
+            <div>
+                <p className="font-medium text-foreground/80">{label}:</p>
+                <ul className="list-disc list-inside pl-4">
+                    {list.map((item, index) => <li key={index}>{item.value}</li>)}
+                </ul>
+            </div>
+        )
+    }
+
+    return (
+        <div className="space-y-6 text-sm max-h-[70vh] overflow-y-auto pr-4">
+             <div className="text-center p-2 bg-primary/10 rounded-md">
+                <p className="font-semibold">Tipo de Frete: <span className="text-primary capitalize">{freightType === 'completo' ? 'Completo' : 'Retorno'}</span></p>
+             </div>
+
+            <SummarySection title="Responsáveis" stepIndex={0}>
+                <DetailItem label="Colaboradores" value={collaboratorNames.join(', ')} />
+            </SummarySection>
+
+            <SummarySection title="Rota" stepIndex={1}>
+                <p className="font-medium text-foreground/80">Origem:</p>
+                <p className="pl-2">{origin.city}, {origin.state}</p>
+                <Separator className="my-2"/>
+                 <p className="font-medium text-foreground/80">Destinos:</p>
+                <ul className="list-decimal list-inside pl-2">
+                    {destinations.map((d, i) => <li key={i}>{d.city}, {d.state} ({d.stops} parada(s))</li>)}
+                </ul>
+            </SummarySection>
+            
+            <SummarySection title="Informações do Pedido" stepIndex={2}>
+                 <DetailItem label="Carga" value={orderDetails.whatWillBeLoaded} />
+                 <DetailItem label="Peso" value={`${orderDetails.weight} kg`} />
+                 <DetailItem label="Cubagem" value={orderDetails.cubicMeters ? `${orderDetails.cubicMeters} m³` : 'Não informado'} />
+                 <DetailItem label="Tipo de Carga" value={orderDetails.cargoType} />
+                 <DetailItem label="Ordem de Carregamento" value={orderDetails.loadingOrder} />
+                 <DetailItem label="Data Carregamento" value={orderDetails.loadingDate ? format(orderDetails.loadingDate, 'dd/MM/yyyy') : 'Não informada'} />
+                 <DetailItem label="Hora Carregamento" value={orderDetails.loadingTime || 'Não informada'} />
+                 <Separator className="my-2" />
+                 <DetailItem label="Pedágio pago por" value={orderDetails.whoPaysToll} />
+                 <DetailItem label="Trecho do Pedágio" value={orderDetails.tollTripScope} />
+                 <Separator className="my-2" />
+                 <DetailItem label="Precisa de Rastreador" value={orderDetails.needsTracker} isBool />
+                 <DetailItem label="Tipo de Rastreador" value={orderDetails.trackerType} />
+                 <Separator className="my-2" />
+                 <DetailItem label="Carga Perigosa" value={orderDetails.isDangerousCargo} isBool />
+                 <DetailItem label="Ajuda do motorista" value={orderDetails.driverNeedsToHelp} />
+                 <DetailItem label="Precisa de Ajudante" value={orderDetails.needsHelper} isBool />
+                 <DetailItem label="Ajudante pago por" value={orderDetails.whoPaysHelper} />
+                 <Separator className="my-2" />
+                 <DetailItem label="Possui Nota Fiscal" value={orderDetails.hasInvoice} isBool />
+                 <DetailItem label="Motorista emite NF" value={orderDetails.driverNeedsToIssueInvoice} isBool />
+                 <DetailItem label="Precisa de ANTT" value={orderDetails.driverNeedsANTT} isBool />
+                 <Separator className="my-2" />
+                 <DetailItem label="Precisa de Cursos Específicos" value={orderDetails.needsSpecificCourses} isBool />
+                 <DetailList label="Cursos" list={orderDetails.specificCourses} />
+                 <DetailItem label="Idade Mínima do Veículo" value={orderDetails.minimumVehicleAge === 'none' ? 'Nenhuma' : orderDetails.minimumVehicleAge} />
+                 <Separator className="my-2" />
+                 <DetailItem label="Tipo de Pagamento" value={orderDetails.paymentType} />
+                 {/* TODO: Add custom payment details */}
+            </SummarySection>
+
+            <SummarySection title="Veículo e Valor" stepIndex={3}>
+                <DetailItem label="Carrocerias" value={bodyworkNames.join(', ')} />
+                <DetailItem label="Veículos" value={vehicleNames.join(', ')} />
+                <Separator className="my-2"/>
+                {isPriceToCombine ? (
+                     <DetailItem label="Valor" value="A Combinar" />
+                ) : (
+                     <DetailItem label="Valor do Frete" value={Number(price).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} />
+                )}
+            </SummarySection>
+        </div>
+    );
+}
 
 // =================================================================
 // Componente Principal
@@ -841,8 +977,13 @@ function StepVehicleAndBodywork({ allData }: { allData: any }) {
 export default function RequestFreightPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [profile, setProfile] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDataLoading, setIsDataLoading] = useState(true);
+  const [isSummaryOpen, setIsSummaryOpen] = useState(false);
+  const [isSuccessOpen, setIsSuccessOpen] = useState(false);
+  const [generatedId, setGeneratedId] = useState<string>('');
+  const [countdown, setCountdown] = useState(10);
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -853,12 +994,9 @@ export default function RequestFreightPage() {
       vehicleCategories: [],
   });
 
-  const freightType = searchParams.get('type') || 'completo'; // 'completo' or 'retorno'
+  const freightType = (searchParams.get('type') || 'completo') as 'completo' | 'retorno';
 
-  const methods = useForm<FormData>({
-    resolver: zodResolver(formSchema),
-    mode: 'onBlur',
-    defaultValues: {
+  const initialValues = {
       responsibleCollaborators: [],
       origin: { state: '', city: '' },
       destinations: [{ state: '', city: '', stops: 1 }],
@@ -869,11 +1007,11 @@ export default function RequestFreightPage() {
           cubicMeters: '',
           needsTracker: false,
           trackerType: '',
-          cargoType: 'caixas',
+          cargoType: 'caixas' as 'paletizado' | 'granel' | 'caixas' | 'sacos' | 'outros',
           isDangerousCargo: false,
           hasInvoice: false,
           driverNeedsToIssueInvoice: false,
-          driverNeedsToHelp: 'nao',
+          driverNeedsToHelp: 'nao' as 'nao' | 'carregamento' | 'descarregamento' | 'ambos',
           needsHelper: false,
           whoPaysHelper: undefined,
           driverNeedsANTT: false,
@@ -882,7 +1020,7 @@ export default function RequestFreightPage() {
           minimumVehicleAge: 'none',
           loadingDate: undefined,
           loadingTime: '',
-          paymentType: 'entrega',
+          paymentType: 'entrega' as 'coleta' | 'entrega' | '50-50' | 'customizado',
           whoPaysToll: '',
           tollTripScope: '',
           customPayment: {
@@ -897,15 +1035,24 @@ export default function RequestFreightPage() {
       requiredVehicles: [],
       isPriceToCombine: false,
       price: ''
-    }
+  }
+
+  const methods = useForm<FormData>({
+    resolver: zodResolver(formSchema),
+    mode: 'onBlur',
+    defaultValues: initialValues
   });
 
-  const { handleSubmit, trigger, formState: { isSubmitting } } = methods;
+  const { handleSubmit, trigger, formState: { isSubmitting }, getValues, reset } = methods;
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
         if (currentUser) {
             setUser(currentUser);
+            const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+            if(userDoc.exists()) {
+                setProfile(userDoc.data());
+            }
         } else {
             router.push('/login');
         }
@@ -949,8 +1096,30 @@ export default function RequestFreightPage() {
   }, [router]);
 
   async function processForm(data: FormData) {
-    console.log("Form data submitted:", data);
-    // Logic to save data will be added here in future steps
+      if (!user || !profile) {
+          toast({ variant: 'destructive', title: 'Erro', description: 'Usuário não autenticado.' });
+          return;
+      }
+      try {
+          const dataToSave = JSON.parse(JSON.stringify(data));
+          if (dataToSave.orderDetails.loadingDate) {
+              dataToSave.orderDetails.loadingDate = formatISO(dataToSave.orderDetails.loadingDate);
+          }
+          const companyName = profile.tradingName || profile.name;
+          const newId = await addCompleteFreight(user.uid, companyName, freightType, dataToSave);
+          setGeneratedId(newId);
+          setIsSummaryOpen(false);
+          setIsSuccessOpen(true);
+          reset(initialValues);
+          setCurrentStep(0);
+      } catch (error) {
+           toast({
+              variant: "destructive",
+              title: "Erro ao Enviar",
+              description: error instanceof Error ? error.message : 'Não foi possível salvar sua solicitação. Tente novamente.'
+          })
+          setIsSummaryOpen(false);
+      }
   }
 
   type FieldName = keyof FormData;
@@ -965,9 +1134,14 @@ export default function RequestFreightPage() {
       setCurrentStep(step => step + 1);
       window.scrollTo(0, 0);
     } else {
-      await handleSubmit(processForm)();
+      setIsSummaryOpen(true);
     }
   };
+  
+   const handleEditFromSummary = (stepIndex: number) => {
+      setIsSummaryOpen(false);
+      setCurrentStep(stepIndex);
+  }
 
   const prevStep = () => {
     if (currentStep > 0) {
@@ -975,6 +1149,16 @@ export default function RequestFreightPage() {
        window.scrollTo(0, 0);
     }
   };
+  
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isSuccessOpen && countdown > 0) {
+      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+    } else if (isSuccessOpen && countdown === 0) {
+      router.push('/profile');
+    }
+    return () => clearTimeout(timer);
+  }, [isSuccessOpen, countdown, router]);
   
   const progress = ((currentStep + 1) / (steps.length || 1)) * 100;
   
@@ -993,6 +1177,7 @@ export default function RequestFreightPage() {
   }
 
   return (
+    <>
     <div className="container mx-auto px-4 py-12">
         <div className="max-w-3xl mx-auto">
              <div className="mb-8">
@@ -1040,5 +1225,50 @@ export default function RequestFreightPage() {
             </Card>
         </div>
     </div>
+    
+    <Dialog open={isSummaryOpen} onOpenChange={setIsSummaryOpen}>
+        <DialogContent className="sm:max-w-2xl">
+                <DialogHeader>
+                <DialogTitle className="text-2xl">Confirme sua Solicitação</DialogTitle>
+                <p className="text-sm text-muted-foreground">
+                    Por favor, revise todos os dados antes de finalizar.
+                </p>
+                </DialogHeader>
+                <SummaryView data={getValues()} onEdit={handleEditFromSummary} allData={allData} companyId={user.uid} freightType={freightType} />
+                <DialogFooter>
+                <DialogClose asChild>
+                    <Button type="button" variant="secondary">Cancelar</Button>
+                </DialogClose>
+                <Button onClick={handleSubmit(processForm)} disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Finalizar e Publicar
+                </Button>
+                </DialogFooter>
+        </DialogContent>
+    </Dialog>
+    
+    <Dialog open={isSuccessOpen} onOpenChange={(open) => { if (!open) router.push('/profile')}}>
+        <DialogContent>
+                <DialogHeader>
+                <div className="flex flex-col items-center text-center gap-4 py-4">
+                    <CheckCircle className="h-16 w-16 text-green-500" />
+                    <DialogTitle className="text-2xl">Frete Publicado com Sucesso!</DialogTitle>
+                    <p className="text-muted-foreground">Sua solicitação já está ativa na plataforma para os motoristas visualizarem.</p>
+                     <div className="bg-muted rounded-md p-3 w-full text-center mt-2 space-y-2 max-h-40 overflow-y-auto">
+                        <p className="text-sm font-semibold">Código do Frete:</p>
+                        <p className="font-mono font-bold text-primary">{generatedId}</p>
+                    </div>
+                </div>
+                </DialogHeader>
+                <DialogFooter className="sm:justify-between gap-4">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin"/>
+                        <span>Redirecionando em {countdown}s...</span>
+                    </div>
+                    <Button onClick={() => router.push('/profile')}>Ir para o Painel</Button>
+                </DialogFooter>
+        </DialogContent>
+    </Dialog>
+    </>
   );
 }

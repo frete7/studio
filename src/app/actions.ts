@@ -430,11 +430,7 @@ export async function addAggregationFreight(companyId: string, companyName: stri
     const nums = '0123456789';
 
     for (const destination of destinations) {
-        // Generate a new random ID for each freight
         const randomValues = new Uint32Array(5);
-        // This will only work in a browser/server environment with crypto
-        // For pure server-side, you might need another way to get random bytes
-        // But since this is a server action, it should be fine.
         crypto.getRandomValues(randomValues);
         const randomChar = (index: number) => chars[randomValues[index] % chars.length];
         const randomNum = (index: number) => nums[randomValues[index] % nums.length];
@@ -455,6 +451,36 @@ export async function addAggregationFreight(companyId: string, companyName: stri
     }
     
     return generatedIds;
+}
+
+export async function addCompleteFreight(companyId: string, companyName: string, freightType: 'completo' | 'retorno', data: any): Promise<string> {
+    if (!companyId) throw new Error("ID da empresa é obrigatório.");
+
+    const freightsCollection = collection(db, 'freights');
+    
+    const prefix = freightType === 'completo' ? '#FC' : '#FR';
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const nums = '0123456789';
+
+    const randomValues = new Uint32Array(5);
+    crypto.getRandomValues(randomValues);
+    const randomChar = (index: number) => chars[randomValues[index] % chars.length];
+    const randomNum = (index: number) => nums[randomValues[index] % nums.length];
+    const generatedId = `${prefix}-${randomNum(0)}${randomNum(1)}${randomChar(2)}${randomChar(3)}${randomChar(4)}`;
+
+    const freightDoc = {
+        ...data,
+        id: generatedId,
+        companyId: companyId,
+        companyName: companyName,
+        freightType: `frete ${freightType}`,
+        status: 'ativo',
+        createdAt: serverTimestamp(),
+    };
+
+    const docRef = await addDoc(freightsCollection, freightDoc);
+    
+    return generatedId;
 }
 
 
