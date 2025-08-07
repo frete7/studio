@@ -52,9 +52,8 @@ export default function FreightDetailsPage() {
     const [error, setError] = useState<string | null>(null);
     const [user, setUser] = useState<FirebaseUser | null>(null);
     const [isAuthLoading, setIsAuthLoading] = useState(true);
-    const params = useParams();
+    const { freightId } = useParams();
     const router = useRouter();
-    const freightId = params.freightId as string;
 
     useEffect(() => {
         const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
@@ -66,7 +65,7 @@ export default function FreightDetailsPage() {
     }, []);
 
     useEffect(() => {
-        if (!freightId) {
+        if (!freightId || typeof freightId !== 'string') {
             setError("ID do frete não encontrado.");
             setIsLoading(false);
             return;
@@ -313,5 +312,3 @@ export default function FreightDetailsPage() {
         </div>
     );
 }
-
-    
