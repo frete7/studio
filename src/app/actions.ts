@@ -507,6 +507,44 @@ export async function updateFreightStatus(freightId: string, status: Freight['st
     }
 }
 
+export async function getFreightsByCompany(companyId: string): Promise<Freight[]> {
+    if (!companyId) {
+        throw new Error('O ID da empresa é obrigatório.');
+    }
+    
+    try {
+        const freightsCollection = collection(db, 'freights');
+        const q = query(freightsCollection, where('companyId', '==', companyId));
+        
+        const snapshot = await getDocs(q);
+        if (snapshot.empty) {
+            return [];
+        }
+        
+        return snapshot.docs.map(doc => {
+            const data = doc.data();
+            const createdAt = data.createdAt;
+
+            // Convert Firestore Timestamp to a serializable format (ISO string)
+            let serializableCreatedAt = null;
+            if (createdAt && typeof createdAt.toDate === 'function') {
+                serializableCreatedAt = createdAt.toDate().toISOString();
+            }
+
+            return {
+                ...data,
+                id: data.id, 
+                firestoreId: doc.id,
+                createdAt: serializableCreatedAt,
+            } as Freight;
+        });
+
+    } catch (error) {
+        console.error("Error fetching freights by company: ", error);
+        throw new Error('Falha ao buscar os fretes da empresa.');
+    }
+}
+
 
 // Collaborators Actions
 export type Collaborator = {

@@ -153,7 +153,7 @@ export default function ProfilePage() {
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
                                         <Package className="h-5 w-5 text-primary" />
-                                        Fretes
+                                        Meus Fretes
                                     </CardTitle>
                                     <CardDescription>
                                         Anuncie e gerencie suas solicitações de frete.
@@ -164,7 +164,7 @@ export default function ProfilePage() {
                                 </CardContent>
                                 <CardFooter>
                                     <Button asChild className='w-full'>
-                                        <Link href="/fretes/solicitar">
+                                        <Link href="/profile/my-freights">
                                             Gerenciar Fretes <ArrowRight className="ml-2 h-4 w-4"/>
                                         </Link>
                                     </Button>
