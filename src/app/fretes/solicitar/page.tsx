@@ -14,23 +14,26 @@ const freightOptions = [
     {
         title: 'Agregamento',
         description: 'Contrate um veículo fixo para suas entregas recorrentes. Ideal para demandas constantes.',
-        icon: <Truck className="h-10 w-10 text-primary" />,
+        icon: <Truck className="h-10 w-10 text-blue-500" />,
         buttonText: 'Solicitar Agregamento',
-        href: '/solicitar-frete/agregamento'
+        href: '/solicitar-frete/agregamento',
+        buttonClass: 'bg-blue-500 hover:bg-blue-600'
     },
     {
         title: 'Frete Completo',
         description: 'Envie uma carga que ocupa todo o espaço do veículo. Perfeito para grandes volumes.',
-        icon: <Box className="h-10 w-10 text-primary" />,
+        icon: <Box className="h-10 w-10 text-green-500" />,
         buttonText: 'Solicitar Frete Completo',
-        href: '/solicitar-frete?type=completo'
+        href: '/solicitar-frete?type=completo',
+        buttonClass: 'bg-green-500 hover:bg-green-600'
     },
     {
         title: 'Frete de Retorno',
         description: 'Anuncie uma carga para um motorista que já está voltando para sua região. Mais econômico.',
-        icon: <CornerDownLeft className="h-10 w-10 text-primary" />,
+        icon: <CornerDownLeft className="h-10 w-10 text-orange-500" />,
         buttonText: 'Solicitar Frete de Retorno',
-        href: '/solicitar-frete?type=retorno'
+        href: '/solicitar-frete?type=retorno',
+        buttonClass: 'bg-orange-500 hover:bg-orange-600'
     }
 ];
 
@@ -58,7 +61,7 @@ export default function RequestFreightTypePage() {
                                 <CardDescription>{option.description}</CardDescription>
                             </CardContent>
                             <div className="p-6 pt-0">
-                                <Button asChild className="w-full">
+                                <Button asChild className={`w-full ${option.buttonClass}`}>
                                     <Link href={option.href}>{option.buttonText}</Link>
                                 </Button>
                             </div>
