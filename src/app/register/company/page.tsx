@@ -158,7 +158,7 @@ export default function CompanyRegisterPage() {
 
       await setDoc(doc(db, "users", user.uid), {
         uid: user.uid,
-        name: data.razaoSocial, // Use legal name as the main name
+        name: data.razaoSocial,
         tradingName: data.nomeFantasia,
         cnpj: data.cnpj,
         address: `${data.logradouro}, ${data.numero}, ${data.bairro}, ${data.cidade} - ${data.uf}`,
@@ -173,9 +173,14 @@ export default function CompanyRegisterPage() {
         },
         email: data.email,
         role: 'company',
-        status: 'incomplete', // Changed from 'pending' to 'incomplete'
+        status: 'incomplete',
         createdAt: serverTimestamp(),
-        responsible: {}, // Initialize responsible object
+        // Initialize the full data structure to prevent future errors
+        responsible: {
+            name: '',
+            cpf: '',
+            document: null,
+        },
         cnpjCard: null,
       });
       
