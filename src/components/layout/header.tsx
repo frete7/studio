@@ -47,15 +47,15 @@ export default function Header() {
           const userData = userDoc.data();
           setUserRole(userData.role);
           
-          // Redirect logic
-          const isProfileIncomplete = userData.status === 'incomplete';
-          const isTryingToCompleteProfile = pathname.startsWith('/profile') || pathname.startsWith('/api'); // Or other allowed paths
-          
-          if (isProfileIncomplete && !isTryingToCompleteProfile) {
-            // Allow logout from any page
-            if (pathname !== '/login' && pathname !== '/register') {
-                router.push('/profile');
-            }
+          // Redirection logic based on user status
+          const isProfilePage = pathname.startsWith('/profile');
+          const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/register');
+          const allowedPaths = isProfilePage || isAuthPage || pathname.startsWith('/api');
+
+          if (userData.status === 'incomplete' && !allowedPaths) {
+              router.push('/profile');
+          } else if (userData.status === 'pending' && !allowedPaths) {
+              router.push('/profile');
           }
 
         } else {
