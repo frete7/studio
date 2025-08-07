@@ -50,7 +50,7 @@ const orderDetailsSchema = z.object({
     needsSpecificCourses: z.boolean().default(false),
     specificCourses: z.array(z.object({ value: z.string().min(1, "O nome do curso não pode ser vazio.") })).optional(),
     minimumVehicleAge: z.string().optional(),
-    paymentMethods: z.string().optional(),
+    paymentMethods: z.array(z.string()).optional(),
     benefits: z.array(z.object({ value: z.string().min(1, "O benefício não pode ser vazio.") })).optional(),
 }).refine(data => data.whoPaysToll ? data.tollTripScope : true, {
     message: "Selecione o trecho do pedágio.",
@@ -90,6 +90,12 @@ const steps = [
   { id: 3, name: 'Informações do Pedido', fields: ['orderDetails'] },
   { id: 4, name: 'Requisitos Adicionais', fields: [] },
 ];
+
+const paymentOptions = [
+    { id: 'dinheiro', label: 'Dinheiro' },
+    { id: 'pix', label: 'Pix' },
+    { id: 'deposito', label: 'Depósito em Conta' },
+]
 
 // =================================================================
 // Componentes das Etapas
@@ -401,6 +407,8 @@ function StepOrderDetails() {
     const needsTracker = useWatch({ control, name: "orderDetails.needsTracker" });
     const driverNeedsToHelp = useWatch({ control, name: "orderDetails.driverNeedsToHelp" });
     const needsHelper = useWatch({ control, name: "orderDetails.needsHelper" });
+    
+    const vehicleAgeYears = Array.from({ length: new Date().getFullYear() - 1969 }, (_, i) => (new Date().getFullYear() - i).toString());
 
     return (
         <div className="space-y-8">
@@ -679,7 +687,19 @@ function StepOrderDetails() {
                 render={({ field }) => (
                     <FormItem>
                         <FormLabel>Idade mínima do veículo para agregar (Opcional)</FormLabel>
-                        <FormControl><Input placeholder="Ex: 2015" {...field} type="number" /></FormControl>
+                         <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Selecione o ano" />
+                            </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                <SelectItem value="">Nenhuma</SelectItem>
+                                {vehicleAgeYears.map(year => (
+                                    <SelectItem key={year} value={year}>{year}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                         <FormMessage />
                     </FormItem>
                 )}
@@ -696,15 +716,50 @@ function StepOrderDetails() {
             <FormField
                 control={control}
                 name="orderDetails.paymentMethods"
-                render={({ field }) => (
+                render={() => (
                     <FormItem>
-                        <FormLabel>Formas de Pagamento (Opcional)</FormLabel>
-                        <FormControl><Input placeholder="Ex: Depósito, PIX" {...field} /></FormControl>
-                         <FormDescription>Descreva como o motorista será pago.</FormDescription>
+                        <div className="mb-4">
+                            <FormLabel>Formas de Pagamento</FormLabel>
+                            <FormDescription>Selecione uma ou mais opções.</FormDescription>
+                        </div>
+                        {paymentOptions.map((item) => (
+                            <FormField
+                            key={item.id}
+                            control={control}
+                            name="orderDetails.paymentMethods"
+                            render={({ field }) => {
+                                return (
+                                <FormItem
+                                    key={item.id}
+                                    className="flex flex-row items-start space-x-3 space-y-0"
+                                >
+                                    <FormControl>
+                                    <Checkbox
+                                        checked={field.value?.includes(item.id)}
+                                        onCheckedChange={(checked) => {
+                                        return checked
+                                            ? field.onChange([...(field.value || []), item.id])
+                                            : field.onChange(
+                                                field.value?.filter(
+                                                (value) => value !== item.id
+                                                )
+                                            )
+                                        }}
+                                    />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">
+                                        {item.label}
+                                    </FormLabel>
+                                </FormItem>
+                                )
+                            }}
+                            />
+                        ))}
                         <FormMessage />
                     </FormItem>
                 )}
             />
+
         </div>
     );
 }
@@ -734,6 +789,7 @@ export default function AgregamentoClient({ companyId }: { companyId: string }) 
         needsSpecificCourses: false,
         specificCourses: [],
         benefits: [],
+        paymentMethods: [],
       }
     }
   });
