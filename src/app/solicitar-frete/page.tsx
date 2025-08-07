@@ -5,21 +5,22 @@ import { useState, useEffect } from 'react';
 import { useForm, FormProvider, useFormContext, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { onSnapshot, collection, query } from 'firebase/firestore';
+import { onSnapshot, collection, query, getDocs } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { groupBy } from 'lodash';
 
 
-import { type Collaborator } from '@/app/actions';
+import { type Collaborator, type BodyType, type VehicleType, type VehicleCategory } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { Loader2, User, Search, PlusCircle, Trash2, ArrowLeft, Copy, Calendar as CalendarIcon } from 'lucide-react';
+import { Loader2, User, Search, PlusCircle, Trash2, ArrowLeft, Copy, Calendar as CalendarIcon, Truck, Box, Edit, CheckCircle, Info } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -30,6 +31,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 
 // =================================================================
@@ -112,6 +114,20 @@ const formSchema = z.object({
   origin: locationSchema,
   destinations: z.array(destinationSchema).min(1, "Adicione pelo menos um destino."),
   orderDetails: orderDetailsSchema,
+  requiredBodyworks: z.array(z.string()).refine(value => value.length > 0, {
+    message: "Você deve selecionar pelo menos um tipo de carroceria.",
+  }),
+  requiredVehicles: z.array(z.string()).refine(value => value.length > 0, {
+    message: "Você deve selecionar pelo menos um tipo de veículo.",
+  }),
+  isPriceToCombine: z.boolean().default(false),
+  price: z.coerce.number().optional(),
+}).refine(data => {
+    if(data.isPriceToCombine) return true;
+    return data.price !== undefined && data.price > 0;
+}, {
+    message: 'O valor do frete é obrigatório se não for a combinar.',
+    path: ['price'],
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -122,6 +138,7 @@ const steps = [
   { id: 1, name: 'Responsáveis', fields: ['responsibleCollaborators'] },
   { id: 2, name: 'Rota', fields: ['origin', 'destinations'] },
   { id: 3, name: 'Informações do Pedido', fields: ['orderDetails'] },
+  { id: 4, name: 'Veículo e Valor', fields: ['requiredBodyworks', 'requiredVehicles', 'price', 'isPriceToCombine'] },
 ];
 
 // =================================================================
@@ -654,6 +671,168 @@ function StepOrderDetails() {
     )
 }
 
+function StepVehicleAndBodywork({ allData }: { allData: any }) {
+    const { control, watch } = useFormContext();
+    
+    const { groupedBodyworks, groupedVehicleTypes } = allData;
+    const isPriceToCombine = watch('isPriceToCombine');
+
+    return (
+        <div className="space-y-8">
+            <div>
+                <h2 className="text-2xl font-semibold">4. Veículo e Valor</h2>
+                <p className="text-muted-foreground">Especifique os veículos necessários e o valor do frete.</p>
+            </div>
+            <Separator />
+            
+             <FormField control={control} name="orderDetails.weight" render={({ field }) => (
+                <FormItem>
+                    <FormLabel>Peso da Carga (kg)</FormLabel>
+                    <FormControl><Input type="number" placeholder="Ex: 1500" {...field} /></FormControl>
+                    <FormDescription>Confirme ou edite o peso total da carga.</FormDescription>
+                    <FormMessage />
+                </FormItem>
+            )} />
+
+            <Separator />
+
+            {/* Seleção de Carroceria */}
+            <FormField
+                control={control}
+                name="requiredBodyworks"
+                render={() => (
+                    <FormItem>
+                         <div className="mb-4">
+                            <FormLabel className="text-base font-semibold">Tipos de Carroceria</FormLabel>
+                            <FormDescription>Selecione um ou mais tipos de carroceria que o veículo deve ter.</FormDescription>
+                        </div>
+                        <Accordion type="multiple" className="w-full" defaultValue={Object.keys(groupedBodyworks)}>
+                            {Object.entries(groupedBodyworks).map(([group, types]: [string, any]) => (
+                                <AccordionItem key={group} value={group}>
+                                    <AccordionTrigger>{group}</AccordionTrigger>
+                                    <AccordionContent>
+                                         <div className="grid grid-cols-2 gap-4 p-2">
+                                            {types.map((item: any) => (
+                                                <FormField
+                                                    key={item.id}
+                                                    control={control}
+                                                    name="requiredBodyworks"
+                                                    render={({ field }) => (
+                                                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                                                            <FormControl>
+                                                                <Checkbox
+                                                                    checked={field.value?.includes(item.id)}
+                                                                    onCheckedChange={(checked) => {
+                                                                        return checked
+                                                                            ? field.onChange([...(field.value || []), item.id])
+                                                                            : field.onChange(field.value?.filter((value) => value !== item.id))
+                                                                    }}
+                                                                />
+                                                            </FormControl>
+                                                            <FormLabel className="font-normal">{item.name}</FormLabel>
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            ))}
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+                            ))}
+                        </Accordion>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+
+            <Separator />
+            
+            {/* Seleção de Veículos */}
+             <FormField
+                control={control}
+                name="requiredVehicles"
+                render={() => (
+                    <FormItem>
+                         <div className="mb-4">
+                            <FormLabel className="text-base font-semibold">Tipos de Veículo</FormLabel>
+                            <FormDescription>Selecione os veículos que podem realizar o serviço.</FormDescription>
+                        </div>
+
+                        <Accordion type="multiple" className="w-full" defaultValue={Object.keys(groupedVehicleTypes)}>
+                            {Object.entries(groupedVehicleTypes).map(([category, types]: [string, any]) => (
+                                <AccordionItem key={category} value={category}>
+                                     <AccordionTrigger>{category}</AccordionTrigger>
+                                     <AccordionContent>
+                                        <div className="grid grid-cols-2 gap-4 p-2">
+                                             {types.map((item: any) => (
+                                                <FormField
+                                                    key={item.id}
+                                                    control={control}
+                                                    name="requiredVehicles"
+                                                    render={({ field }) => (
+                                                         <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                                                            <FormControl>
+                                                                <Checkbox
+                                                                    checked={field.value?.includes(item.id)}
+                                                                    onCheckedChange={(checked) => {
+                                                                        return checked
+                                                                            ? field.onChange([...(field.value || []), item.id])
+                                                                            : field.onChange(field.value?.filter((value) => value !== item.id))
+                                                                    }}
+                                                                />
+                                                            </FormControl>
+                                                            <FormLabel className="font-normal">{item.name}</FormLabel>
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                             ))}
+                                        </div>
+                                     </AccordionContent>
+                                </AccordionItem>
+                            ))}
+                        </Accordion>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+
+             <Separator />
+
+            <div className="space-y-4">
+                <FormField
+                    control={control}
+                    name="isPriceToCombine"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                                <FormLabel className="text-base">Valor a Combinar</FormLabel>
+                                <FormDescription>Marque esta opção se o valor for negociado diretamente com o motorista.</FormDescription>
+                            </div>
+                            <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                        </FormItem>
+                    )}
+                />
+
+                {!isPriceToCombine && (
+                    <FormField
+                        control={control}
+                        name="price"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Valor do Frete (R$)</FormLabel>
+                                <FormControl>
+                                    <Input type="number" placeholder="Ex: 2500.00" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                )}
+            </div>
+        </div>
+    );
+}
+
+
 
 // =================================================================
 // Componente Principal
@@ -663,8 +842,16 @@ export default function RequestFreightPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDataLoading, setIsDataLoading] = useState(true);
   const searchParams = useSearchParams();
   const router = useRouter();
+
+  const [allData, setAllData] = useState({
+      groupedBodyworks: {},
+      groupedVehicleTypes: {},
+      vehicleTypes: [],
+      vehicleCategories: [],
+  });
 
   const freightType = searchParams.get('type') || 'completo'; // 'completo' or 'retorno'
 
@@ -705,7 +892,11 @@ export default function RequestFreightPage() {
               coletaPercentage: undefined,
               entregaPercentage: undefined,
           }
-      }
+      },
+      requiredBodyworks: [],
+      requiredVehicles: [],
+      isPriceToCombine: false,
+      price: undefined
     }
   });
 
@@ -720,6 +911,40 @@ export default function RequestFreightPage() {
         }
         setIsLoading(false);
     });
+    
+     const fetchData = async () => {
+          setIsDataLoading(true);
+          try {
+              const [bodyTypesSnap, vehicleTypesSnap, vehicleCategoriesSnap] = await Promise.all([
+                  getDocs(query(collection(db, 'body_types'))),
+                  getDocs(query(collection(db, 'vehicle_types'))),
+                  getDocs(query(collection(db, 'vehicle_categories'))),
+              ]);
+
+              const bodyTypes: BodyType[] = bodyTypesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as BodyType));
+              const vehicleTypes: VehicleType[] = vehicleTypesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as VehicleType));
+              const vehicleCategories: VehicleCategory[] = vehicleCategoriesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as VehicleCategory));
+
+              const groupedBodyworks = groupBy(bodyTypes, 'group');
+              const categoryMap = new Map(vehicleCategories.map(c => [c.id, c.name]));
+              const typesWithCatName = vehicleTypes.map(vt => ({ ...vt, categoryName: categoryMap.get(vt.categoryId) || 'Outros' }));
+              const groupedVehicleTypes = groupBy(typesWithCatName, 'categoryName');
+
+              setAllData({
+                  groupedBodyworks,
+                  groupedVehicleTypes,
+                  vehicleTypes,
+                  vehicleCategories,
+              });
+
+          } catch (error) {
+              console.error("Failed to fetch form data", error);
+          } finally {
+              setIsDataLoading(false);
+          }
+      };
+      fetchData();
+
     return () => unsubscribe();
   }, [router]);
 
@@ -798,7 +1023,7 @@ export default function RequestFreightPage() {
                           <div className={currentStep === 0 ? 'block' : 'hidden'}> <StepCollaborators companyId={user.uid} /> </div>
                           <div className={currentStep === 1 ? 'block' : 'hidden'}> <StepRoute /> </div>
                           <div className={currentStep === 2 ? 'block' : 'hidden'}> <StepOrderDetails /> </div>
-                          {/* Future steps will be rendered here */}
+                          <div className={currentStep === 3 ? 'block' : 'hidden'}> {isDataLoading ? <Loader2 className="animate-spin" /> : <StepVehicleAndBodywork allData={allData} />}</div>
                       </form>
                   </FormProvider>
 
@@ -806,9 +1031,9 @@ export default function RequestFreightPage() {
                       <Button onClick={prevStep} variant="outline" disabled={currentStep === 0 || isSubmitting}>
                           Voltar
                       </Button>
-                      <Button onClick={nextStep} disabled={isSubmitting || !user}>
+                      <Button onClick={nextStep} disabled={isSubmitting || !user || (currentStep === 3 && isDataLoading)}>
                           {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                          {currentStep < steps.length - 1 ? 'Próximo' : 'Enviar Solicitação'}
+                          {currentStep < steps.length - 1 ? 'Próximo' : 'Revisar Solicitação'}
                       </Button>
                   </div>
               </CardContent>
@@ -817,3 +1042,5 @@ export default function RequestFreightPage() {
     </div>
   );
 }
+
+    
