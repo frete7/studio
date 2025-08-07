@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query } from 'firebase/firestore';
+import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 import { addVehicle, updateVehicle, deleteVehicle, type Vehicle, type VehicleType, type VehicleCategory } from '@/app/actions';
@@ -322,5 +322,3 @@ export default function VehiclesClient() {
     </Card>
   );
 }
-
-    
