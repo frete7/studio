@@ -12,16 +12,18 @@ import Image from 'next/image';
 
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardFooter } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, UploadCloud, FileText, CheckCircle, Building, AlertCircle } from 'lucide-react';
+import { Loader2, UploadCloud, FileText, CheckCircle, Building, AlertCircle, ThumbsUp, ThumbsDown, CircleHelp, ExternalLink, Mail, User, Phone, MapPin } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
 import { Alert, AlertTitle } from '@/components/ui/alert';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 
 
 // =================================================================
@@ -222,7 +224,7 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
 
     const prevStep = () => {
         if (currentStep > 0) {
-            setCurrentStep(step => step + 1);
+            setCurrentStep(step => step - 1);
         }
     };
 
@@ -314,17 +316,138 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
              </div>
         )
     }
+
+    const getInitials = (name: string) => {
+        if (!name) return '';
+        return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+    }
+    
+    const getDocStatusLabel = (status?: string) => {
+        switch(status) {
+            case 'approved': return 'Aprovado';
+            case 'rejected': return 'Recusado';
+            case 'pending':
+            default: return 'Pendente';
+        }
+    };
+    
+    const getDocStatusIcon = (status?: string) => {
+        switch(status) {
+            case 'approved': return <ThumbsUp className="h-4 w-4 text-green-500" />;
+            case 'rejected': return <ThumbsDown className="h-4 w-4 text-destructive" />;
+            case 'pending':
+            default: return <CircleHelp className="h-4 w-4 text-yellow-500" />;
+        }
+    };
+    
+    const getDocumentProps = (docData: any) => {
+      if (typeof docData === 'string') {
+          return { url: docData, status: 'pending' };
+      }
+      return { url: docData?.url, status: docData?.status || 'pending' };
+  }
+  
+  const responsibleDocumentProps = getDocumentProps(profile.responsible?.document);
+  const cnpjCardProps = getDocumentProps(profile.cnpjCard);
+
     
     // Final view after completing the form or if profile is active
     if (currentStep === 5) {
         return (
             <Card>
                 <CardHeader>
-                    <CardTitle>Perfil da Empresa</CardTitle>
-                    <CardDescription>Visualize e edite as informações da sua empresa.</CardDescription>
+                    <div className="flex flex-col md:flex-row items-start gap-6">
+                        <Avatar className="h-24 w-24 border-2 border-primary">
+                            <AvatarImage src={profile.photoURL ?? ''} alt={profile.name} />
+                            <AvatarFallback>{getInitials(profile.name)}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 pt-2">
+                             <CardTitle className="text-2xl">{profile.tradingName || profile.name}</CardTitle>
+                             <CardDescription>{profile.name}</CardDescription>
+                              <div className="flex items-center gap-2 mt-2">
+                                 <FileText className="h-4 w-4 text-muted-foreground" />
+                                 <span className="text-sm text-muted-foreground">{profile.cnpj}</span>
+                            </div>
+                        </div>
+                    </div>
                 </CardHeader>
-                <CardContent>
-                    <p>TODO: Mostrar um resumo dos dados aqui.</p>
+                <CardContent className="space-y-6">
+                     <Separator />
+                     <div className="space-y-4">
+                        <h3 className="text-lg font-semibold">Contato e Endereço</h3>
+                        <div className="grid md:grid-cols-2 gap-4 text-sm">
+                            <div className="flex items-center gap-3">
+                                <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                <span>{profile.email}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                <span>{profile.address}</span>
+                            </div>
+                        </div>
+                     </div>
+                      <Separator />
+                     <div className="space-y-4">
+                        <h3 className="text-lg font-semibold">Responsável Legal</h3>
+                        <div className="grid md:grid-cols-2 gap-4 text-sm">
+                             <div className="flex items-center gap-3">
+                                <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                <span>{profile.responsible?.name || 'Não informado'}</span>
+                            </div>
+                             <div className="flex items-center gap-3">
+                                <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                <span>CPF: {profile.responsible?.cpf || 'Não informado'}</span>
+                            </div>
+                        </div>
+                     </div>
+
+                    <Separator />
+                     <div className="space-y-4">
+                        <h3 className="text-lg font-semibold flex items-center gap-2">
+                            Documentos Enviados
+                        </h3>
+                        <div className="space-y-4">
+                            {responsibleDocumentProps.url ? (
+                                 <div className="flex flex-wrap items-center justify-between gap-2 p-3 border rounded-md">
+                                    <div className='flex items-center gap-2'>
+                                        {getDocStatusIcon(responsibleDocumentProps.status)}
+                                        <span className={cn('font-medium text-sm', {'text-muted-foreground line-through': responsibleDocumentProps.status === 'rejected'})}>
+                                            Documento do Responsável
+                                        </span>
+                                         <Badge variant="outline" className="capitalize">{getDocStatusLabel(responsibleDocumentProps.status)}</Badge>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <a href={responsibleDocumentProps.url} target="_blank" rel="noopener noreferrer" className={cn(Button.styles({ variant: 'outline', size: 'sm' }))}>
+                                            <ExternalLink className="mr-2 h-4 w-4" /> Ver
+                                        </a>
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="text-sm text-muted-foreground">Documento do Responsável não enviado.</p>
+                            )}
+                            {cnpjCardProps.url ? (
+                                 <div className="flex flex-wrap items-center justify-between gap-2 p-3 border rounded-md">
+                                     <div className='flex items-center gap-2'>
+                                        {getDocStatusIcon(cnpjCardProps.status)}
+                                        <span className={cn('font-medium text-sm', {'text-muted-foreground line-through': cnpjCardProps.status === 'rejected'})}>
+                                            Cartão CNPJ
+                                        </span>
+                                         <Badge variant="outline" className="capitalize">{getDocStatusLabel(cnpjCardProps.status)}</Badge>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                         <a href={cnpjCardProps.url} target="_blank" rel="noopener noreferrer" className={cn(Button.styles({ variant: 'outline', size: 'sm' }))}>
+                                            <ExternalLink className="mr-2 h-4 w-4" /> Ver
+                                        </a>
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="text-sm text-muted-foreground">Cartão CNPJ não enviado.</p>
+                            )}
+                             {!responsibleDocumentProps.url && !cnpjCardProps.url && (
+                                 <p className="text-muted-foreground text-sm">Nenhum documento enviado.</p>
+                             )}
+                        </div>
+                    </div>
                 </CardContent>
                 <CardFooter>
                     <Button onClick={() => setCurrentStep(0)}>Editar Perfil</Button>

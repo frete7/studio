@@ -133,7 +133,7 @@ export default function CompanyDashboardPage() {
                                     <Button asChild variant="outline" className='w-full'>
                                         <Link href="/profile">
                                             <Edit className="mr-2 h-4 w-4" />
-                                            Editar Perfil
+                                            Visualizar e Editar Perfil
                                         </Link>
                                     </Button>
                                 </CardFooter>
