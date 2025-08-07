@@ -38,6 +38,8 @@ const orderDetailsSchema = z.object({
     tollTripScope: z.enum(['apenas_ida', 'apenas_volta', 'ida_e_volta']).optional(),
     needsTracker: z.boolean().default(false),
     trackerType: z.string().optional(),
+    loadingTimes: z.array(z.object({ value: z.string().min(1, "O horário não pode ser vazio.") })).optional(),
+    loadingOrder: z.enum(['chegada', 'nota', 'rota', 'agendamento']).optional(),
     cargoType: z.enum(['paletizado', 'granel', 'caixas', 'sacos', 'outros'], { required_error: "Selecione o tipo de carga." }),
     isDangerousCargo: z.boolean().default(false),
     driverNeedsToHelp: z.boolean().default(false),
@@ -301,7 +303,7 @@ function LocationSelector({ nestName, label }: { nestName: string, label: string
 
 
 function StepRoute() {
-    const { control, formState: { errors } } = useFormContext();
+    const { control } = useFormContext();
     const { fields, append, remove } = useFieldArray({
         control,
         name: "destinations",
@@ -355,7 +357,7 @@ function StepRoute() {
     );
 }
 
-function ConditionalListInput({ controlName, switchName, label, placeholder }: { controlName: string, switchName?: string, label: string, placeholder: string }) {
+function ConditionalListInput({ controlName, switchName, label, placeholder, inputType = 'text' }: { controlName: string, switchName?: string, label: string, placeholder: string, inputType?: string }) {
     const { control } = useFormContext();
     const { fields, append, remove } = useFieldArray({ control, name: controlName });
     const switchValue = switchName ? useWatch({ control, name: switchName }) : true;
@@ -375,7 +377,7 @@ function ConditionalListInput({ controlName, switchName, label, placeholder }: {
                         render={({ field: itemField }) => (
                             <FormItem className="flex-1">
                                 <FormControl>
-                                    <Input placeholder={`${placeholder} #${index + 1}`} {...itemField} />
+                                    <Input type={inputType} placeholder={`${placeholder} #${index + 1}`} {...itemField} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
@@ -507,6 +509,39 @@ function StepOrderDetails() {
                     />
                  )}
             </div>
+
+            <div className="space-y-4">
+                <ConditionalListInput
+                    controlName="orderDetails.loadingTimes"
+                    label="Horário(s) de Carregamento"
+                    placeholder="Ex: 08:00"
+                    inputType='time'
+                />
+            </div>
+
+            <FormField
+                control={control}
+                name="orderDetails.loadingOrder"
+                render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Ordem de Carregamento</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecione a ordem" />
+                                </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                <SelectItem value="chegada">Ordem de Chegada</SelectItem>
+                                <SelectItem value="nota">Por Nota Fiscal</SelectItem>
+                                <SelectItem value="rota">Por Rota</SelectItem>
+                                <SelectItem value="agendamento">Agendamento Prévio</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
 
              <FormField
                 control={control}
@@ -722,39 +757,41 @@ function StepOrderDetails() {
                             <FormLabel>Formas de Pagamento</FormLabel>
                             <FormDescription>Selecione uma ou mais opções.</FormDescription>
                         </div>
-                        {paymentOptions.map((item) => (
-                            <FormField
-                            key={item.id}
-                            control={control}
-                            name="orderDetails.paymentMethods"
-                            render={({ field }) => {
-                                return (
-                                <FormItem
-                                    key={item.id}
-                                    className="flex flex-row items-start space-x-3 space-y-0"
-                                >
-                                    <FormControl>
-                                    <Checkbox
-                                        checked={field.value?.includes(item.id)}
-                                        onCheckedChange={(checked) => {
-                                        return checked
-                                            ? field.onChange([...(field.value || []), item.id])
-                                            : field.onChange(
-                                                field.value?.filter(
-                                                (value) => value !== item.id
+                        <div className="space-y-2">
+                            {paymentOptions.map((item) => (
+                                <FormField
+                                key={item.id}
+                                control={control}
+                                name="orderDetails.paymentMethods"
+                                render={({ field }) => {
+                                    return (
+                                    <FormItem
+                                        key={item.id}
+                                        className="flex flex-row items-center space-x-3 space-y-0"
+                                    >
+                                        <FormControl>
+                                        <Checkbox
+                                            checked={field.value?.includes(item.id)}
+                                            onCheckedChange={(checked) => {
+                                            return checked
+                                                ? field.onChange([...(field.value || []), item.id])
+                                                : field.onChange(
+                                                    field.value?.filter(
+                                                    (value) => value !== item.id
+                                                    )
                                                 )
-                                            )
-                                        }}
-                                    />
-                                    </FormControl>
-                                    <FormLabel className="font-normal">
-                                        {item.label}
-                                    </FormLabel>
-                                </FormItem>
-                                )
-                            }}
-                            />
-                        ))}
+                                            }}
+                                        />
+                                        </FormControl>
+                                        <FormLabel className="font-normal">
+                                            {item.label}
+                                        </FormLabel>
+                                    </FormItem>
+                                    )
+                                }}
+                                />
+                            ))}
+                        </div>
                         <FormMessage />
                     </FormItem>
                 )}
@@ -791,6 +828,8 @@ export default function AgregamentoClient({ companyId }: { companyId: string }) 
         benefits: [],
         paymentMethods: [],
         minimumVehicleAge: undefined,
+        loadingTimes: [],
+        loadingOrder: undefined,
       }
     }
   });
