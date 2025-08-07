@@ -372,6 +372,37 @@ export async function getPlans(): Promise<Plan[]> {
     }
 }
 
+export async function addPlan(data: Omit<Plan, 'id'>): Promise<Plan> {
+  try {
+    const docRef = await addDoc(collection(db, 'plans'), data);
+    return { id: docRef.id, ...data };
+  } catch (error: any) {
+    console.error("Error adding plan: ", error);
+    throw new Error(`Falha ao adicionar o plano: ${error.message}`);
+  }
+}
+
+export async function updatePlan(id: string, data: Partial<Omit<Plan, 'id'>>): Promise<void> {
+  if (!id) throw new Error('O ID do plano é obrigatório.');
+  try {
+    await updateDoc(doc(db, 'plans', id), data);
+  } catch (error: any) {
+    console.error("Error updating plan: ", error);
+    throw new Error(`Falha ao atualizar o plano: ${error.message}`);
+  }
+}
+
+export async function deletePlan(id: string): Promise<void> {
+  if (!id) throw new Error('O ID do plano é obrigatório.');
+  try {
+    await deleteDoc(doc(db, 'plans', id));
+  } catch (error: any) {
+    console.error("Error deleting plan: ", error);
+    throw new Error(`Falha ao deletar o plano: ${error.message}`);
+  }
+}
+
+
 // Freights Actions
 export type Freight = {
     id: string;
@@ -431,3 +462,5 @@ export async function deleteCollaborator(companyId: string, collaboratorId: stri
     throw new Error(`Falha ao deletar o colaborador: ${error.message}`);
   }
 }
+
+    

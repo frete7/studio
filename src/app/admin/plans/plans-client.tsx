@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query } from 'firebase/firestore';
+import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 import { useToast } from '@/hooks/use-toast';
@@ -20,7 +20,7 @@ import { Loader2, PlusCircle, Trash2, Edit } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
-import { type Plan } from '@/app/actions';
+import { type Plan, addPlan, updatePlan, deletePlan } from '@/app/actions';
 
 
 const formSchema = z.object({
@@ -108,10 +108,10 @@ export default function PlansClient() {
     setIsSubmitting(true);
     try {
       if (editingPlan) {
-        await updateDoc(doc(db, 'plans', editingPlan.id), data);
+        await updatePlan(editingPlan.id, data);
         toast({ title: 'Sucesso!', description: 'Plano atualizado.' });
       } else {
-        await addDoc(collection(db, 'plans'), data);
+        await addPlan(data);
         toast({ title: 'Sucesso!', description: 'Novo plano adicionado.' });
       }
       form.reset();
@@ -130,7 +130,7 @@ export default function PlansClient() {
 
   const handleDelete = async (id: string) => {
     try {
-        await deleteDoc(doc(db, 'plans', id));
+        await deletePlan(id);
         toast({ title: 'Sucesso!', description: 'Plano removido.' });
     } catch (error) {
          toast({
@@ -355,3 +355,5 @@ export default function PlansClient() {
     </Card>
   );
 }
+
+    
