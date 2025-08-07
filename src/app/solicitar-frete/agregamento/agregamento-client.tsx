@@ -75,7 +75,7 @@ const orderDetailsSchema = z.object({
 });
 
 const priceTableEntrySchema = z.object({
-    kmStart: z.coerce.number().min(0, "Km inicial deve ser positivo."),
+    kmStart: z.coerce.number().min(0, "Km inicial deve ser no mínimo 0."),
     kmEnd: z.coerce.number().positive("Km final deve ser maior que zero."),
     price: z.coerce.number().positive("O valor deve ser positivo."),
 }).refine(data => data.kmEnd > data.kmStart, {
@@ -86,7 +86,31 @@ const priceTableEntrySchema = z.object({
 const vehicleSelectionSchema = z.object({
     id: z.string(),
     name: z.string(),
-    priceTable: z.array(priceTableEntrySchema).optional(),
+    isPriceToCombine: z.boolean().default(false),
+    priceTable: z.array(priceTableEntrySchema)
+      .optional()
+      .refine((table) => {
+          if (!table || table.length < 2) return true;
+          for (let i = 1; i < table.length; i++) {
+              if (table[i].price < table[i - 1].price) {
+                  return false;
+              }
+          }
+          return true;
+      }, {
+          message: "O valor da faixa não pode ser menor que o da faixa anterior.",
+          // This path will not point to a specific field, but to the array itself.
+          // The error can be displayed at the bottom of the price table.
+          path: [],
+      }),
+}).refine(data => {
+    // If "Valor a Combinar" is checked, the price table is not required.
+    if (data.isPriceToCombine) return true;
+    // Otherwise, the price table must exist and have at least one entry.
+    return data.priceTable && data.priceTable.length > 0;
+}, {
+    message: "Defina pelo menos uma faixa de preço ou marque 'Valor a Combinar'.",
+    path: ['priceTable'], // Points to the array of price table entries
 });
 
 
@@ -102,9 +126,7 @@ const formSchema = z.object({
   }),
   requiredVehicles: z.array(vehicleSelectionSchema).refine(value => value.length > 0, {
     message: "Você deve selecionar pelo menos um tipo de veículo.",
-  }).refine(value => value.every(v => v.priceTable && v.priceTable.length > 0), {
-      message: "Todos os veículos selecionados devem ter uma tabela de preço definida.",
-  }),
+  })
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -747,7 +769,7 @@ function StepOrderDetails() {
                 render={({ field }) => (
                     <FormItem>
                         <FormLabel>Idade mínima do veículo para agregar (Opcional)</FormLabel>
-                         <Select onValueChange={field.onChange} value={field.value}>
+                         <Select onValueChange={field.onChange} value={field.value || 'none'}>
                             <FormControl>
                             <SelectTrigger>
                                 <SelectValue placeholder="Selecione o ano" />
@@ -827,15 +849,16 @@ function StepOrderDetails() {
 }
 
 function PriceTable({ vehicleIndex }: { vehicleIndex: number }) {
-    const { control, getValues, setValue } = useFormContext();
+    const { control, getValues } = useFormContext();
     const { fields, append, remove } = useFieldArray({
         control,
         name: `requiredVehicles.${vehicleIndex}.priceTable`,
     });
     
     const handleAddRow = () => {
-        const lastRow = fields.length > 0 ? getValues(`requiredVehicles.${vehicleIndex}.priceTable`)[fields.length - 1] : null;
-        const newStartKm = lastRow && lastRow.kmEnd ? lastRow.kmEnd + 1 : 0;
+        const tableData = getValues(`requiredVehicles.${vehicleIndex}.priceTable`);
+        const lastRow = tableData && tableData.length > 0 ? tableData[tableData.length - 1] : null;
+        const newStartKm = lastRow && lastRow.kmEnd ? Number(lastRow.kmEnd) + 1 : 0;
         append({ kmStart: newStartKm, kmEnd: '', price: '' });
     };
 
@@ -843,13 +866,14 @@ function PriceTable({ vehicleIndex }: { vehicleIndex: number }) {
         <div className="space-y-4 mt-4">
             <div className="space-y-2">
                 {fields.map((field, index) => (
-                    <div key={field.id} className="grid grid-cols-3 md:grid-cols-[1fr_1fr_1fr_auto] gap-2 items-center">
+                    <div key={field.id} className="grid grid-cols-3 md:grid-cols-[1fr_1fr_1fr_auto] gap-2 items-start">
                         <FormField
                             control={control}
                             name={`requiredVehicles.${vehicleIndex}.priceTable.${index}.kmStart`}
-                            render={({ field }) => (
+                            render={({ field: itemField }) => (
                                 <FormItem>
-                                    <FormControl><Input type="number" placeholder="Km inicial" {...field} readOnly={index > 0} /></FormControl>
+                                     {index === 0 && <FormLabel className="text-xs">De (km)</FormLabel>}
+                                    <FormControl><Input type="number" placeholder="Km inicial" {...itemField} readOnly={index > 0} /></FormControl>
                                     <FormMessage />
                                 </FormItem>
                             )}
@@ -857,9 +881,10 @@ function PriceTable({ vehicleIndex }: { vehicleIndex: number }) {
                          <FormField
                             control={control}
                             name={`requiredVehicles.${vehicleIndex}.priceTable.${index}.kmEnd`}
-                            render={({ field }) => (
+                            render={({ field: itemField }) => (
                                 <FormItem>
-                                    <FormControl><Input type="number" placeholder="Km final" {...field} /></FormControl>
+                                     {index === 0 && <FormLabel className="text-xs">Até (km)</FormLabel>}
+                                    <FormControl><Input type="number" placeholder="Km final" {...itemField} /></FormControl>
                                     <FormMessage />
                                 </FormItem>
                             )}
@@ -867,19 +892,29 @@ function PriceTable({ vehicleIndex }: { vehicleIndex: number }) {
                          <FormField
                             control={control}
                             name={`requiredVehicles.${vehicleIndex}.priceTable.${index}.price`}
-                            render={({ field }) => (
+                            render={({ field: itemField }) => (
                                 <FormItem>
-                                    <FormControl><Input type="number" placeholder="Valor (R$)" {...field} /></FormControl>
+                                    {index === 0 && <FormLabel className="text-xs">Valor (R$)</FormLabel>}
+                                    <FormControl><Input type="number" placeholder="Valor" {...itemField} /></FormControl>
                                     <FormMessage />
                                 </FormItem>
                             )}
                         />
-                        <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        <div className={index === 0 ? 'mt-6' : ''}>
+                          <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
                     </div>
                 ))}
             </div>
+             <FormField
+                control={control}
+                name={`requiredVehicles.${vehicleIndex}.priceTable`}
+                render={({ fieldState }) => (
+                  <FormMessage>{fieldState.error?.message}</FormMessage>
+                )}
+            />
             <Button type="button" variant="outline" size="sm" onClick={handleAddRow}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Adicionar Faixa
             </Button>
@@ -894,7 +929,7 @@ function StepVehicleAndBodywork({ allData }: { allData: any }) {
         name: "requiredVehicles"
     });
 
-    const { groupedBodyworks, groupedVehicleTypes, vehicleTypes, vehicleCategories } = allData;
+    const { groupedBodyworks, groupedVehicleTypes } = allData;
     const requiredBodyworks = watch('requiredBodyworks');
     const requiredVehicles = watch('requiredVehicles');
     const isVehicleSelectionEnabled = requiredBodyworks && requiredBodyworks.length > 0;
@@ -903,7 +938,7 @@ function StepVehicleAndBodywork({ allData }: { allData: any }) {
 
     const handleVehicleSelection = (vehicle: any, checked: boolean) => {
         if (checked) {
-            append({ id: vehicle.id, name: vehicle.name, priceTable: [] });
+            append({ id: vehicle.id, name: vehicle.name, isPriceToCombine: false, priceTable: [] });
         } else {
             const indexToRemove = fields.findIndex(field => (field as any).id === vehicle.id);
             if (indexToRemove !== -1) {
@@ -948,7 +983,7 @@ function StepVehicleAndBodywork({ allData }: { allData: any }) {
                                                                     checked={field.value?.includes(item.id)}
                                                                     onCheckedChange={(checked) => {
                                                                         return checked
-                                                                            ? field.onChange([...field.value, item.id])
+                                                                            ? field.onChange([...(field.value || []), item.id])
                                                                             : field.onChange(field.value?.filter((value) => value !== item.id))
                                                                     }}
                                                                 />
@@ -1009,16 +1044,38 @@ function StepVehicleAndBodywork({ allData }: { allData: any }) {
             {fields.length > 0 && (
                 <div className="space-y-4">
                     <h3 className="font-semibold text-lg">Tabelas de Preço</h3>
-                     {fields.map((field, index) => (
-                        <Card key={field.id} className="p-4">
-                             <CardHeader className="flex flex-row justify-between items-center p-2">
-                                <p className="font-medium flex items-center gap-2"><Truck className="h-5 w-5 text-primary" /> {(field as any).name}</p>
-                            </CardHeader>
-                            <CardContent className="p-2">
-                                <PriceTable vehicleIndex={index} />
-                            </CardContent>
-                        </Card>
-                    ))}
+                     {fields.map((field, index) => {
+                        const isToCombine = watch(`requiredVehicles.${index}.isPriceToCombine`);
+                        return (
+                            <Card key={field.id} className="p-4">
+                                <CardHeader className="flex flex-row justify-between items-start p-2">
+                                    <p className="font-medium flex items-center gap-2"><Truck className="h-5 w-5 text-primary" /> {(field as any).name}</p>
+                                    <FormField
+                                        control={control}
+                                        name={`requiredVehicles.${index}.isPriceToCombine`}
+                                        render={({ field: switchField }) => (
+                                            <FormItem className="flex items-center gap-2 space-y-0">
+                                                <FormControl><Switch checked={switchField.value} onCheckedChange={switchField.onChange} /></FormControl>
+                                                <FormLabel className="text-sm font-normal">Valor a Combinar</FormLabel>
+                                            </FormItem>
+                                        )}
+                                    />
+                                </CardHeader>
+                                {!isToCombine && (
+                                    <CardContent className="p-2">
+                                        <PriceTable vehicleIndex={index} />
+                                    </CardContent>
+                                )}
+                                 <FormField
+                                    control={control}
+                                    name={`requiredVehicles.${index}`}
+                                    render={({ fieldState }) => (
+                                        <FormMessage className="text-center mt-2">{fieldState.error?.root?.message}</FormMessage>
+                                    )}
+                                />
+                            </Card>
+                        )
+                     })}
                 </div>
             )}
         </div>
@@ -1041,6 +1098,7 @@ export default function AgregamentoClient({ companyId }: { companyId: string }) 
   
   const methods = useForm<FormData>({
     resolver: zodResolver(formSchema),
+    mode: 'onBlur',
     defaultValues: {
       responsibleCollaborators: [],
       origin: { state: '', city: '' },
@@ -1058,13 +1116,15 @@ export default function AgregamentoClient({ companyId }: { companyId: string }) 
         specificCourses: [],
         benefits: [],
         paymentMethods: [],
-        minimumVehicleAge: '',
+        minimumVehicleAge: 'none',
         loadingTimes: [],
         trackerType: '',
         tollTripScope: undefined,
         driverHelpScope: undefined,
         whoPaysHelper: undefined,
         loadingOrder: undefined,
+        cargoType: undefined,
+        whoPaysToll: undefined,
       },
       requiredBodyworks: [],
       requiredVehicles: [],
