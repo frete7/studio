@@ -64,9 +64,9 @@ export async function updateDocumentStatus(userId: string, docField: 'responsibl
         
         await updateDoc(userDocRef, updatePayload);
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error updating document status: ", error);
-        throw new Error('Failed to update document status.');
+        throw new Error(`Falha ao atualizar o status do documento: ${error.code || error.message}`);
     }
 }
 
@@ -81,9 +81,9 @@ export async function assignPlanToUser(userId: string, planId: string, planName:
       activePlanId: planId,
       activePlanName: planName,
      });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error assigning plan to user: ", error);
-    throw new Error('Falha ao atribuir o plano ao usuário.');
+    throw new Error(`Falha ao atribuir o plano ao usuário: ${error.code || error.message}`);
   }
 }
 
@@ -101,24 +101,22 @@ export async function updateUserByAdmin(userId: string, data: any): Promise<void
         
         const userData = userDoc.data();
         
-        // Build the update object safely
         const updateData = {
             name: data.name,
             tradingName: data.tradingName,
             cnpj: data.cnpj,
             address: data.address,
-            // Ensure responsible object exists before merging
             responsible: {
-                ...(userData.responsible || {}), // Keep existing responsible data
+                ...(userData.responsible || {}),
                 name: data.responsibleName,
                 cpf: data.responsibleCpf,
             }
         };
 
         await updateDoc(userDocRef, updateData);
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error updating user by admin: ", error);
-        throw new Error('Falha ao atualizar os dados do usuário.');
+        throw new Error(`Falha ao atualizar os dados do usuário: ${error.code || error.message}`);
     }
 }
 
@@ -149,9 +147,9 @@ export async function addVehicleType(data: Omit<VehicleType, 'id'>): Promise<Veh
     const vehicleTypesCollection = collection(db, 'vehicle_types');
     const docRef = await addDoc(vehicleTypesCollection, data);
     return { id: docRef.id, ...data };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error adding vehicle type: ", error);
-    throw new Error('Falha ao adicionar o tipo de veículo.');
+    throw new Error(`Falha ao adicionar o tipo de veículo: ${error.code || error.message}`);
   }
 }
 
@@ -162,9 +160,9 @@ export async function updateVehicleType(id: string, data: Partial<Omit<VehicleTy
   try {
     const vehicleTypeDoc = doc(db, 'vehicle_types', id);
     await updateDoc(vehicleTypeDoc, data);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error updating vehicle type: ", error);
-    throw new Error('Falha ao atualizar o tipo de veículo.');
+    throw new Error(`Falha ao atualizar o tipo de veículo: ${error.code || error.message}`);
   }
 }
 
@@ -175,9 +173,9 @@ export async function deleteVehicleType(id: string): Promise<void> {
   try {
     const vehicleTypeDoc = doc(db, 'vehicle_types', id);
     await deleteDoc(vehicleTypeDoc);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error deleting vehicle type: ", error);
-    throw new Error('Falha ao deletar o tipo de veículo.');
+    throw new Error(`Falha ao deletar o tipo de veículo: ${error.code || error.message}`);
   }
 }
 
@@ -207,9 +205,9 @@ export async function addVehicleCategory(data: Omit<VehicleCategory, 'id'>): Pro
     const categoriesCollection = collection(db, 'vehicle_categories');
     const docRef = await addDoc(categoriesCollection, data);
     return { id: docRef.id, ...data };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error adding vehicle category: ", error);
-    throw new Error('Falha ao adicionar a categoria.');
+    throw new Error(`Falha ao adicionar a categoria: ${error.code || error.message}`);
   }
 }
 
@@ -220,9 +218,9 @@ export async function updateVehicleCategory(id: string, data: Partial<VehicleCat
   try {
     const categoryDoc = doc(db, 'vehicle_categories', id);
     await updateDoc(categoryDoc, data);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error updating vehicle category: ", error);
-    throw new Error('Falha ao atualizar a categoria.');
+    throw new Error(`Falha ao atualizar a categoria: ${error.code || error.message}`);
   }
 }
 
@@ -233,9 +231,9 @@ export async function deleteVehicleCategory(id: string): Promise<void> {
   try {
     const categoryDoc = doc(db, 'vehicle_categories', id);
     await deleteDoc(categoryDoc);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error deleting vehicle category: ", error);
-    throw new Error('Falha ao deletar a categoria.');
+    throw new Error(`Falha ao deletar a categoria: ${error.code || error.message}`);
   }
 }
 
@@ -269,9 +267,9 @@ export async function addVehicle(data: Omit<Vehicle, 'id' | 'driverId'>): Promis
     try {
         const docRef = await addDoc(collection(db, 'vehicles'), data);
         return { id: docRef.id, ...data };
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error adding vehicle: ", error);
-        throw new Error("Falha ao adicionar o veículo.");
+        throw new Error(`Falha ao adicionar o veículo: ${error.code || error.message}`);
     }
 }
 
@@ -281,9 +279,9 @@ export async function updateVehicle(id: string, data: Partial<Omit<Vehicle, 'id'
     }
     try {
         await updateDoc(doc(db, 'vehicles', id), data);
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error updating vehicle: ", error);
-        throw new Error("Falha ao atualizar o veículo.");
+        throw new Error(`Falha ao atualizar o veículo: ${error.code || error.message}`);
     }
 }
 
@@ -293,9 +291,9 @@ export async function deleteVehicle(id: string): Promise<void> {
     }
     try {
         await deleteDoc(doc(db, 'vehicles', id));
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error deleting vehicle: ", error);
-        throw new Error("Falha ao deletar o veículo.");
+        throw new Error(`Falha ao deletar o veículo: ${error.code || error.message}`);
     }
 }
 
