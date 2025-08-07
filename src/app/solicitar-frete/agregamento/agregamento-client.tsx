@@ -51,6 +51,7 @@ const orderDetailsSchema = z.object({
     specificCourses: z.array(z.object({ value: z.string().min(1, "O nome do curso não pode ser vazio.") })).optional(),
     minimumVehicleAge: z.string().optional(),
     paymentMethods: z.string().optional(),
+    benefits: z.array(z.object({ value: z.string().min(1, "O benefício não pode ser vazio.") })).optional(),
 }).refine(data => data.whoPaysToll ? data.tollTripScope : true, {
     message: "Selecione o trecho do pedágio.",
     path: ['tollTripScope'],
@@ -348,15 +349,17 @@ function StepRoute() {
     );
 }
 
-function ConditionalListInput({ controlName, switchName, label, placeholder }: { controlName: string, switchName: string, label: string, placeholder: string }) {
+function ConditionalListInput({ controlName, switchName, label, placeholder }: { controlName: string, switchName?: string, label: string, placeholder: string }) {
     const { control } = useFormContext();
     const { fields, append, remove } = useFieldArray({ control, name: controlName });
-    const switchValue = useWatch({ control, name: switchName });
+    const switchValue = switchName ? useWatch({ control, name: switchName }) : true;
 
     if (!switchValue) return null;
 
+    const containerClass = switchName ? "pl-4 border-l-2 ml-2" : "";
+
     return (
-        <div className="space-y-4 pl-4 border-l-2 ml-2">
+        <div className={`space-y-4 ${containerClass}`}>
             <FormLabel>{label}</FormLabel>
             {fields.map((field, index) => (
                 <div key={field.id} className="flex items-center gap-2">
@@ -681,6 +684,15 @@ function StepOrderDetails() {
                     </FormItem>
                 )}
             />
+            
+            <div className="space-y-2">
+                <ConditionalListInput
+                    controlName="orderDetails.benefits"
+                    label="Benefícios (Opcional)"
+                    placeholder="Ex: Vale Combustível"
+                />
+            </div>
+            
             <FormField
                 control={control}
                 name="orderDetails.paymentMethods"
@@ -721,6 +733,7 @@ export default function AgregamentoClient({ companyId }: { companyId: string }) 
         driverNeedsANTT: false,
         needsSpecificCourses: false,
         specificCourses: [],
+        benefits: [],
       }
     }
   });
