@@ -7,8 +7,6 @@ type UserDetailsPageProps = {
     }
 }
 
-export default function UserDetailsPage({ params }: UserDetailsPageProps) {
-    const { userId } = params;
-    
+export default function UserDetailsPage({ params: { userId } }: UserDetailsPageProps) {
     return <UserDetailsClient userId={userId} />;
 }
