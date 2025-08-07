@@ -26,7 +26,12 @@ export async function updateUserStatus(uid: string, status: string) {
     throw new Error('UID do usuário e novo status são obrigatórios.');
   }
   const userDocRef = doc(db, 'users', uid);
-  await updateDoc(userDocRef, { status: status });
+  try {
+    await updateDoc(userDocRef, { status: status });
+  } catch (error: any) {
+     console.error("Error updating user status: ", error);
+     throw new Error(`Falha ao atualizar o status do usuário: ${error.code || error.message}`);
+  }
 }
 
 
@@ -45,6 +50,7 @@ export async function updateDocumentStatus(userId: string, docField: 'responsibl
         const userData = userDoc.data();
         const updatePayload: { [key: string]: any } = {};
         
+        // Helper function to safely get and structure document data
         const getDocumentData = (docData: any) => {
              if (typeof docData === 'string') {
                 return { url: docData, status: 'pending' }; 
@@ -55,10 +61,11 @@ export async function updateDocumentStatus(userId: string, docField: 'responsibl
         if (docField === 'responsible.document') {
             const responsibleData = userData.responsible || {};
             const documentData = getDocumentData(responsibleData.document);
+            // Ensure we update the nested object correctly
             updatePayload['responsible.document'] = { ...documentData, status: docStatus };
-
         } else { 
              const cnpjCardData = getDocumentData(userData.cnpjCard);
+             // Ensure we update the nested object correctly
             updatePayload['cnpjCard'] = { ...cnpjCardData, status: docStatus };
         }
         
@@ -101,13 +108,15 @@ export async function updateUserByAdmin(userId: string, data: any): Promise<void
         
         const userData = userDoc.data();
         
+        // Create the update object safely
         const updateData = {
             name: data.name,
             tradingName: data.tradingName,
             cnpj: data.cnpj,
             address: data.address,
+            // Safely merge responsible data
             responsible: {
-                ...(userData.responsible || {}),
+                ...(userData.responsible || {}), // Start with existing data or an empty object
                 name: data.responsibleName,
                 cpf: data.responsibleCpf,
             }
