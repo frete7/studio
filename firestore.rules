@@ -4,34 +4,69 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     function isAdmin() {
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      // Check if the user is authenticated and has the 'admin' role.
+      return request.auth != null && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    match /users/{userId} {
-      allow read: if request.auth.uid == userId || isAdmin();
-      allow create: if request.auth.uid == userId || isAdmin();
-      allow update: if request.auth.uid == userId || isAdmin();
-      allow delete: if isAdmin();
+    function isAuthenticated() {
+      // Check if the user is signed in.
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      // Check if the user is the owner of the document.
+      return request.auth.uid == userId;
+    }
 
-      // Permite que a empresa gerencie seus próprios colaboradores
+    // Rules for the 'users' collection.
+    match /users/{userId} {
+      allow read, update: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) || isAdmin(); 
+      allow delete: if isAdmin();
+      
+      // Rules for the 'collaborators' subcollection within a user document.
       match /collaborators/{collaboratorId} {
-        allow read, write: if request.auth.uid == userId || isAdmin();
+          allow read, write: if isOwner(userId) || isAdmin();
       }
     }
 
+    // Rules for the 'freights' collection.
     match /freights/{freightId} {
       allow read: if true;
-      allow create: if request.auth != null;
-      allow update, delete: if isAdmin() || (request.auth != null && resource.data.companyId == request.auth.uid);
+      allow create: if isAuthenticated();
+      // Allow update/delete by owner or admin
+      allow update, delete: if isAdmin() || (isAuthenticated() && resource.data.companyId == request.auth.uid);
     }
 
-    // Regra curinga para outras coleções (somente admin pode escrever)
-    // NOTA: Esta regra não se aplica a subcoleções de 'users' ou 'freights' porque
-    // elas já foram especificadas acima.
-    match /{path=**} {
-       allow read: if true;
-       allow write: if isAdmin();
+    // Rules for 'plans' collection
+    match /plans/{planId} {
+        allow read: if isAuthenticated();
+        allow write: if isAdmin();
+    }
+    
+    // Rules for 'body_types' collection
+    match /body_types/{bodyTypeId} {
+        allow read: if isAuthenticated();
+        allow write: if isAdmin();
+    }
+
+    // Rules for 'vehicle_categories' collection
+    match /vehicle_categories/{categoryId} {
+        allow read: if isAuthenticated();
+        allow write: if isAdmin();
+    }
+
+    // Rules for 'vehicle_types' collection
+    match /vehicle_types/{typeId} {
+        allow read: if isAuthenticated();
+        allow write: if isAdmin();
+    }
+
+    // Rules for 'vehicles' collection
+    match /vehicles/{vehicleId} {
+        allow read: if isAuthenticated();
+        allow write: if isAdmin();
     }
   }
 }
