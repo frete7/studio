@@ -66,8 +66,6 @@ const profileSchema = z.object({
     // Etapa 3
     companyLogo: z.any().optional(),
     // Etapa 4
-    responsibleName: z.string().min(3, "Nome do responsável é obrigatório."),
-    responsibleCpf: z.string().refine(validateCPF, "CPF inválido."),
     responsibleDocument: fileSchema.optional(),
     cnpjCard: fileSchema.optional(),
     // Etapa 5
@@ -80,7 +78,7 @@ const steps = [
     { id: 1, name: 'Dados da Empresa', fields: ['razaoSocial', 'nomeFantasia'] },
     { id: 2, name: 'Endereço', fields: ['cep', 'logradouro', 'numero', 'bairro', 'cidade', 'uf', 'complemento'] },
     { id: 3, name: 'Identidade Visual', fields: ['companyLogo'] },
-    { id: 4, name: 'Documentos', fields: ['responsibleName', 'responsibleCpf', 'responsibleDocument', 'cnpjCard'] },
+    { id: 4, name: 'Documentos', fields: ['responsibleDocument', 'cnpjCard'] },
     { id: 5, name: 'Finalização', fields: ['isCarrier'] },
 ];
 
@@ -108,8 +106,6 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
             cidade: profile.addressDetails?.cidade || '',
             uf: profile.addressDetails?.uf || '',
             companyLogo: null,
-            responsibleName: profile.responsible?.name || '',
-            responsibleCpf: profile.responsible?.cpf || '',
             responsibleDocument: null,
             cnpjCard: null,
             isCarrier: profile.isCarrier ? 'yes' : 'no',
@@ -142,10 +138,8 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
                     cidade: data.cidade,
                     uf: data.uf,
                 },
-                responsible: {
+                responsible: { // Preserve existing responsible data
                     ...profile.responsible,
-                    name: data.responsibleName,
-                    cpf: data.responsibleCpf,
                 },
                 isCarrier: data.isCarrier === 'yes',
                 // Only change status if it was incomplete
@@ -224,7 +218,7 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
 
     const prevStep = () => {
         if (currentStep > 0) {
-            setCurrentStep(step => step + 1);
+            setCurrentStep(step => step - 1);
         }
     };
 
@@ -283,7 +277,7 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
                                 <div className="relative">
                                     <label htmlFor={name} className={cn("relative flex flex-col items-center justify-center w-full border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted/75", preview ? "h-48" : "h-32")}>
                                         {preview ? (
-                                            <Image src={preview} alt="Pré-visualização" layout="fill" objectFit="contain" className="rounded-lg p-2" />
+                                            <Image src={preview} alt="Pré-visualização" fill objectFit="contain" className="rounded-lg p-2" />
                                         ) : (
                                             <div className="flex flex-col items-center justify-center pt-5 pb-6">
                                                 <UploadCloud className="w-8 h-8 mb-4 text-muted-foreground" />
@@ -526,18 +520,14 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
                         </div>
                          {/* ETAPA 4 */}
                         <div className={cn("space-y-6", currentStep !== 3 && "hidden")}>
-                             <FormField
-                                control={control}
-                                name="responsibleName"
-                                render={({ field }) => (<FormItem><FormLabel>Nome Completo do Responsável</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                                )}
-                            />
-                             <FormField
-                                control={control}
-                                name="responsibleCpf"
-                                render={({ field }) => (<FormItem><FormLabel>CPF do Responsável</FormLabel><FormControl><Input placeholder="000.000.000-00" {...field} /></FormControl><FormMessage /></FormItem>
-                                )}
-                            />
+                             <div className="space-y-2">
+                                <Label>Nome do Responsável</Label>
+                                <p className="text-sm text-muted-foreground p-3 border rounded-md">{profile.responsible?.name || 'Não informado'}</p>
+                            </div>
+                             <div className="space-y-2">
+                                <Label>CPF do Responsável</Label>
+                                <p className="text-sm text-muted-foreground p-3 border rounded-md">{profile.responsible?.cpf || 'Não informado'}</p>
+                            </div>
                              <FileInput name="responsibleDocument" label="Documento do Responsável (Frente e Verso)" description="RG ou CNH. PNG, JPG, PDF (MAX. 5MB)" existingFile={profile.responsible?.document} />
                              <FileInput name="cnpjCard" label="Cartão CNPJ" description="Cartão CNPJ da empresa. PNG, JPG, PDF (MAX. 5MB)" existingFile={profile.cnpjCard} />
                         </div>
