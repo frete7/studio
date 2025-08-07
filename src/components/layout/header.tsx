@@ -215,7 +215,7 @@ export default function Header() {
           ))}
         </nav>
         <div className="hidden md:flex items-center gap-4">
-            {userRole !== 'company' && (
+            {!isLoading && userRole !== 'company' && (
                 <Button asChild>
                     <Link href="/fretes/solicitar">
                         Solicitar Frete
@@ -250,7 +250,7 @@ export default function Header() {
                       {link.label}
                     </Link>
                   ))}
-                  {userRole !== 'company' && (
+                  {!isLoading && userRole !== 'company' && (
                     <Link href="/fretes/solicitar" className="font-semibold text-primary" onClick={() => setIsOpen(false)}>
                         Solicitar Frete
                     </Link>
