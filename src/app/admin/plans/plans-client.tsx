@@ -34,9 +34,9 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-export default function PlansClient() {
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+export default function PlansClient({ initialData }: { initialData: Plan[] }) {
+  const [plans, setPlans] = useState<Plan[]>(initialData);
+  const [isLoading, setIsLoading] = useState(false); // O loading inicial é tratado no servidor
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
@@ -44,7 +44,7 @@ export default function PlansClient() {
   const { toast } = useToast();
 
   useEffect(() => {
-    setIsLoading(true);
+    // Apenas escuta por atualizações em tempo real, não faz o fetch inicial
     const q = query(collection(db, 'plans'));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
         const data: Plan[] = [];
@@ -52,15 +52,13 @@ export default function PlansClient() {
             data.push({ ...doc.data(), id: doc.id } as Plan);
         });
         setPlans(data);
-        setIsLoading(false);
     }, (error) => {
-        console.error("Error fetching plans: ", error);
+        console.error("Error fetching plans in real-time: ", error);
         toast({
             variant: "destructive",
-            title: "Erro ao buscar dados",
-            description: "Verifique suas permissões ou tente novamente mais tarde."
+            title: "Erro de Sincronização",
+            description: "Não foi possível atualizar os dados em tempo real."
         });
-        setIsLoading(false);
     });
 
     return () => unsubscribe();
@@ -355,5 +353,3 @@ export default function PlansClient() {
     </Card>
   );
 }
-
-    
