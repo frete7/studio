@@ -1,0 +1,606 @@
+
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useForm, type SubmitHandler } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { collection, onSnapshot, query } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { cva } from 'class-variance-authority';
+
+import { addCollaborator, updateCollaborator, deleteCollaborator, getCollaboratorStats, getFreightsByCollaborator, type Collaborator, type CollaboratorStats, type Freight, updateFreightStatus } from '@/app/actions';
+import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Loader2, PlusCircle, Trash2, Edit, User, BarChart, Package, PackageCheck, PackageSearch } from 'lucide-react';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Badge } from '@/components/ui/badge';
+
+const formSchema = z.object({
+  name: z.string().min(3, { message: 'O nome deve ter pelo menos 3 caracteres.' }),
+  internalId: z.string().optional(),
+  cpf: z.string().min(14, { message: 'CPF inválido.' }).max(14, { message: 'CPF inválido.' }),
+  department: z.string().min(2, { message: 'O setor é obrigatório.' }),
+  phone: z.string().min(14, { message: 'Telefone inválido.' }), // (XX) XXXXX-XXXX
+  confirmPhone: z.string().min(14, { message: 'Confirmação inválida.' }),
+}).refine(data => data.phone === data.confirmPhone, {
+    message: "Os telefones não coincidem.",
+    path: ["confirmPhone"],
+});
+
+type FormData = z.infer<typeof formSchema>;
+
+const handleMask = (value: string, maskType: 'cpf' | 'phone') => {
+    const unmasked = value.replace(/\D/g, '');
+    if (maskType === 'cpf') {
+      return unmasked
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+        .substring(0, 14);
+    }
+    if (maskType === 'phone') {
+      if (unmasked.length > 10) { // Celular
+        return unmasked
+          .replace(/(\d{2})(\d)/, '($1) $2')
+          .replace(/(\d{5})(\d)/, '$1-$2')
+          .substring(0, 15);
+      } else { // Fixo
+        return unmasked
+          .replace(/(\d{2})(\d)/, '($1) $2')
+          .replace(/(\d{4})(\d)/, '$1-$2')
+          .substring(0, 14);
+      }
+    }
+    return value;
+};
+
+
+const freightTypeVariants = cva(
+  "",
+  {
+    variants: {
+      freightType: {
+        comum: "border-transparent bg-sky-500 text-white hover:bg-sky-600",
+        agregamento: "border-transparent bg-blue-500 text-white hover:bg-blue-600",
+        "frete-completo": "border-transparent bg-green-500 text-white hover:bg-green-600",
+        "frete-retorno": "border-transparent bg-orange-500 text-white hover:bg-orange-600",
+      },
+    },
+    defaultVariants: {
+      freightType: "comum",
+    },
+  }
+)
+
+export default function CollaboratorsClient({ companyId }: { companyId: string }) {
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
+  const [editingCollaborator, setEditingCollaborator] = useState<Collaborator | null>(null);
+  const [viewingCollaborator, setViewingCollaborator] = useState<Collaborator | null>(null);
+  const [stats, setStats] = useState<CollaboratorStats | null>(null);
+  const [isStatsLoading, setIsStatsLoading] = useState(false);
+  const [isFreightListOpen, setIsFreightListOpen] = useState(false);
+  const [collaboratorFreights, setCollaboratorFreights] = useState<Freight[]>([]);
+  const [isFreightsLoading, setIsFreightsLoading] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    setIsLoading(true);
+    if (!companyId) {
+        setIsLoading(false);
+        return;
+    };
+    
+    const collaboratorsCollection = collection(db, 'users', companyId, 'collaborators');
+    const q = query(collaboratorsCollection);
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const data: Collaborator[] = [];
+        querySnapshot.forEach((doc) => {
+            data.push({ ...doc.data(), id: doc.id } as Collaborator);
+        });
+        setCollaborators(data);
+        setIsLoading(false);
+    }, (error) => {
+        console.error("Error fetching collaborators: ", error);
+        toast({
+            variant: "destructive",
+            title: "Erro ao buscar colaboradores",
+            description: "Não foi possível carregar a lista de colaboradores."
+        });
+        setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [companyId, toast]);
+  
+   useEffect(() => {
+    if (viewingCollaborator) {
+      fetchCollaboratorStats(viewingCollaborator.id);
+    }
+  }, [viewingCollaborator, companyId]);
+
+  const fetchCollaboratorStats = async (collaboratorId: string) => {
+    setIsStatsLoading(true);
+    setStats(null);
+    try {
+      const result = await getCollaboratorStats(companyId, collaboratorId);
+      setStats(result);
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao buscar estatísticas',
+        description: error instanceof Error ? error.message : 'Ocorreu um erro.',
+      });
+    } finally {
+      setIsStatsLoading(false);
+    }
+  };
+  
+  const fetchCollaboratorFreights = async (collaboratorId: string) => {
+     if (!viewingCollaborator) return;
+    setIsFreightListOpen(true);
+    setIsFreightsLoading(true);
+    try {
+        const freights = await getFreightsByCollaborator(companyId, collaboratorId);
+        setCollaboratorFreights(freights);
+    } catch(error) {
+         toast({
+            variant: 'destructive',
+            title: 'Erro ao buscar fretes',
+            description: error instanceof Error ? error.message : 'Ocorreu um erro.',
+          });
+    } finally {
+        setIsFreightsLoading(false);
+    }
+  }
+
+  const form = useForm<FormData>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: '',
+      internalId: '',
+      cpf: '',
+      department: '',
+      phone: '',
+      confirmPhone: ''
+    },
+  });
+
+  const handleEditClick = (collaborator: Collaborator) => {
+    setEditingCollaborator(collaborator);
+    form.reset({
+      name: collaborator.name,
+      internalId: collaborator.internalId || '',
+      cpf: collaborator.cpf,
+      department: collaborator.department,
+      phone: collaborator.phone,
+      confirmPhone: collaborator.phone,
+    });
+    setIsFormDialogOpen(true);
+  };
+
+  const handleAddNewClick = () => {
+    setEditingCollaborator(null);
+    form.reset({
+        name: '',
+        internalId: '',
+        cpf: '',
+        department: '',
+        phone: '',
+        confirmPhone: ''
+    });
+    setIsFormDialogOpen(true);
+  };
+  
+  const handleViewFreightsClick = async (collaborator: Collaborator) => {
+    setViewingCollaborator(collaborator);
+    await fetchCollaboratorFreights(collaborator.id);
+  }
+
+  const handleUpdateFreightStatus = async (freightId: string, status: Freight['status']) => {
+      try {
+          await updateFreightStatus(freightId, status);
+          toast({
+              title: "Sucesso!",
+              description: "Status do frete atualizado."
+          });
+          // Refresh the list of freights for the current collaborator
+          if(viewingCollaborator) {
+             await fetchCollaboratorFreights(viewingCollaborator.id);
+             await fetchCollaboratorStats(viewingCollaborator.id);
+          }
+      } catch (error) {
+          toast({
+            variant: 'destructive',
+            title: 'Erro ao atualizar status',
+            description: error instanceof Error ? error.message : 'Ocorreu um erro.',
+          });
+      }
+  }
+
+
+  const onSubmit: SubmitHandler<FormData> = async (data) => {
+    setIsSubmitting(true);
+    const { confirmPhone, ...collaboratorData } = data;
+    try {
+      if (editingCollaborator) {
+        await updateCollaborator(companyId, editingCollaborator.id, collaboratorData);
+        toast({ title: 'Sucesso!', description: 'Colaborador atualizado.' });
+      } else {
+        await addCollaborator(companyId, collaboratorData);
+        toast({ title: 'Sucesso!', description: 'Novo colaborador adicionado.' });
+      }
+      form.reset();
+      setIsFormDialogOpen(false);
+      setEditingCollaborator(null);
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao salvar',
+        description: error instanceof Error ? error.message : 'Ocorreu um erro.',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteCollaborator(companyId, id);
+      toast({ title: 'Sucesso!', description: 'Colaborador removido.' });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao remover',
+        description: error instanceof Error ? error.message : 'Ocorreu um erro.',
+      });
+    }
+  };
+
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      );
+    }
+
+    if (collaborators.length === 0) {
+      return (
+        <div className="text-center text-muted-foreground py-8">
+            <p>Nenhum colaborador cadastrado ainda.</p>
+            <Button onClick={handleAddNewClick} className="mt-4">
+                 <PlusCircle className="mr-2 h-4 w-4" />
+                 Adicionar Primeiro Colaborador
+            </Button>
+        </div>
+      );
+    }
+
+    return (
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Nome</TableHead>
+            <TableHead className="hidden sm:table-cell">Setor</TableHead>
+            <TableHead className="hidden md:table-cell">CPF</TableHead>
+            <TableHead className="hidden md:table-cell">Telefone</TableHead>
+            <TableHead className="text-right">Ações</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {collaborators.map((c) => (
+            <TableRow key={c.id}>
+              <TableCell className="font-medium">
+                  <button onClick={() => setViewingCollaborator(c)} className="hover:underline text-primary font-semibold">
+                    {c.name}
+                  </button>
+              </TableCell>
+              <TableCell className="hidden sm:table-cell">{c.department}</TableCell>
+              <TableCell className="hidden md:table-cell">{c.cpf}</TableCell>
+              <TableCell className="hidden md:table-cell">{c.phone}</TableCell>
+              <TableCell className="text-right space-x-2">
+                <Button variant="outline" size="icon" onClick={() => handleEditClick(c)}>
+                  <Edit className="h-4 w-4" />
+                  <span className="sr-only">Editar</span>
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="icon">
+                      <Trash2 className="h-4 w-4" />
+                      <span className="sr-only">Remover</span>
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esta ação não pode ser desfeita. Isso irá remover permanentemente o colaborador.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleDelete(c.id)}>Sim, remover</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    );
+  };
+  
+  const StatCard = ({ title, value, icon, isLoading, onClick }: { title: string, value: string | number, icon: React.ReactNode, isLoading?: boolean, onClick?: () => void }) => (
+    <Card onClick={onClick} className={onClick ? 'cursor-pointer hover:bg-muted/50' : ''}>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">{title}</CardTitle>
+            {icon}
+        </CardHeader>
+        <CardContent>
+             {isLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+            ) : (
+                <div className="text-2xl font-bold">{value}</div>
+            )}
+        </CardContent>
+    </Card>
+  )
+  
+  const getStatusLabel = (status: Freight['status']): string => {
+    const labels = {
+        ativo: 'Ativo',
+        concluido: 'Concluído',
+        pendente: 'Pendente',
+        cancelado: 'Cancelado',
+    };
+    return labels[status] || 'N/A';
+  }
+  
+  const getStatusVariant = (status: Freight['status']) => {
+    switch (status) {
+      case 'ativo': return 'default';
+      case 'concluido': return 'secondary';
+      case 'pendente': return 'outline';
+      case 'cancelado': return 'destructive';
+      default: return 'secondary';
+    }
+  }
+  
+  const getFreightTypeLabel = (type: Freight['freightType']): string => {
+    const labels = {
+        'comum': 'Comum',
+        'agregamento': 'Agregamento',
+        'frete-completo': 'Completo',
+        'frete-retorno': 'Retorno',
+    };
+    return labels[type] || 'N/A';
+  }
+
+  return (
+    <>
+      <Dialog open={isFormDialogOpen} onOpenChange={setIsFormDialogOpen}>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Lista de Colaboradores</CardTitle>
+            {collaborators.length > 0 && (
+                <Button onClick={handleAddNewClick}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Adicionar Novo
+                </Button>
+            )}
+          </CardHeader>
+          <CardContent>
+            {renderContent()}
+          </CardContent>
+        </Card>
+        
+        <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+            <DialogTitle>{editingCollaborator ? 'Editar' : 'Adicionar'} Colaborador</DialogTitle>
+            </DialogHeader>
+            <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
+                <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Nome Completo</FormLabel>
+                    <FormControl><Input placeholder="Nome do colaborador" {...field} /></FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+                <div className="grid md:grid-cols-2 gap-4">
+                    <FormField
+                        control={form.control}
+                        name="cpf"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>CPF</FormLabel>
+                                <FormControl><Input 
+                                    placeholder="000.000.000-00" 
+                                    {...field}
+                                    onChange={(e) => field.onChange(handleMask(e.target.value, 'cpf'))}
+                                /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="department"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Setor Responsável</FormLabel>
+                                <FormControl><Input placeholder="Ex: Logística, Financeiro" {...field} /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
+                <div className="grid md:grid-cols-2 gap-4">
+                    <FormField
+                        control={form.control}
+                        name="phone"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Telefone (com DDD)</FormLabel>
+                                <FormControl><Input 
+                                    placeholder="(00) 00000-0000" 
+                                    {...field}
+                                    onChange={(e) => field.onChange(handleMask(e.target.value, 'phone'))} 
+                                /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="confirmPhone"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Confirmar Telefone</FormLabel>
+                                <FormControl><Input 
+                                    placeholder="Confirme o telefone" 
+                                    {...field}
+                                    onChange={(e) => field.onChange(handleMask(e.target.value, 'phone'))}
+                                /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
+                <FormField
+                control={form.control}
+                name="internalId"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>ID Interno (Opcional)</FormLabel>
+                    <FormControl><Input placeholder="ID ou código interno" {...field} /></FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+                <DialogFooter>
+                <DialogClose asChild>
+                    <Button type="button" variant="secondary">Cancelar</Button>
+                </DialogClose>
+                <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Salvar
+                </Button>
+                </DialogFooter>
+            </form>
+            </Form>
+        </DialogContent>
+      </Dialog>
+      
+       <Dialog open={!!viewingCollaborator} onOpenChange={(open) => !open && setViewingCollaborator(null)}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">Dashboard do Colaborador</DialogTitle>
+             <p className="text-muted-foreground pt-1">
+                Resumo de atividades de <span className="font-semibold text-primary">{viewingCollaborator?.name}</span>.
+            </p>
+          </DialogHeader>
+          <div className="py-4 space-y-6">
+             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <StatCard 
+                    title="Fretes Cadastrados" 
+                    value={stats?.totalFreights ?? 0} 
+                    icon={<BarChart className="h-4 w-4 text-muted-foreground" />} 
+                    isLoading={isStatsLoading}
+                    onClick={() => viewingCollaborator && handleViewFreightsClick(viewingCollaborator)}
+                />
+                <StatCard 
+                    title="Fretes Ativos" 
+                    value={stats?.activeFreights ?? 0} 
+                    icon={<PackageSearch className="h-4 w-4 text-muted-foreground" />} 
+                    isLoading={isStatsLoading}
+                />
+                <StatCard 
+                    title="Fretes Concluídos" 
+                    value={stats?.completedFreights ?? 0} 
+                    icon={<PackageCheck className="h-4 w-4 text-muted-foreground" />} 
+                    isLoading={isStatsLoading}
+                />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setViewingCollaborator(null)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+       <Dialog open={isFreightListOpen} onOpenChange={setIsFreightListOpen}>
+        <DialogContent className="sm:max-w-4xl">
+            <DialogHeader>
+                <DialogTitle className="text-2xl">Fretes de {viewingCollaborator?.name}</DialogTitle>
+            </DialogHeader>
+            <div className="py-4 max-h-[60vh] overflow-y-auto">
+                {isFreightsLoading ? (
+                     <div className="flex justify-center items-center h-48">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                ) : collaboratorFreights.length > 0 ? (
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Rota / ID</TableHead>
+                                <TableHead>Tipo</TableHead>
+                                <TableHead>Data</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead className="text-right">Ação</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {collaboratorFreights.map(freight => (
+                                <TableRow key={freight.id}>
+                                    <TableCell>
+                                        <div className="font-medium">{freight.origin.city} &rarr; {freight.destinations[0].city}</div>
+                                        <div className="text-sm text-muted-foreground">{freight.id}</div>
+                                    </TableCell>
+                                     <TableCell>
+                                        <Badge className={freightTypeVariants({ freightType: freight.freightType })}>{getFreightTypeLabel(freight.freightType)}</Badge>
+                                    </TableCell>
+                                     <TableCell>
+                                        {freight.createdAt ? new Date(freight.createdAt).toLocaleDateString('pt-BR') : 'N/A'}
+                                    </TableCell>
+                                    <TableCell>
+                                        <Badge variant={getStatusVariant(freight.status)}>{getStatusLabel(freight.status)}</Badge>
+                                    </TableCell>
+                                     <TableCell className="text-right">
+                                        {freight.status === 'ativo' && (
+                                            <Button size="sm" variant="outline" onClick={() => handleUpdateFreightStatus(freight.id, 'concluido')}>Concluir</Button>
+                                        )}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                ) : (
+                    <p className="text-center text-muted-foreground py-8">Nenhum frete encontrado para este colaborador.</p>
+                )}
+            </div>
+            <DialogFooter>
+                <Button onClick={() => setIsFreightListOpen(false)}>Fechar</Button>
+            </DialogFooter>
+        </DialogContent>
+       </Dialog>
+
+    </>
+  );
+}

@@ -62,8 +62,7 @@ const profileSchema = z.object({
     cidade: z.string().min(1, 'Cidade é obrigatória.'),
     uf: z.string().min(2, 'UF é obrigatório.'),
     // Etapa 3
-    companyLogo: z.any().refine((files) => files?.length > 0, "O logo da empresa é obrigatório.").refine((files) => files?.[0]?.size <= MAX_FILE_SIZE, `Tamanho máximo é 5MB.`)
-      .refine((files) => ACCEPTED_IMAGE_TYPES.includes(files?.[0]?.type), "Apenas .jpg, .jpeg, .png and .webp são aceitos."),
+    companyLogo: z.any().optional(),
     // Etapa 4
     responsibleName: z.string().min(3, "Nome do responsável é obrigatório."),
     responsibleCpf: z.string().refine(validateCPF, "CPF inválido."),
@@ -89,7 +88,7 @@ const storage = getStorage(app);
 // Componente Principal
 // =================================================================
 export default function CompanyProfileForm({ profile }: { profile: any }) {
-    const [currentStep, setCurrentStep] = useState(0);
+    const [currentStep, setCurrentStep] = useState(profile.status === 'incomplete' ? 0 : 5); // Start at summary if active
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
 
@@ -147,7 +146,8 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
                     cpf: data.responsibleCpf,
                 },
                 isCarrier: data.isCarrier === 'yes',
-                status: 'pending' // Update status after completion
+                // Only change status if it was incomplete
+                status: profile.status === 'incomplete' ? 'pending' : profile.status 
             };
 
             // Handle uploads
@@ -166,9 +166,11 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
 
             toast({
                 title: "Perfil atualizado!",
-                description: "Seus dados foram enviados para análise.",
+                description: profile.status === 'incomplete' 
+                    ? "Seus dados foram enviados para análise." 
+                    : "Suas informações foram salvas.",
             });
-            // The parent page will automatically show the "pending" view due to the status change
+            setCurrentStep(5); // Move to summary/end view
         } catch (error) {
             console.error("Error updating profile:", error);
             toast({
@@ -185,7 +187,7 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
         const fields = steps[currentStep].fields as (keyof ProfileFormData)[];
         let output = await trigger(fields, { shouldFocus: true });
         
-        // Custom validation for document step
+        // Custom validation for document step where fields aren't required if already approved
         if (currentStep === 2 && !watch('companyLogo') && profile.photoURL) {
             output = true; // Allow to proceed if logo already exists
         }
@@ -204,6 +206,7 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
             } else {
                 methods.clearErrors('cnpjCard');
             }
+            // If there's a doc error, prevent proceeding. If no doc error but other errors exist, also prevent.
             if (!output || docError) return;
         } else {
              if (!output) return;
@@ -311,12 +314,35 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
              </div>
         )
     }
+    
+    // Final view after completing the form or if profile is active
+    if (currentStep === 5) {
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle>Perfil da Empresa</CardTitle>
+                    <CardDescription>Visualize e edite as informações da sua empresa.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <p>TODO: Mostrar um resumo dos dados aqui.</p>
+                </CardContent>
+                <CardFooter>
+                    <Button onClick={() => setCurrentStep(0)}>Editar Perfil</Button>
+                </CardFooter>
+            </Card>
+        )
+    }
 
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Complete seu Perfil</CardTitle>
-                <CardDescription>Para garantir a segurança da plataforma, precisamos de mais algumas informações.</CardDescription>
+                <CardTitle>{profile.status === 'incomplete' ? 'Complete seu Perfil' : 'Editar Perfil'}</CardTitle>
+                <CardDescription>
+                    {profile.status === 'incomplete' 
+                        ? 'Para garantir a segurança da plataforma, precisamos de mais algumas informações.' 
+                        : 'Mantenha as informações da sua empresa sempre atualizadas.'
+                    }
+                </CardDescription>
                 <Separator className='pt-4' />
                 <div className="pt-4">
                     <p className="text-sm text-muted-foreground">Etapa {currentStep + 1} de {steps.length}: {steps[currentStep].name}</p>

@@ -49,9 +49,10 @@ export default function Header() {
           const userData = userDoc.data();
           setUserRole(userData.role);
           
+          const isDashboardPage = pathname.startsWith('/company-dashboard');
           const isProfilePage = pathname.startsWith('/profile');
           const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/register');
-          const allowedPaths = isProfilePage || isAuthPage || pathname.startsWith('/api') || pathname === '/fretes/solicitar' || pathname === '/solicitar-frete';
+          const allowedPaths = isDashboardPage || isProfilePage || isAuthPage || pathname.startsWith('/api') || pathname.startsWith('/fretes/solicitar') || pathname.startsWith('/solicitar-frete');
 
           if (userData.status === 'incomplete' && !allowedPaths) {
               router.push('/profile');
@@ -107,7 +108,7 @@ export default function Header() {
   }
 
   const renderAuthSection = () => {
-    if (!isClient || isLoading) {
+    if (isLoading) {
       return <div className="h-10 w-24 rounded-md bg-muted animate-pulse" />;
     }
 
@@ -139,9 +140,9 @@ export default function Header() {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push('/profile')}>
+            <DropdownMenuItem onClick={() => router.push(userRole === 'company' ? '/company-dashboard' : '/profile')}>
               <UserIcon className="mr-2 h-4 w-4" />
-              <span>Meu Perfil</span>
+              <span>Meu Painel</span>
             </DropdownMenuItem>
              {userRole === 'admin' && (
               <DropdownMenuItem onClick={() => router.push('/admin')}>
@@ -172,7 +173,7 @@ export default function Header() {
   };
   
   const renderMobileAuthSection = () => {
-     if (!isClient || isLoading) {
+     if (isLoading) {
       return <div className="h-10 w-full rounded-md bg-muted animate-pulse" />;
     }
     
@@ -180,7 +181,7 @@ export default function Header() {
        return (
          <>
           <Button variant="outline" asChild onClick={() => setIsOpen(false)}>
-            <Link href="/profile">Meu Perfil</Link>
+            <Link href={userRole === 'company' ? '/company-dashboard' : '/profile'}>Meu Painel</Link>
           </Button>
           <Button onClick={handleLogout} className="w-full">
             Sair
@@ -224,10 +225,10 @@ export default function Header() {
                     </Link>
                 </Button>
             )}
-          {renderAuthSection()}
+          {isClient && renderAuthSection()}
         </div>
         <div className="md:hidden flex items-center">
-         {isClient && user && !isLoading && (
+         {isClient && user && (
             <div className="mr-2">
               {renderAuthSection()}
             </div>
@@ -258,7 +259,7 @@ export default function Header() {
                   )}
                 </nav>
                 <div className="mt-auto flex flex-col gap-4 pt-6 border-t">
-                  {renderMobileAuthSection()}
+                  {isClient && renderMobileAuthSection()}
                 </div>
               </div>
             </SheetContent>
