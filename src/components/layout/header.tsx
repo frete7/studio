@@ -33,11 +33,13 @@ export default function Header() {
   const [user, setUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isClient, setIsClient] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
 
   useEffect(() => {
+    setIsClient(true);
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
@@ -50,7 +52,7 @@ export default function Header() {
           // Redirection logic based on user status
           const isProfilePage = pathname.startsWith('/profile');
           const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/register');
-          const allowedPaths = isProfilePage || isAuthPage || pathname.startsWith('/api');
+          const allowedPaths = isProfilePage || isAuthPage || pathname.startsWith('/api') || pathname === '/fretes/solicitar';
 
           if (userData.status === 'incomplete' && !allowedPaths) {
               router.push('/profile');
@@ -215,7 +217,7 @@ export default function Header() {
           ))}
         </nav>
         <div className="hidden md:flex items-center gap-4">
-            {!isLoading && userRole !== 'company' && (
+            {isClient && !isLoading && userRole !== 'company' && (
                 <Button asChild>
                     <Link href="/fretes/solicitar">
                         Solicitar Frete
@@ -250,7 +252,7 @@ export default function Header() {
                       {link.label}
                     </Link>
                   ))}
-                  {!isLoading && userRole !== 'company' && (
+                  {isClient && !isLoading && userRole !== 'company' && (
                     <Link href="/fretes/solicitar" className="font-semibold text-primary" onClick={() => setIsOpen(false)}>
                         Solicitar Frete
                     </Link>
