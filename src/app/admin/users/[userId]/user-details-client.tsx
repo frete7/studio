@@ -1,9 +1,8 @@
-
 'use client';
 
 import { collection, doc, getDoc, getCountFromServer, query, updateDoc, where, onSnapshot } from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase';
-import { notFound, useRouter } from 'next/navigation';
+import { db } from '@/lib/firebase';
+import { notFound } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { Mail, Phone, Calendar, User, ShieldCheck, Truck, FileText, ArrowLeft, Loader2, MoreVertical, Building, Landmark, CaseSensitive, Package, PackageSearch, PackageCheck, CreditCard, Pencil, ExternalLink, ThumbsUp, ThumbsDown, CircleHelp } from 'lucide-react';
 import Link from 'next/link';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useForm, FormProvider } from 'react-hook-form';
@@ -26,7 +25,6 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger
@@ -147,96 +145,45 @@ const getDocStatusIcon = (status?: string) => {
 const userStatuses: (UserProfile['status'])[] = ['active', 'pending', 'blocked', 'suspended'];
 
 
-export default function UserDetailsClient({ userId }: { userId: string }) {
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [companyStats, setCompanyStats] = useState<CompanyStats | null>(null);
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [selectedPlanId, setSelectedPlanId] = useState<string>('');
+export default function UserDetailsClient({ initialUser, initialPlans, initialCompanyStats, userId }: { userId: string, initialUser: UserProfile, initialPlans: Plan[], initialCompanyStats: CompanyStats | null }) {
+  const [user, setUser] = useState<UserProfile>(initialUser);
+  const [companyStats, setCompanyStats] = useState<CompanyStats | null>(initialCompanyStats);
+  const [plans, setPlans] = useState<Plan[]>(initialPlans);
+  const [selectedPlanId, setSelectedPlanId] = useState<string>(initialUser.activePlanId || 'none');
   const [isSubmittingPlan, setIsSubmittingPlan] = useState(false);
   const [isPlanDialogOpen, setIsPlanDialogOpen] = useState(false);
   const [isEditUserDialogOpen, setIsEditUserDialogOpen] = useState(false);
   const [isSubmittingEditUser, setIsSubmittingEditUser] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   const form = useForm<EditFormData>({
-    resolver: zodResolver(editFormSchema)
+    resolver: zodResolver(editFormSchema),
+     defaultValues: {
+        name: initialUser.name,
+        tradingName: initialUser.tradingName,
+        cnpj: initialUser.cnpj,
+        address: initialUser.address,
+        responsibleName: initialUser.responsible?.name || '',
+        responsibleCpf: initialUser.responsible?.cpf || '',
+    }
   });
 
 
   useEffect(() => {
-    if (!userId) {
-        setIsLoading(false);
-        return;
-    };
+    if (!userId) return;
     
-    const fetchCompanyStats = async (companyId: string) => {
-        try {
-            const freightsCollection = collection(db, 'freights');
-            
-            const activeQuery = query(freightsCollection, where('companyId', '==', companyId), where('status', '==', 'active'));
-            const activeSnapshot = await getCountFromServer(activeQuery);
-            
-            const requestedQuery = query(freightsCollection, where('companyId', '==', companyId), where('status', '==', 'requested'));
-            const requestedSnapshot = await getCountFromServer(requestedQuery);
-            
-            const completedQuery = query(freightsCollection, where('companyId', '==', companyId), where('status', '==', 'completed'));
-            const completedSnapshot = await getCountFromServer(completedQuery);
-
-            setCompanyStats({
-                activeFreights: activeSnapshot.data().count,
-                requestedFreights: requestedSnapshot.data().count,
-                completedFreights: completedSnapshot.data().count,
-            });
-        } catch (error) {
-            console.error("Error fetching company freight stats:", error);
-            toast({
-                variant: 'destructive',
-                title: 'Erro ao buscar dados',
-                description: 'Não foi possível carregar as estatísticas de fretes da empresa.'
-            })
-        }
-    }
-
-    const fetchPlansData = async (userRole: string) => {
-        try {
-            const allPlans = await getPlans();
-            const filteredPlans = allPlans.filter(plan => plan.userType === userRole);
-            setPlans(filteredPlans);
-        } catch (error) {
-             console.error("Error fetching plans:", error);
-        }
-    }
-
     const userDocRef = doc(db, 'users', userId);
-    const unsubscribe = onSnapshot(userDocRef, (doc) => {
+    const unsubscribeUser = onSnapshot(userDocRef, (doc) => {
         if (doc.exists()) {
             const userData = { ...doc.data(), uid: doc.id } as UserProfile;
             setUser(userData);
-            setSelectedPlanId(userData.activePlanId || 'none');
-            form.reset({
-                name: userData.name,
-                tradingName: userData.tradingName,
-                cnpj: userData.cnpj,
-                address: userData.address,
-                responsibleName: userData.responsible?.name || '',
-                responsibleCpf: userData.responsible?.cpf || '',
-            });
-            if (userData.role === 'company') {
-                fetchCompanyStats(userData.uid);
-            }
-            fetchPlansData(userData.role);
-        } else {
-            notFound();
         }
-        setIsLoading(false);
-    }, (error) => {
-        console.error("Error fetching user details:", error);
-        setIsLoading(false);
     });
-      
-    return () => unsubscribe();
-  }, [userId, toast, form]);
+
+    return () => {
+        unsubscribeUser();
+    }
+  }, [userId]);
   
   const handleStatusChange = async (newStatus: UserProfile['status']) => {
     if (!user || !newStatus) return;
@@ -314,14 +261,6 @@ export default function UserDetailsClient({ userId }: { userId: string }) {
     } finally {
         setIsSubmittingEditUser(false);
     }
-  }
-
-  if (isLoading || !user) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-      </div>
-    );
   }
 
   const isCompany = user.role === 'company';

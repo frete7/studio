@@ -55,9 +55,9 @@ type FormData = z.infer<typeof formSchema>;
 
 const bodyTypeGroups = ['Abertas', 'Fechadas', 'Especiais'];
 
-export default function BodyTypesClient() {
-  const [bodyTypes, setBodyTypes] = useState<BodyType[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+export default function BodyTypesClient({ initialData }: { initialData: BodyType[] }) {
+  const [bodyTypes, setBodyTypes] = useState<BodyType[]>(initialData);
+  const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -66,7 +66,6 @@ export default function BodyTypesClient() {
   const { toast } = useToast();
 
   useEffect(() => {
-    setIsLoading(true);
     const q = query(collection(db, 'body_types'));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
         const data: BodyType[] = [];
@@ -74,15 +73,13 @@ export default function BodyTypesClient() {
             data.push({ ...doc.data(), id: doc.id } as BodyType);
         });
         setBodyTypes(data);
-        setIsLoading(false);
     }, (error) => {
         console.error("Error fetching body types: ", error);
         toast({
             variant: "destructive",
             title: "Erro ao buscar dados",
-            description: "Verifique suas permissões ou tente novamente mais tarde."
+            description: "Não foi possível sincronizar os dados em tempo real."
         });
-        setIsLoading(false);
     });
 
     return () => unsubscribe();
