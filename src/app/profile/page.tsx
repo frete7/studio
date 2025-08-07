@@ -7,9 +7,11 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { User, Clock, ShieldCheck, Loader2 } from "lucide-react";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { User, Clock, ShieldCheck, Loader2, Users, ArrowRight } from "lucide-react";
 import CompanyProfileForm from './company-profile-form';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
 
 type UserProfile = {
@@ -37,7 +39,17 @@ export default function ProfilePage() {
                 
                 const unsubscribeSnapshot = onSnapshot(userDocRef, (doc) => {
                     if (doc.exists()) {
-                        setProfile(doc.data() as UserProfile);
+                        const userProfile = doc.data() as UserProfile;
+                        setProfile(userProfile);
+                        
+                        const isProfilePage = window.location.pathname.startsWith('/profile');
+                        const isAuthPage = window.location.pathname.startsWith('/login') || window.location.pathname.startsWith('/register');
+                        const allowedPaths = isProfilePage || isAuthPage || window.location.pathname.startsWith('/api');
+
+                        if ((userProfile.status === 'incomplete' || userProfile.status === 'pending') && !allowedPaths) {
+                            router.push('/profile');
+                        }
+
                     } else {
                         // Handle case where user exists in Auth but not Firestore
                         router.push('/login'); 
@@ -87,20 +99,53 @@ export default function ProfilePage() {
                 );
             case 'active':
                  return (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <ShieldCheck className="h-5 w-5 text-green-500" />
-                                Perfil Ativo
-                            </CardTitle>
-                            <CardDescription>
-                                Seu perfil está verificado e ativo na plataforma.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                             <p>Em breve: Visualização completa do perfil.</p>
-                        </CardContent>
-                    </Card>
+                    <div className='space-y-8'>
+                        <div>
+                             <h1 className="text-3xl font-bold font-headline text-primary">Painel da Empresa</h1>
+                             <p className="text-foreground/70">Bem-vindo, {profile.tradingName || profile.name}! Gerencie sua operação aqui.</p>
+                        </div>
+
+                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <ShieldCheck className="h-5 w-5 text-green-500" />
+                                        Perfil Ativo
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Seu perfil está verificado e ativo na plataforma.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <p className='text-sm text-muted-foreground'>Mantenha os dados da sua empresa sempre atualizados.</p>
+                                </CardContent>
+                                <CardFooter>
+                                    <Button variant="outline" className='w-full' disabled>Editar Perfil</Button>
+                                </CardFooter>
+                            </Card>
+                             <Card className="flex flex-col">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Users className="h-5 w-5 text-primary" />
+                                        Colaboradores
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Adicione e gerencie os membros da sua equipe.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="flex-grow">
+                                     <p className='text-sm text-muted-foreground'>Controle as permissões de acesso dos seus funcionários.</p>
+                                </CardContent>
+                                <CardFooter>
+                                    <Button asChild className='w-full'>
+                                        <Link href="#">
+                                            Gerenciar Colaboradores <ArrowRight className="ml-2 h-4 w-4"/>
+                                        </Link>
+                                    </Button>
+                                </CardFooter>
+                            </Card>
+                        </div>
+                    </div>
                 );
             default:
                 return (
@@ -125,7 +170,7 @@ export default function ProfilePage() {
 
   return (
     <div className="container mx-auto px-4 py-12">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-6xl mx-auto">
             {renderContent()}
         </div>
     </div>
