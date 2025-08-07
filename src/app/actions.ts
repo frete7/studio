@@ -7,7 +7,7 @@ import {
   type OptimizeRouteOutput,
 } from '@/ai/flows/optimize-route';
 import { db } from '@/lib/firebase';
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, updateDoc, writeBatch, where, getCountFromServer } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, updateDoc, writeBatch, where, getCountFromServer, serverTimestamp } from 'firebase/firestore';
 
 export async function getOptimizedRoute(
   input: OptimizeRouteInput
@@ -414,7 +414,49 @@ export type Freight = {
     companyName?: string;
     status: 'ativo' | 'concluido' | 'pendente' | 'cancelado';
     collaboratorId?: string; // Add collaboratorId
+    responsibleCollaborators?: string[];
+    [key: string]: any; // Allow other properties
 }
+
+export async function addAggregationFreight(companyId: string, companyName: string, data: any): Promise<string[]> {
+    if (!companyId) throw new Error("ID da empresa é obrigatório.");
+
+    const freightsCollection = collection(db, 'freights');
+    const generatedIds: string[] = [];
+
+    const { destinations, ...baseFreightData } = data;
+
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const nums = '0123456789';
+
+    for (const destination of destinations) {
+        // Generate a new random ID for each freight
+        const randomValues = new Uint32Array(5);
+        // This will only work in a browser/server environment with crypto
+        // For pure server-side, you might need another way to get random bytes
+        // But since this is a server action, it should be fine.
+        crypto.getRandomValues(randomValues);
+        const randomChar = (index: number) => chars[randomValues[index] % chars.length];
+        const randomNum = (index: number) => nums[randomValues[index] % nums.length];
+        const generatedId = `#AG-${randomNum(0)}${randomNum(1)}${randomChar(2)}${randomChar(3)}${randomChar(4)}`;
+
+        const freightDoc = {
+            ...baseFreightData,
+            id: generatedId,
+            destinations: [destination], // Each freight has a single destination from the list
+            companyId: companyId,
+            companyName: companyName,
+            freightType: 'agregamento',
+            status: 'ativo',
+            createdAt: serverTimestamp(),
+        };
+        await addDoc(freightsCollection, freightDoc);
+        generatedIds.push(generatedId);
+    }
+    
+    return generatedIds;
+}
+
 
 // Collaborators Actions
 export type Collaborator = {
@@ -482,7 +524,8 @@ export async function getCollaboratorStats(companyId: string, collaboratorId: st
         const baseQuery = query(
             freightsCollection,
             where('companyId', '==', companyId),
-            where('collaboratorId', '==', collaboratorId)
+            // This assumes collaborator IDs are stored in an array
+            where('responsibleCollaborators', 'array-contains', collaboratorId)
         );
 
         // Get total freights
@@ -518,7 +561,7 @@ export async function getFreightsByCollaborator(companyId: string, collaboratorI
         const q = query(
             freightsCollection,
             where('companyId', '==', companyId),
-            where('collaboratorId', '==', collaboratorId)
+            where('responsibleCollaborators', 'array-contains', collaboratorId)
         );
         
         const snapshot = await getDocs(q);

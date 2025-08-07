@@ -8,16 +8,18 @@ import { z } from 'zod';
 import { collection, onSnapshot, query, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { groupBy, mapValues } from 'lodash';
+import { useRouter } from 'next/navigation';
 
-import { type Collaborator, type BodyType, type VehicleType, type VehicleCategory } from '@/app/actions';
+import { type Collaborator, type BodyType, type VehicleType, type VehicleCategory, addAggregationFreight } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent, CardHeader, CardFooter } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, User, Search, PlusCircle, Trash2, Truck, Box } from 'lucide-react';
+import { Loader2, User, Search, PlusCircle, Trash2, Truck, Box, Edit, CheckCircle } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -57,19 +59,19 @@ const orderDetailsSchema = z.object({
     minimumVehicleAge: z.string().optional(),
     paymentMethods: z.array(z.string()).optional(),
     benefits: z.array(z.object({ value: z.string().min(1, "O benefício não pode ser vazio.") })).optional(),
-}).refine(data => data.whoPaysToll ? data.tollTripScope : true, {
+}).refine(data => data.whoPaysToll === undefined || data.tollTripScope !== undefined, {
     message: "Selecione o trecho do pedágio.",
     path: ['tollTripScope'],
-}).refine(data => !data.needsTracker || (data.trackerType && data.trackerType.length > 0), {
+}).refine(data => !data.needsTracker || (data.trackerType !== undefined && data.trackerType.length > 0), {
     message: "Especifique o tipo de rastreador.",
     path: ['trackerType'],
-}).refine(data => !data.driverNeedsToHelp || data.driverHelpScope, {
+}).refine(data => !data.driverNeedsToHelp || data.driverHelpScope !== undefined, {
     message: "Selecione quando o motorista precisa ajudar.",
     path: ['driverHelpScope'],
-}).refine(data => !data.needsHelper || data.whoPaysHelper, {
+}).refine(data => !data.needsHelper || data.whoPaysHelper !== undefined, {
     message: "Selecione quem paga pelo ajudante.",
     path: ['whoPaysHelper'],
-}).refine(data => !data.needsSpecificCourses || (data.specificCourses && data.specificCourses.length > 0), {
+}).refine(data => !data.needsSpecificCourses || (data.specificCourses !== undefined && data.specificCourses.length > 0), {
     message: "Adicione pelo menos um curso.",
     path: ['specificCourses'],
 });
@@ -99,18 +101,14 @@ const vehicleSelectionSchema = z.object({
           return true;
       }, {
           message: "O valor da faixa não pode ser menor que o da faixa anterior.",
-          // This path will not point to a specific field, but to the array itself.
-          // The error can be displayed at the bottom of the price table.
           path: [],
       }),
 }).refine(data => {
-    // If "Valor a Combinar" is checked, the price table is not required.
     if (data.isPriceToCombine) return true;
-    // Otherwise, the price table must exist and have at least one entry.
     return data.priceTable && data.priceTable.length > 0;
 }, {
     message: "Defina pelo menos uma faixa de preço ou marque 'Valor a Combinar'.",
-    path: ['priceTable'], // Points to the array of price table entries
+    path: ['priceTable'], 
 });
 
 
@@ -1082,24 +1080,84 @@ function StepVehicleAndBodywork({ allData }: { allData: any }) {
     );
 }
 
+function SummaryView({ data, onEdit }: { data: FormData; onEdit: (step: number) => void; }) {
+    const { origin, destinations, orderDetails, requiredVehicles, requiredBodyworks, responsibleCollaborators } = data;
+
+    const renderList = (list: {value: string}[] | undefined) => (
+        <ul className="list-disc list-inside text-sm text-muted-foreground pl-4">
+            {list?.map((item, index) => <li key={index}>{item.value}</li>)}
+        </ul>
+    );
+    
+    const SummarySection = ({ title, stepIndex, children }: { title: string, stepIndex: number, children: React.ReactNode }) => (
+        <div className="space-y-2">
+            <div className="flex justify-between items-center">
+                <h3 className="font-semibold text-base">{title}</h3>
+                <Button variant="link" size="sm" onClick={() => onEdit(stepIndex)} className="h-auto p-0">
+                    <Edit className="mr-1 h-3 w-3" />
+                    Editar
+                </Button>
+            </div>
+            <div className="text-sm text-muted-foreground">{children}</div>
+        </div>
+    )
+
+    return (
+        <div className="space-y-4 text-sm max-h-[60vh] overflow-y-auto pr-4">
+            <SummarySection title="Responsáveis" stepIndex={0}>
+                <p>{responsibleCollaborators.length} colaborador(es) selecionado(s).</p>
+            </SummarySection>
+            <Separator />
+
+             <SummarySection title="Rota" stepIndex={1}>
+                <p><strong>Origem:</strong> {origin.city}, {origin.state}</p>
+                <div>
+                     <p><strong>Destinos:</strong></p>
+                    <ul className="list-disc list-inside pl-4">
+                        {destinations.map((d, i) => <li key={i}>{d.city}, {d.state}</li>)}
+                    </ul>
+                </div>
+            </SummarySection>
+            <Separator />
+            
+            <SummarySection title="Informações do Pedido" stepIndex={2}>
+                 <p><strong>Carga:</strong> {orderDetails.whatWillBeLoaded}</p>
+                 <p><strong>Tipo de Carga:</strong> {orderDetails.cargoType}</p>
+                 <p><strong>Pedágio:</strong> Pago por {orderDetails.whoPaysToll}</p>
+            </SummarySection>
+            <Separator/>
+
+            <SummarySection title="Veículos e Carrocerias" stepIndex={3}>
+                 <p><strong>Carrocerias:</strong> {requiredBodyworks.length} tipo(s) selecionado(s).</p>
+                 <p><strong>Veículos:</strong> {requiredVehicles.length} tipo(s) selecionado(s).</p>
+            </SummarySection>
+        </div>
+    );
+}
+
 // =================================================================
 // Componente Principal
 // =================================================================
 
-export default function AgregamentoClient({ companyId }: { companyId: string }) {
+export default function AgregamentoClient({ companyId, companyName }: { companyId: string, companyName: string }) {
   const [currentStep, setCurrentStep] = useState(0);
+  const [isDataLoading, setIsDataLoading] = useState(true);
+  const [isSummaryOpen, setIsSummaryOpen] = useState(false);
+  const [isSuccessOpen, setIsSuccessOpen] = useState(false);
+  const [generatedIds, setGeneratedIds] = useState<string[]>([]);
+  const [countdown, setCountdown] = useState(60);
+  const router = useRouter();
+
   const [allData, setAllData] = useState({
       groupedBodyworks: {},
       groupedVehicleTypes: {},
       vehicleTypes: [],
       vehicleCategories: [],
   });
-  const [isDataLoading, setIsDataLoading] = useState(true);
   
-  const methods = useForm<FormData>({
-    resolver: zodResolver(formSchema),
-    mode: 'onBlur',
-    defaultValues: {
+  const { toast } = useToast();
+  
+  const initialValues = {
       responsibleCollaborators: [],
       origin: { state: '', city: '' },
       destinations: [{ state: '', city: '' }],
@@ -1128,10 +1186,15 @@ export default function AgregamentoClient({ companyId }: { companyId: string }) 
       },
       requiredBodyworks: [],
       requiredVehicles: [],
-    }
+    };
+  
+  const methods = useForm<FormData>({
+    resolver: zodResolver(formSchema),
+    mode: 'onBlur',
+    defaultValues: initialValues
   });
 
-  const { handleSubmit, trigger, formState: { isSubmitting } } = methods;
+  const { handleSubmit, trigger, formState: { isSubmitting }, getValues, reset } = methods;
 
   useEffect(() => {
       const fetchData = async () => {
@@ -1169,8 +1232,22 @@ export default function AgregamentoClient({ companyId }: { companyId: string }) 
   }, []);
 
   async function processForm(data: FormData) {
-    console.log("Form data:", data);
-    // Lógica para enviar o formulário virá aqui
+    try {
+        const dataToSave = JSON.parse(JSON.stringify(data));
+        const ids = await addAggregationFreight(companyId, companyName, dataToSave);
+        setGeneratedIds(ids);
+        setIsSummaryOpen(false);
+        setIsSuccessOpen(true);
+        reset(initialValues);
+        setCurrentStep(0);
+    } catch(error) {
+        toast({
+            variant: "destructive",
+            title: "Erro ao Enviar",
+            description: "Não foi possível salvar sua solicitação. Tente novamente."
+        })
+        setIsSummaryOpen(false);
+    }
   }
 
   type FieldName = keyof FormData;
@@ -1185,7 +1262,7 @@ export default function AgregamentoClient({ companyId }: { companyId: string }) 
       setCurrentStep(step => step + 1);
       window.scrollTo(0, 0);
     } else {
-      await handleSubmit(processForm)();
+      setIsSummaryOpen(true);
     }
   };
 
@@ -1196,9 +1273,26 @@ export default function AgregamentoClient({ companyId }: { companyId: string }) 
     }
   };
   
+  const handleEditFromSummary = (stepIndex: number) => {
+      setIsSummaryOpen(false);
+      setCurrentStep(stepIndex);
+  }
+  
+   useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isSuccessOpen && countdown > 0) {
+      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+    } else if (isSuccessOpen && countdown === 0) {
+      router.push('/profile');
+    }
+    return () => clearTimeout(timer);
+  }, [isSuccessOpen, countdown, router]);
+
+  
   const progress = ((currentStep + 1) / steps.length) * 100;
 
   return (
+    <>
     <Card className="shadow-lg">
       <CardHeader>
          <div className="mb-4">
@@ -1208,12 +1302,11 @@ export default function AgregamentoClient({ companyId }: { companyId: string }) 
       </CardHeader>
       <CardContent>
           <FormProvider {...methods}>
-              <form onSubmit={handleSubmit(processForm)}>
-                  {currentStep === 0 && <StepCollaborators companyId={companyId} />}
-                  {currentStep === 1 && <StepRoute />}
-                  {currentStep === 2 && <StepOrderDetails />}
-                  {currentStep === 3 && (isDataLoading ? <Loader2 className="animate-spin" /> : <StepVehicleAndBodywork allData={allData} />)}
-                  {/* Outras etapas virão aqui */}
+              <form onSubmit={handleSubmit(() => setIsSummaryOpen(true))}>
+                  <div className={currentStep === 0 ? 'block' : 'hidden'}> <StepCollaborators companyId={companyId} /> </div>
+                  <div className={currentStep === 1 ? 'block' : 'hidden'}> <StepRoute /> </div>
+                  <div className={currentStep === 2 ? 'block' : 'hidden'}> <StepOrderDetails /> </div>
+                  <div className={currentStep === 3 ? 'block' : 'hidden'}> {isDataLoading ? <Loader2 className="animate-spin" /> : <StepVehicleAndBodywork allData={allData} />}</div>
               </form>
           </FormProvider>
 
@@ -1223,10 +1316,63 @@ export default function AgregamentoClient({ companyId }: { companyId: string }) 
               </Button>
               <Button onClick={nextStep} disabled={isSubmitting || (currentStep === 3 && isDataLoading)}>
                   {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {currentStep < steps.length - 1 ? 'Próximo' : 'Enviar Solicitação'}
+                  {currentStep < steps.length - 1 ? 'Próximo' : 'Revisar e Enviar'}
               </Button>
           </div>
       </CardContent>
     </Card>
+
+    {/* Modal de Confirmação */}
+    <Dialog open={isSummaryOpen} onOpenChange={setIsSummaryOpen}>
+        <DialogContent className="sm:max-w-2xl">
+                <DialogHeader>
+                <DialogTitle className="text-2xl">Confirme sua Solicitação</DialogTitle>
+                <p className="text-sm text-muted-foreground">
+                    Por favor, revise todos os dados antes de finalizar.
+                </p>
+                </DialogHeader>
+                <SummaryView data={getValues()} onEdit={handleEditFromSummary} />
+                <DialogFooter>
+                <DialogClose asChild>
+                    <Button type="button" variant="secondary">Cancelar</Button>
+                </DialogClose>
+                <Button onClick={handleSubmit(processForm)} disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Finalizar
+                </Button>
+                </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
+    {/* Modal de Sucesso */}
+    <Dialog open={isSuccessOpen} onOpenChange={setIsSuccessOpen}>
+        <DialogContent>
+                <DialogHeader>
+                <div className="flex flex-col items-center text-center gap-4 py-4">
+                    <CheckCircle className="h-16 w-16 text-green-500" />
+                    <DialogTitle className="text-2xl">Pedidos Realizados com Sucesso!</DialogTitle>
+                    <p className="text-muted-foreground">Suas solicitações já estão ativas na plataforma para os motoristas visualizarem.</p>
+                     <div className="bg-muted rounded-md p-3 w-full text-center mt-2 space-y-2 max-h-40 overflow-y-auto">
+                        <p className="text-sm font-semibold">Códigos dos Pedidos Gerados:</p>
+                        {generatedIds.map(id => <p key={id} className="font-mono font-bold text-primary">{id}</p>)}
+                    </div>
+                </div>
+                </DialogHeader>
+                <DialogFooter className="sm:justify-between gap-4">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin"/>
+                        <span>Redirecionando em {countdown}s...</span>
+                    </div>
+                    <Button onClick={() => {
+                        reset(initialValues);
+                        setCurrentStep(0);
+                        setIsSuccessOpen(false);
+                    }}>Realizar Novo Pedido</Button>
+                </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
+    </>
   );
 }
+

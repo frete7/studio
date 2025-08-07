@@ -3,20 +3,36 @@
 
 import { useState, useEffect } from 'react';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import AgregamentoClient from './agregamento-client';
 
+type UserProfile = {
+    tradingName?: string;
+    name?: string;
+    [key: string]: any;
+}
+
+
 export default function AgregamentoPage() {
     const [user, setUser] = useState<FirebaseUser | null>(null);
+    const [profile, setProfile] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const router = useRouter();
 
     useEffect(() => {
-        const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+        const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
             if (currentUser) {
                 setUser(currentUser);
+                const docRef = doc(db, 'users', currentUser.uid);
+                const docSnap = await getDoc(docRef);
+                 if (docSnap.exists()) {
+                    setProfile(docSnap.data() as UserProfile);
+                } else {
+                    router.push('/login');
+                }
             } else {
                 router.push('/login');
             }
@@ -26,7 +42,7 @@ export default function AgregamentoPage() {
         return () => unsubscribeAuth();
     }, [router]);
 
-    if (isLoading) {
+    if (isLoading || !profile) {
         return (
             <div className="flex h-screen items-center justify-center">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -47,7 +63,7 @@ export default function AgregamentoPage() {
                         Preencha o formulário para encontrar o veículo ideal para sua operação.
                     </p>
                 </div>
-                <AgregamentoClient companyId={user.uid} />
+                <AgregamentoClient companyId={user.uid} companyName={profile.tradingName || profile.name || 'Empresa Sem Nome'} />
             </div>
         </div>
     );
