@@ -9,18 +9,27 @@ import { onSnapshot, collection, query } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+
 
 import { type Collaborator } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { Loader2, User, Search, PlusCircle, Trash2, ArrowLeft, Copy } from 'lucide-react';
+import { Loader2, User, Search, PlusCircle, Trash2, ArrowLeft, Copy, Calendar as CalendarIcon } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Switch } from '@/components/ui/switch';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+
 
 // =================================================================
 // Schemas e Tipos
@@ -35,6 +44,56 @@ const destinationSchema = locationSchema.extend({
     stops: z.coerce.number().int().min(1, "Deve haver pelo menos 1 parada.")
 });
 
+const orderDetailsSchema = z.object({
+    whatWillBeLoaded: z.string().min(3, "Este campo é obrigatório."),
+    weight: z.string().optional(),
+    dimensions: z.object({
+        height: z.string().optional(),
+        width: z.string().optional(),
+        length: z.string().optional(),
+    }).optional(),
+    cubicMeters: z.string().optional(),
+    needsTracker: z.boolean().default(false),
+    trackerType: z.string().optional(),
+    cargoType: z.enum(['paletizado', 'granel', 'caixas', 'sacos', 'outros']),
+    isDangerousCargo: z.boolean().default(false),
+    hasInvoice: z.boolean().default(false),
+    driverNeedsToIssueInvoice: z.boolean().default(false),
+    driverNeedsToHelp: z.enum(['nao', 'carregamento', 'descarregamento', 'ambos']),
+    needsHelper: z.boolean().default(false),
+    whoPaysHelper: z.enum(['empresa', 'motorista']).optional(),
+    driverNeedsANTT: z.boolean().default(false),
+    specificCourses: z.string().optional(),
+    minimumVehicleAge: z.string().optional(),
+    loadingDate: z.date().optional(),
+    loadingTime: z.string().optional(),
+    paymentType: z.enum(['coleta', 'entrega', '50-50', 'customizado']),
+    customPayment: z.object({
+        type: z.enum(['faturado', 'parcelado', 'coleta-entrega']).optional(),
+        faturadoDays: z.coerce.number().optional(),
+        parceladoCount: z.coerce.number().optional(),
+        coletaPercentage: z.coerce.number().optional(),
+        entregaPercentage: z.coerce.number().optional(),
+    }).optional(),
+}).refine(data => !data.needsTracker || (data.trackerType && data.trackerType.length > 0), {
+    message: "Especifique o tipo de rastreador.",
+    path: ['trackerType'],
+}).refine(data => !data.needsHelper || !!data.whoPaysHelper, {
+    message: "Selecione quem paga pelo ajudante.",
+    path: ['whoPaysHelper'],
+}).refine(data => {
+    if (data.paymentType !== 'customizado') return true;
+    if (!data.customPayment?.type) return false;
+    if (data.customPayment.type === 'faturado' && !data.customPayment.faturadoDays) return false;
+    if (data.customPayment.type === 'parcelado' && !data.customPayment.parceladoCount) return false;
+    if (data.customPayment.type === 'coleta-entrega' && (!data.customPayment.coletaPercentage || !data.customPayment.entregaPercentage)) return false;
+    if (data.customPayment.type === 'coleta-entrega' && (data.customPayment.coletaPercentage ?? 0) + (data.customPayment.entregaPercentage ?? 0) !== 100) return false;
+    return true;
+}, { 
+    message: "Preencha os detalhes do pagamento customizado.", 
+    path: ['customPayment'] 
+});
+
 
 const formSchema = z.object({
   responsibleCollaborators: z.array(z.string()).refine(value => value.some(item => item), {
@@ -42,6 +101,7 @@ const formSchema = z.object({
   }),
   origin: locationSchema,
   destinations: z.array(destinationSchema).min(1, "Adicione pelo menos um destino."),
+  orderDetails: orderDetailsSchema,
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -51,7 +111,7 @@ type IBGECity = { id: number; nome: string; };
 const steps = [
   { id: 1, name: 'Responsáveis', fields: ['responsibleCollaborators'] },
   { id: 2, name: 'Rota', fields: ['origin', 'destinations'] },
-  // Futuros passos serão adicionados aqui
+  { id: 3, name: 'Informações do Pedido', fields: ['orderDetails'] },
 ];
 
 // =================================================================
@@ -344,6 +404,133 @@ function StepRoute() {
     );
 }
 
+
+function StepOrderDetails() {
+    const { control, watch } = useFormContext();
+    const needsTracker = watch("orderDetails.needsTracker");
+    const needsHelper = watch("orderDetails.needsHelper");
+    const paymentType = watch("orderDetails.paymentType");
+    const customPaymentType = watch("orderDetails.customPayment.type");
+    const vehicleAgeYears = Array.from({ length: new Date().getFullYear() - 1969 }, (_, i) => (new Date().getFullYear() - i).toString());
+
+    return (
+         <div className="space-y-8">
+            <div>
+                <h2 className="text-2xl font-semibold">3. Informações do Pedido</h2>
+                <p className="text-muted-foreground">Detalhes sobre a carga, operação e requisitos.</p>
+            </div>
+            <Separator />
+
+            <FormField control={control} name="orderDetails.whatWillBeLoaded" render={({ field }) => (
+                <FormItem>
+                    <FormLabel>O que será carregado?</FormLabel>
+                    <FormControl><Input placeholder="Ex: Soja, autopeças, etc." {...field} /></FormControl>
+                    <FormMessage />
+                </FormItem>
+            )} />
+
+             <div className="grid md:grid-cols-2 gap-4">
+                 <FormField control={control} name="orderDetails.weight" render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Qual o peso? (opcional)</FormLabel>
+                        <FormControl><Input type="number" placeholder="Ex: 1500 (em kg)" {...field} /></FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )} />
+                 <FormField control={control} name="orderDetails.cubicMeters" render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>M³ (opcional)</FormLabel>
+                        <FormControl><Input type="number" placeholder="Metros cúbicos" {...field} /></FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )} />
+            </div>
+
+            <div>
+                <FormLabel>Dimensões (opcional)</FormLabel>
+                <div className="grid md:grid-cols-3 gap-4 mt-2">
+                     <FormField control={control} name="orderDetails.dimensions.height" render={({ field }) => (<FormItem><FormLabel className="text-xs">Altura (m)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
+                     <FormField control={control} name="orderDetails.dimensions.width" render={({ field }) => (<FormItem><FormLabel className="text-xs">Largura (m)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
+                     <FormField control={control} name="orderDetails.dimensions.length" render={({ field }) => (<FormItem><FormLabel className="text-xs">Comprimento (m)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
+                </div>
+            </div>
+            
+            <div className="space-y-2">
+                 <FormField control={control} name="orderDetails.needsTracker" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-4"><div className="space-y-0.5"><FormLabel>Precisa de Rastreador?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                {needsTracker && (
+                    <FormField control={control} name="orderDetails.trackerType" render={({ field }) => (<FormItem className="pl-4 border-l-2 ml-2"><FormLabel>Qual?</FormLabel><FormControl><Input placeholder="Ex: Sascar, Omnilink" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                )}
+            </div>
+
+            <FormField control={control} name="orderDetails.cargoType" render={({ field }) => (<FormItem><FormLabel>Tipo de Carga</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl><SelectContent><SelectItem value="paletizado">Paletizado</SelectItem><SelectItem value="granel">A Granel</SelectItem><SelectItem value="caixas">Em Caixas</SelectItem><SelectItem value="sacos">Sacos</SelectItem><SelectItem value="outros">Outros</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+            <FormField control={control} name="orderDetails.isDangerousCargo" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-4"><div className="space-y-0.5"><FormLabel>Carga Perigosa?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+            <FormField control={control} name="orderDetails.hasInvoice" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-4"><div className="space-y-0.5"><FormLabel>Mercadoria possui Nota Fiscal?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+            <FormField control={control} name="orderDetails.driverNeedsToIssueInvoice" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-4"><div className="space-y-0.5"><FormLabel>Motorista precisa emitir Nota Fiscal?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+           
+            <FormField control={control} name="orderDetails.driverNeedsToHelp" render={({ field }) => (<FormItem><FormLabel>Ajuda do motorista?</FormLabel><FormControl><RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-col gap-2 pt-2"><FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="nao" /></FormControl><FormLabel className="font-normal">Não preciso de ajuda</FormLabel></FormItem><FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="carregamento" /></FormControl><FormLabel className="font-normal">Apenas no Carregamento</FormLabel></FormItem><FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="descarregamento" /></FormControl><FormLabel className="font-normal">Apenas no Descarregamento</FormLabel></FormItem><FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="ambos" /></FormControl><FormLabel className="font-normal">Carga e Descarga</FormLabel></FormItem></RadioGroup></FormControl><FormMessage /></FormItem>)} />
+            
+            <div className="space-y-2">
+                 <FormField control={control} name="orderDetails.needsHelper" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-4"><div className="space-y-0.5"><FormLabel>Precisa de Ajudante?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                 {needsHelper && (
+                     <FormField control={control} name="orderDetails.whoPaysHelper" render={({ field }) => (<FormItem className="pl-4 border-l-2 ml-2"><FormLabel>Quem paga o ajudante?</FormLabel><FormControl><RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex items-center gap-4 pt-2"><FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="empresa" /></FormControl><FormLabel className="font-normal">Empresa</FormLabel></FormItem><FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="motorista" /></FormControl><FormLabel className="font-normal">Motorista</FormLabel></FormItem></RadioGroup></FormControl><FormMessage /></FormItem>)} />
+                 )}
+            </div>
+
+            <FormField control={control} name="orderDetails.driverNeedsANTT" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-4"><div className="space-y-0.5"><FormLabel>Motorista precisa ter ANTT?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+            <FormField control={control} name="orderDetails.specificCourses" render={({ field }) => (<FormItem><FormLabel>Exigir curso específico (opcional)</FormLabel><FormControl><Input placeholder="Ex: MOPP, Carga Indivisível" {...field} /></FormControl><FormMessage /></FormItem>)} />
+            <FormField control={control} name="orderDetails.minimumVehicleAge" render={({ field }) => (<FormItem><FormLabel>Idade mínima do veículo (opcional)</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione o ano" /></SelectTrigger></FormControl><SelectContent><SelectItem value="none">Nenhuma</SelectItem>{vehicleAgeYears.map(year => (<SelectItem key={year} value={year}>{year}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+        
+            <div className="grid md:grid-cols-2 gap-4">
+                 <FormField control={control} name="orderDetails.loadingDate" render={({ field }) => (
+                     <FormItem className="flex flex-col"><FormLabel>Data de Carregamento</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><>{field.value ? (format(field.value, "PPP")) : (<span>Escolha uma data</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => date < new Date() || date < new Date("1900-01-01")} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
+                 )} />
+                 <FormField control={control} name="orderDetails.loadingTime" render={({ field }) => (
+                     <FormItem><FormLabel>Hora de Carregamento</FormLabel><FormControl><Input type="time" {...field} /></FormControl><FormMessage /></FormItem>
+                 )} />
+            </div>
+
+            <FormField control={control} name="orderDetails.paymentType" render={({ field }) => (
+                <FormItem>
+                    <FormLabel>Tipo de Pagamento</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl>
+                        <SelectContent>
+                            <SelectItem value="coleta">Na Coleta</SelectItem>
+                            <SelectItem value="entrega">Na Entrega</SelectItem>
+                            <SelectItem value="50-50">50% na Coleta, 50% na Entrega</SelectItem>
+                            <SelectItem value="customizado">Customizado</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <FormMessage />
+                </FormItem>
+            )} />
+            
+            {paymentType === 'customizado' && (
+                <div className="p-4 border rounded-md space-y-4">
+                     <FormField control={control} name="orderDetails.customPayment.type" render={({ field }) => (
+                         <FormItem><FormLabel>Opção de Pagamento Customizado</FormLabel><FormControl><RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-col gap-2 pt-2"><FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="faturado" /></FormControl><FormLabel className="font-normal">Faturado</FormLabel></FormItem><FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="parcelado" /></FormControl><FormLabel className="font-normal">Parcelado</FormLabel></FormItem><FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="coleta-entrega" /></FormControl><FormLabel className="font-normal">Coleta/Entrega %</FormLabel></FormItem></RadioGroup></FormControl><FormMessage /></FormItem>
+                     )} />
+
+                     {customPaymentType === 'faturado' && (
+                         <FormField control={control} name="orderDetails.customPayment.faturadoDays" render={({ field }) => (<FormItem><FormLabel>Dias para faturar</FormLabel><FormControl><Input type="number" placeholder="Ex: 30" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                     )}
+                      {customPaymentType === 'parcelado' && (
+                         <FormField control={control} name="orderDetails.customPayment.parceladoCount" render={({ field }) => (<FormItem><FormLabel>Quantidade de parcelas</FormLabel><FormControl><Input type="number" placeholder="Ex: 3" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                     )}
+                     {customPaymentType === 'coleta-entrega' && (
+                         <div className="grid grid-cols-2 gap-4">
+                            <FormField control={control} name="orderDetails.customPayment.coletaPercentage" render={({ field }) => (<FormItem><FormLabel>% na Coleta</FormLabel><FormControl><Input type="number" placeholder="Ex: 30" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={control} name="orderDetails.customPayment.entregaPercentage" render={({ field }) => (<FormItem><FormLabel>% na Entrega</FormLabel><FormControl><Input type="number" placeholder="Ex: 70" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                         </div>
+                     )}
+                     <FormField control={control} name="orderDetails.customPayment" render={({fieldState}) => <FormMessage>{fieldState.error?.message}</FormMessage>} />
+                </div>
+            )}
+        </div>
+    )
+}
+
+
 // =================================================================
 // Componente Principal
 // =================================================================
@@ -352,6 +539,10 @@ export default function RequestFreightPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const freightType = searchParams.get('type') || 'completo'; // 'completo' or 'retorno'
 
   const methods = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -360,6 +551,34 @@ export default function RequestFreightPage() {
       responsibleCollaborators: [],
       origin: { state: '', city: '' },
       destinations: [{ state: '', city: '', stops: 1 }],
+      orderDetails: {
+          whatWillBeLoaded: '',
+          weight: '',
+          dimensions: { height: '', width: '', length: '' },
+          cubicMeters: '',
+          needsTracker: false,
+          trackerType: '',
+          cargoType: 'caixas',
+          isDangerousCargo: false,
+          hasInvoice: false,
+          driverNeedsToIssueInvoice: false,
+          driverNeedsToHelp: 'nao',
+          needsHelper: false,
+          whoPaysHelper: undefined,
+          driverNeedsANTT: false,
+          specificCourses: '',
+          minimumVehicleAge: 'none',
+          loadingDate: undefined,
+          loadingTime: '',
+          paymentType: 'entrega',
+          customPayment: {
+              type: undefined,
+              faturadoDays: undefined,
+              parceladoCount: undefined,
+              coletaPercentage: undefined,
+              entregaPercentage: undefined,
+          }
+      }
     }
   });
 
@@ -367,11 +586,15 @@ export default function RequestFreightPage() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-        setUser(currentUser);
+        if (currentUser) {
+            setUser(currentUser);
+        } else {
+            router.push('/login');
+        }
         setIsLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [router]);
 
   async function processForm(data: FormData) {
     console.log("Form data submitted:", data);
@@ -402,6 +625,8 @@ export default function RequestFreightPage() {
   };
   
   const progress = ((currentStep + 1) / (steps.length || 1)) * 100;
+  
+  const pageTitle = freightType === 'retorno' ? 'Frete de Retorno' : 'Frete Completo';
 
   if (isLoading) {
     return (
@@ -412,8 +637,7 @@ export default function RequestFreightPage() {
   }
 
   if (!user) {
-    // Redirect or show login prompt if needed
-    return <p>Por favor, faça login para continuar.</p>
+    return null;
   }
 
   return (
@@ -421,16 +645,16 @@ export default function RequestFreightPage() {
         <div className="max-w-3xl mx-auto">
              <div className="mb-8">
                  <Button asChild variant="outline" className="mb-4">
-                    <Link href="/profile">
+                    <Link href="/fretes/solicitar">
                         <ArrowLeft className="mr-2 h-4 w-4" />
-                        Voltar para o Painel
+                        Voltar
                     </Link>
                 </Button>
             </div>
              <div className="text-center mb-12">
-                <h1 className="text-4xl font-bold font-headline text-primary">Solicitar Frete</h1>
+                <h1 className="text-4xl font-bold font-headline text-primary">{pageTitle}</h1>
                 <p className="mt-2 text-lg text-foreground/70">
-                    Preencha o formulário para encontrar o motorista ideal para sua carga.
+                    Você está cadastrando um novo <span className="font-semibold text-foreground">{pageTitle}</span>.
                 </p>
             </div>
 
@@ -446,6 +670,7 @@ export default function RequestFreightPage() {
                       <form onSubmit={handleSubmit(processForm)}>
                           <div className={currentStep === 0 ? 'block' : 'hidden'}> <StepCollaborators companyId={user.uid} /> </div>
                           <div className={currentStep === 1 ? 'block' : 'hidden'}> <StepRoute /> </div>
+                          <div className={currentStep === 2 ? 'block' : 'hidden'}> <StepOrderDetails /> </div>
                           {/* Future steps will be rendered here */}
                       </form>
                   </FormProvider>
@@ -465,3 +690,5 @@ export default function RequestFreightPage() {
     </div>
   );
 }
+
+    
