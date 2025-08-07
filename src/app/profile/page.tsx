@@ -8,7 +8,7 @@ import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { User, Clock, ShieldCheck, Loader2, Users, ArrowRight, Package } from "lucide-react";
+import { User, Clock, ShieldCheck, Loader2, Users, ArrowRight, Package, ShieldAlert } from "lucide-react";
 import CompanyProfileForm from './company-profile-form';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -161,6 +161,27 @@ export default function ProfilePage() {
                                     <Button asChild className='w-full'>
                                         <Link href="/solicitar-frete">
                                             Gerenciar Fretes <ArrowRight className="ml-2 h-4 w-4"/>
+                                        </Link>
+                                    </Button>
+                                </CardFooter>
+                            </Card>
+                             <Card className="flex flex-col">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <ShieldAlert className="h-5 w-5 text-primary" />
+                                        Verificar Motorista
+                                    </CardTitle>
+                                    <CardDescription>
+                                       Consulte a situação de motoristas para mais segurança.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="flex-grow">
+                                    <p className='text-sm text-muted-foreground'>Verifique antecedentes e informações do motorista.</p>
+                                </CardContent>
+                                <CardFooter>
+                                    <Button asChild className='w-full'>
+                                        <Link href="#">
+                                            Verificar Agora <ArrowRight className="ml-2 h-4 w-4"/>
                                         </Link>
                                     </Button>
                                 </CardFooter>
