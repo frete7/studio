@@ -11,8 +11,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Package, PackageCheck, PackageSearch, Ban } from 'lucide-react';
+import { Loader2, Package, PackageCheck, PackageSearch, Ban, MapPin, ArrowRight } from 'lucide-react';
 import { cva } from 'class-variance-authority';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 const freightTypeVariants = cva(
   "",
@@ -80,7 +81,12 @@ export default function FreightsClient() {
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
             const data: Freight[] = [];
             querySnapshot.forEach((doc) => {
-                data.push({ ...doc.data(), id: doc.id } as Freight);
+                const freightData = doc.data() as Freight;
+                 // Ensure destinations is always an array
+                if (!Array.isArray(freightData.destinations)) {
+                    freightData.destinations = [];
+                }
+                data.push({ ...freightData, id: doc.id });
             });
             setFreights(data);
             setIsLoading(false);
@@ -121,24 +127,48 @@ export default function FreightsClient() {
                     </TableHeader>
                     <TableBody>
                         {freightList.map(freight => (
-                            <TableRow key={freight.id} onClick={() => handleRowClick(freight.id)} className="cursor-pointer">
-                                <TableCell>
+                            <TableRow key={freight.id} onClick={() => handleRowClick(freight.id)} className="cursor-pointer align-top">
+                                <TableCell className="pt-5">
                                     <Badge className={freightTypeVariants({ freightType: freight.freightType })}>
                                         {getFreightTypeLabel(freight.freightType)}
                                     </Badge>
                                 </TableCell>
                                 <TableCell>
-                                    <div className="font-medium">{freight.origin}</div>
-                                    <div className="text-sm text-muted-foreground">
-                                        {freight.destinations[0]}
-                                        {freight.destinations.length > 1 && ` (+${freight.destinations.length - 1})`}
+                                    <div className="flex items-center gap-2 font-medium">
+                                        <MapPin className="h-4 w-4 text-muted-foreground" />
+                                        <span>{freight.origin.city}, {freight.origin.state}</span>
+                                        <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                                        <span>
+                                            {freight.destinations[0]?.city}, {freight.destinations[0]?.state}
+                                            {freight.destinations[0]?.stops && <Badge variant="secondary" className="ml-2">+{freight.destinations[0].stops}</Badge>}
+                                        </span>
                                     </div>
+                                    {freight.destinations.length > 1 && (
+                                        <Accordion type="single" collapsible className="w-full">
+                                            <AccordionItem value="item-1" className="border-b-0">
+                                                <AccordionTrigger className="text-xs text-primary hover:no-underline py-1">
+                                                    e mais {freight.destinations.length - 1} destino(s)
+                                                </AccordionTrigger>
+                                                <AccordionContent>
+                                                    <ul className="pl-6 space-y-1">
+                                                        {freight.destinations.slice(1).map((dest, index) => (
+                                                            <li key={index} className="text-muted-foreground text-sm flex items-center gap-2">
+                                                                <ArrowRight className="h-3 w-3" /> 
+                                                                {dest.city}, {dest.state}
+                                                                {dest.stops && <Badge variant="secondary" className="ml-1">+{dest.stops}</Badge>}
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </AccordionContent>
+                                            </AccordionItem>
+                                        </Accordion>
+                                    )}
                                 </TableCell>
-                                <TableCell className="hidden md:table-cell">{freight.companyName || 'N/A'}</TableCell>
-                                 <TableCell className="hidden sm:table-cell">
-                                    {new Date(freight.createdAt.seconds * 1000).toLocaleDateString('pt-BR')}
+                                <TableCell className="hidden md:table-cell pt-5">{freight.companyName || 'N/A'}</TableCell>
+                                 <TableCell className="hidden sm:table-cell pt-5">
+                                    {freight.createdAt?.seconds ? new Date(freight.createdAt.seconds * 1000).toLocaleDateString('pt-BR') : 'N/A'}
                                 </TableCell>
-                                <TableCell className="text-right">
+                                <TableCell className="text-right pt-5">
                                     <Badge variant="outline" className={freightStatusVariants({status: freight.status})}>
                                         {getStatusLabel(freight.status)}
                                     </Badge>
