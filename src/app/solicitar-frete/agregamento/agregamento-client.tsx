@@ -5,23 +5,26 @@ import { useState, useEffect } from 'react';
 import { useForm, FormProvider, useFormContext, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { collection, onSnapshot, query, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { groupBy, mapValues } from 'lodash';
 
-import { type Collaborator } from '@/app/actions';
+import { type Collaborator, type BodyType, type VehicleType, type VehicleCategory } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardFooter } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, User, Search, PlusCircle, Trash2 } from 'lucide-react';
+import { Loader2, User, Search, PlusCircle, Trash2, Truck, Box } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 // =================================================================
 // Schemas e Tipos
@@ -71,6 +74,21 @@ const orderDetailsSchema = z.object({
     path: ['specificCourses'],
 });
 
+const priceTableEntrySchema = z.object({
+    kmStart: z.coerce.number().min(0, "Km inicial deve ser positivo."),
+    kmEnd: z.coerce.number().positive("Km final deve ser maior que zero."),
+    price: z.coerce.number().positive("O valor deve ser positivo."),
+}).refine(data => data.kmEnd > data.kmStart, {
+    message: "Km final deve ser maior que o inicial.",
+    path: ['kmEnd']
+});
+
+const vehicleSelectionSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    priceTable: z.array(priceTableEntrySchema).optional(),
+});
+
 
 const formSchema = z.object({
   responsibleCollaborators: z.array(z.string()).refine(value => value.some(item => item), {
@@ -79,7 +97,14 @@ const formSchema = z.object({
   origin: locationSchema,
   destinations: z.array(locationSchema).min(1, "Adicione pelo menos um destino."),
   orderDetails: orderDetailsSchema,
-  // Outras etapas virão aqui
+  requiredBodyworks: z.array(z.string()).refine(value => value.some(item => item), {
+    message: "Você deve selecionar pelo menos um tipo de carroceria.",
+  }),
+  requiredVehicles: z.array(vehicleSelectionSchema).refine(value => value.length > 0, {
+    message: "Você deve selecionar pelo menos um tipo de veículo.",
+  }).refine(value => value.every(v => v.priceTable && v.priceTable.length > 0), {
+      message: "Todos os veículos selecionados devem ter uma tabela de preço definida.",
+  }),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -90,7 +115,7 @@ const steps = [
   { id: 1, name: 'Responsáveis', fields: ['responsibleCollaborators'] },
   { id: 2, name: 'Rota', fields: ['origin', 'destinations'] },
   { id: 3, name: 'Informações do Pedido', fields: ['orderDetails'] },
-  { id: 4, name: 'Requisitos Adicionais', fields: [] },
+  { id: 4, name: 'Veículos e Carrocerias', fields: ['requiredBodyworks', 'requiredVehicles'] },
 ];
 
 const paymentOptions = [
@@ -801,12 +826,218 @@ function StepOrderDetails() {
     );
 }
 
+function PriceTable({ vehicleIndex }: { vehicleIndex: number }) {
+    const { control, getValues, setValue } = useFormContext();
+    const { fields, append, remove } = useFieldArray({
+        control,
+        name: `requiredVehicles.${vehicleIndex}.priceTable`,
+    });
+    
+    const handleAddRow = () => {
+        const lastRow = fields.length > 0 ? getValues(`requiredVehicles.${vehicleIndex}.priceTable`)[fields.length - 1] : null;
+        const newStartKm = lastRow && lastRow.kmEnd ? lastRow.kmEnd + 1 : 0;
+        append({ kmStart: newStartKm, kmEnd: '', price: '' });
+    };
+
+    return (
+        <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+                {fields.map((field, index) => (
+                    <div key={field.id} className="grid grid-cols-3 md:grid-cols-[1fr_1fr_1fr_auto] gap-2 items-center">
+                        <FormField
+                            control={control}
+                            name={`requiredVehicles.${vehicleIndex}.priceTable.${index}.kmStart`}
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormControl><Input type="number" placeholder="Km inicial" {...field} readOnly={index > 0} /></FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={control}
+                            name={`requiredVehicles.${vehicleIndex}.priceTable.${index}.kmEnd`}
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormControl><Input type="number" placeholder="Km final" {...field} /></FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={control}
+                            name={`requiredVehicles.${vehicleIndex}.priceTable.${index}.price`}
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormControl><Input type="number" placeholder="Valor (R$)" {...field} /></FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                    </div>
+                ))}
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={handleAddRow}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Adicionar Faixa
+            </Button>
+        </div>
+    );
+}
+
+function StepVehicleAndBodywork({ allData }: { allData: any }) {
+    const { control, watch } = useFormContext();
+    const { fields, append, remove } = useFieldArray({
+        control,
+        name: "requiredVehicles"
+    });
+
+    const { groupedBodyworks, groupedVehicleTypes, vehicleTypes, vehicleCategories } = allData;
+    const requiredBodyworks = watch('requiredBodyworks');
+    const requiredVehicles = watch('requiredVehicles');
+    const isVehicleSelectionEnabled = requiredBodyworks && requiredBodyworks.length > 0;
+
+    const selectedVehicleIds = requiredVehicles.map((v: any) => v.id);
+
+    const handleVehicleSelection = (vehicle: any, checked: boolean) => {
+        if (checked) {
+            append({ id: vehicle.id, name: vehicle.name, priceTable: [] });
+        } else {
+            const indexToRemove = fields.findIndex(field => (field as any).id === vehicle.id);
+            if (indexToRemove !== -1) {
+                remove(indexToRemove);
+            }
+        }
+    };
+    
+    return (
+        <div className="space-y-8">
+            <div>
+                <h2 className="text-2xl font-semibold">4. Veículos e Carrocerias</h2>
+                <p className="text-muted-foreground">Especifique os tipos de carroceria e veículos necessários para a operação.</p>
+            </div>
+            <Separator />
+
+            {/* Seleção de Carroceria */}
+            <FormField
+                control={control}
+                name="requiredBodyworks"
+                render={() => (
+                    <FormItem>
+                         <div className="mb-4">
+                            <FormLabel className="text-base font-semibold">Tipos de Carroceria</FormLabel>
+                            <FormDescription>Selecione um ou mais tipos de carroceria que o veículo deve ter.</FormDescription>
+                        </div>
+                        <Accordion type="multiple" className="w-full">
+                            {Object.entries(groupedBodyworks).map(([group, types]: [string, any]) => (
+                                <AccordionItem key={group} value={group}>
+                                    <AccordionTrigger>{group}</AccordionTrigger>
+                                    <AccordionContent>
+                                         <div className="grid grid-cols-2 gap-4 p-2">
+                                            {types.map((item: any) => (
+                                                <FormField
+                                                    key={item.id}
+                                                    control={control}
+                                                    name="requiredBodyworks"
+                                                    render={({ field }) => (
+                                                        <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                                                            <FormControl>
+                                                                <Checkbox
+                                                                    checked={field.value?.includes(item.id)}
+                                                                    onCheckedChange={(checked) => {
+                                                                        return checked
+                                                                            ? field.onChange([...field.value, item.id])
+                                                                            : field.onChange(field.value?.filter((value) => value !== item.id))
+                                                                    }}
+                                                                />
+                                                            </FormControl>
+                                                            <FormLabel className="font-normal">{item.name}</FormLabel>
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            ))}
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+                            ))}
+                        </Accordion>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+
+            <Separator />
+            
+            {/* Seleção de Veículos */}
+             <div className="space-y-4">
+                <div className="mb-4">
+                    <FormLabel className="text-base font-semibold">Tipos de Veículo</FormLabel>
+                    <FormDescription>Selecione os veículos e defina uma tabela de preços para cada um.</FormDescription>
+                    {!isVehicleSelectionEnabled && (
+                        <p className="text-sm text-yellow-600 mt-2">Selecione ao menos um tipo de carroceria para habilitar a seleção de veículos.</p>
+                    )}
+                </div>
+
+                <Accordion type="multiple" className="w-full" disabled={!isVehicleSelectionEnabled}>
+                    {Object.entries(groupedVehicleTypes).map(([category, types]: [string, any]) => (
+                        <AccordionItem key={category} value={category}>
+                             <AccordionTrigger>{category}</AccordionTrigger>
+                             <AccordionContent>
+                                <div className="grid grid-cols-2 gap-4 p-2">
+                                     {types.map((item: any) => (
+                                        <FormItem key={item.id} className="flex flex-row items-center space-x-3 space-y-0">
+                                            <FormControl>
+                                                <Checkbox
+                                                    checked={selectedVehicleIds.includes(item.id)}
+                                                    onCheckedChange={(checked) => handleVehicleSelection(item, !!checked)}
+                                                />
+                                            </FormControl>
+                                            <FormLabel className="font-normal">{item.name}</FormLabel>
+                                        </FormItem>
+                                     ))}
+                                </div>
+                             </AccordionContent>
+                        </AccordionItem>
+                    ))}
+                </Accordion>
+                <FormField control={control} name="requiredVehicles" render={({ fieldState }) => <FormMessage>{fieldState.error?.root?.message}</FormMessage>} />
+             </div>
+
+             {/* Lista de Veículos Selecionados e Tabelas de Preço */}
+            {fields.length > 0 && (
+                <div className="space-y-4">
+                    <h3 className="font-semibold text-lg">Tabelas de Preço</h3>
+                     {fields.map((field, index) => (
+                        <Card key={field.id} className="p-4">
+                             <CardHeader className="flex flex-row justify-between items-center p-2">
+                                <p className="font-medium flex items-center gap-2"><Truck className="h-5 w-5 text-primary" /> {(field as any).name}</p>
+                            </CardHeader>
+                            <CardContent className="p-2">
+                                <PriceTable vehicleIndex={index} />
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
 // =================================================================
 // Componente Principal
 // =================================================================
 
 export default function AgregamentoClient({ companyId }: { companyId: string }) {
   const [currentStep, setCurrentStep] = useState(0);
+  const [allData, setAllData] = useState({
+      groupedBodyworks: {},
+      groupedVehicleTypes: {},
+      vehicleTypes: [],
+      vehicleCategories: [],
+  });
+  const [isDataLoading, setIsDataLoading] = useState(true);
   
   const methods = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -827,14 +1058,51 @@ export default function AgregamentoClient({ companyId }: { companyId: string }) 
         specificCourses: [],
         benefits: [],
         paymentMethods: [],
-        minimumVehicleAge: undefined,
+        minimumVehicleAge: 'none',
         loadingTimes: [],
         loadingOrder: undefined,
-      }
+      },
+      requiredBodyworks: [],
+      requiredVehicles: [],
     }
   });
 
   const { handleSubmit, trigger, formState: { isSubmitting } } = methods;
+
+  useEffect(() => {
+      const fetchData = async () => {
+          setIsDataLoading(true);
+          try {
+              const [bodyTypesSnap, vehicleTypesSnap, vehicleCategoriesSnap] = await Promise.all([
+                  getDocs(query(collection(db, 'body_types'))),
+                  getDocs(query(collection(db, 'vehicle_types'))),
+                  getDocs(query(collection(db, 'vehicle_categories'))),
+              ]);
+
+              const bodyTypes: BodyType[] = bodyTypesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as BodyType));
+              const vehicleTypes: VehicleType[] = vehicleTypesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as VehicleType));
+              const vehicleCategories: VehicleCategory[] = vehicleCategoriesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as VehicleCategory));
+
+              const groupedBodyworks = groupBy(bodyTypes, 'group');
+              const categoryMap = new Map(vehicleCategories.map(c => [c.id, c.name]));
+              const typesWithCatName = vehicleTypes.map(vt => ({ ...vt, categoryName: categoryMap.get(vt.categoryId) || 'Outros' }));
+              const groupedVehicleTypes = groupBy(typesWithCatName, 'categoryName');
+
+              setAllData({
+                  groupedBodyworks,
+                  groupedVehicleTypes,
+                  vehicleTypes,
+                  vehicleCategories,
+              });
+
+          } catch (error) {
+              console.error("Failed to fetch form data", error);
+          } finally {
+              setIsDataLoading(false);
+          }
+      };
+      fetchData();
+  }, []);
 
   async function processForm(data: FormData) {
     console.log("Form data:", data);
@@ -880,6 +1148,7 @@ export default function AgregamentoClient({ companyId }: { companyId: string }) 
                   {currentStep === 0 && <StepCollaborators companyId={companyId} />}
                   {currentStep === 1 && <StepRoute />}
                   {currentStep === 2 && <StepOrderDetails />}
+                  {currentStep === 3 && (isDataLoading ? <Loader2 className="animate-spin" /> : <StepVehicleAndBodywork allData={allData} />)}
                   {/* Outras etapas virão aqui */}
               </form>
           </FormProvider>
@@ -888,7 +1157,7 @@ export default function AgregamentoClient({ companyId }: { companyId: string }) 
               <Button onClick={prevStep} variant="outline" disabled={currentStep === 0 || isSubmitting}>
                   Voltar
               </Button>
-              <Button onClick={nextStep} disabled={isSubmitting}>
+              <Button onClick={nextStep} disabled={isSubmitting || (currentStep === 3 && isDataLoading)}>
                   {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {currentStep < steps.length - 1 ? 'Próximo' : 'Enviar Solicitação'}
               </Button>
