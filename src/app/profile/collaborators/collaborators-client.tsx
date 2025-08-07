@@ -68,8 +68,8 @@ const freightTypeVariants = cva(
       freightType: {
         comum: "border-transparent bg-sky-500 text-white hover:bg-sky-600",
         agregamento: "border-transparent bg-amber-500 text-white hover:bg-amber-600",
-        "frete completo": "border-transparent bg-purple-500 text-white hover:bg-purple-600",
-        "frete de retorno": "border-transparent bg-green-500 text-white hover:bg-green-600",
+        "frete-completo": "border-transparent bg-purple-500 text-white hover:bg-purple-600",
+        "frete-retorno": "border-transparent bg-green-500 text-white hover:bg-green-600",
       },
     },
     defaultVariants: {
@@ -382,8 +382,8 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
     const labels = {
         'comum': 'Comum',
         'agregamento': 'Agregamento',
-        'frete completo': 'Completo',
-        'frete de retorno': 'Retorno',
+        'frete-completo': 'Completo',
+        'frete-retorno': 'Retorno',
     };
     return labels[type] || 'N/A';
   }
@@ -604,5 +604,3 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
     </>
   );
 }
-
-    

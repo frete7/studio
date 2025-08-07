@@ -406,7 +406,7 @@ export async function deletePlan(id: string): Promise<void> {
 // Freights Actions
 export type Freight = {
     id: string;
-    freightType: 'comum' | 'agregamento' | 'frete completo' | 'frete de retorno';
+    freightType: 'comum' | 'agregamento' | 'frete-completo' | 'frete-retorno';
     origin: any;
     destinations: any[];
     createdAt: any;
@@ -473,7 +473,7 @@ export async function addCompleteFreight(companyId: string, companyName: string,
         id: generatedId,
         companyId: companyId,
         companyName: companyName,
-        freightType: `frete ${freightType}`,
+        freightType: `frete-${freightType}`,
         status: 'ativo',
         createdAt: serverTimestamp(),
     };
