@@ -929,7 +929,6 @@ function SummaryView({ data, onEdit, allData, companyId, freightType }: { data: 
                  <DetailItem label="Peso" value={`${orderDetails.weight} kg`} />
                  <DetailItem label="Cubagem" value={orderDetails.cubicMeters ? `${orderDetails.cubicMeters} m³` : 'Não informado'} />
                  <DetailItem label="Tipo de Carga" value={orderDetails.cargoType} />
-                 <DetailItem label="Ordem de Carregamento" value={orderDetails.loadingOrder} />
                  <DetailItem label="Data Carregamento" value={orderDetails.loadingDate ? format(orderDetails.loadingDate, 'dd/MM/yyyy') : 'Não informada'} />
                  <DetailItem label="Hora Carregamento" value={orderDetails.loadingTime || 'Não informada'} />
                  <Separator className="my-2" />
