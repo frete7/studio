@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useForm, FormProvider, useFormContext, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { onSnapshot, collection, query, getDocs } from 'firebase/firestore';
+import { onSnapshot, collection, query, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import Link from 'next/link';
