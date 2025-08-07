@@ -6,8 +6,10 @@ import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ArrowLeft } from 'lucide-react';
 import AgregamentoClient from './agregamento-client';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
 type UserProfile = {
     tradingName?: string;
@@ -57,6 +59,14 @@ export default function AgregamentoPage() {
     return (
         <div className="container mx-auto px-4 py-12">
             <div className="max-w-3xl mx-auto">
+                <div className="mb-8">
+                     <Button asChild variant="outline" className="mb-4">
+                        <Link href="/profile">
+                            <ArrowLeft className="mr-2 h-4 w-4" />
+                            Voltar para o Painel
+                        </Link>
+                    </Button>
+                </div>
                  <div className="text-center mb-12">
                     <h1 className="text-4xl font-bold font-headline text-primary">Solicitar Agregamento</h1>
                     <p className="mt-2 text-lg text-foreground/70">
