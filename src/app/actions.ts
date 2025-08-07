@@ -507,4 +507,32 @@ export async function getCollaboratorStats(companyId: string, collaboratorId: st
         throw new Error('Falha ao buscar as estatísticas do colaborador.');
     }
 }
+
+export async function getFreightsByCollaborator(companyId: string, collaboratorId: string): Promise<Freight[]> {
+    if (!companyId || !collaboratorId) {
+        throw new Error('ID da empresa e do colaborador são obrigatórios.');
+    }
+    
+    try {
+        const freightsCollection = collection(db, 'freights');
+        const q = query(
+            freightsCollection,
+            where('companyId', '==', companyId),
+            where('collaboratorId', '==', collaboratorId)
+        );
+        
+        const snapshot = await getDocs(q);
+        if (snapshot.empty) {
+            return [];
+        }
+        
+        return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Freight));
+
+    } catch (error) {
+        console.error("Error fetching freights by collaborator: ", error);
+        throw new Error('Falha ao buscar os fretes do colaborador.');
+    }
+}
+    
+
     

@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
-import { addCollaborator, updateCollaborator, deleteCollaborator, getCollaboratorStats, type Collaborator, type CollaboratorStats } from '@/app/actions';
+import { addCollaborator, updateCollaborator, deleteCollaborator, getCollaboratorStats, getFreightsByCollaborator, type Collaborator, type CollaboratorStats, type Freight } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Loader2, PlusCircle, Trash2, Edit, User, BarChart, Package, PackageCheck, PackageSearch } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Badge } from '@/components/ui/badge';
 
 const formSchema = z.object({
   name: z.string().min(3, { message: 'O nome deve ter pelo menos 3 caracteres.' }),
@@ -68,6 +69,9 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
   const [viewingCollaborator, setViewingCollaborator] = useState<Collaborator | null>(null);
   const [stats, setStats] = useState<CollaboratorStats | null>(null);
   const [isStatsLoading, setIsStatsLoading] = useState(false);
+  const [isFreightListOpen, setIsFreightListOpen] = useState(false);
+  const [collaboratorFreights, setCollaboratorFreights] = useState<Freight[]>([]);
+  const [isFreightsLoading, setIsFreightsLoading] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -159,6 +163,25 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
     });
     setIsFormDialogOpen(true);
   };
+  
+  const handleViewFreightsClick = async () => {
+    if (!viewingCollaborator) return;
+    setIsFreightListOpen(true);
+    setIsFreightsLoading(true);
+    try {
+        const freights = await getFreightsByCollaborator(companyId, viewingCollaborator.id);
+        setCollaboratorFreights(freights);
+    } catch(error) {
+         toast({
+            variant: 'destructive',
+            title: 'Erro ao buscar fretes',
+            description: error instanceof Error ? error.message : 'Ocorreu um erro.',
+          });
+    } finally {
+        setIsFreightsLoading(false);
+    }
+  }
+
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     setIsSubmitting(true);
@@ -274,8 +297,8 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
     );
   };
   
-  const StatCard = ({ title, value, icon, isLoading }: { title: string, value: string | number, icon: React.ReactNode, isLoading?: boolean }) => (
-    <Card>
+  const StatCard = ({ title, value, icon, isLoading, onClick }: { title: string, value: string | number, icon: React.ReactNode, isLoading?: boolean, onClick?: () => void }) => (
+    <Card onClick={onClick} className={onClick ? 'cursor-pointer hover:bg-muted/50' : ''}>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">{title}</CardTitle>
             {icon}
@@ -289,6 +312,26 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
         </CardContent>
     </Card>
   )
+  
+  const getStatusLabel = (status: Freight['status']): string => {
+    const labels = {
+        ativo: 'Ativo',
+        concluido: 'Concluído',
+        pendente: 'Pendente',
+        cancelado: 'Cancelado',
+    };
+    return labels[status] || 'N/A';
+  }
+  
+  const getStatusVariant = (status: Freight['status']) => {
+    switch (status) {
+      case 'ativo': return 'default';
+      case 'concluido': return 'secondary';
+      case 'pendente': return 'outline';
+      case 'cancelado': return 'destructive';
+      default: return 'secondary';
+    }
+  }
 
   return (
     <>
@@ -297,12 +340,10 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Lista de Colaboradores</CardTitle>
             {collaborators.length > 0 && (
-                <DialogTrigger asChild>
-                    <Button onClick={handleAddNewClick}>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Adicionar Novo
-                    </Button>
-                </DialogTrigger>
+                <Button onClick={handleAddNewClick}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Adicionar Novo
+                </Button>
             )}
           </CardHeader>
           <CardContent>
@@ -427,6 +468,7 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
                     value={stats?.totalFreights ?? 0} 
                     icon={<BarChart className="h-4 w-4 text-muted-foreground" />} 
                     isLoading={isStatsLoading}
+                    onClick={handleViewFreightsClick}
                 />
                 <StatCard 
                     title="Fretes Ativos" 
@@ -447,6 +489,53 @@ export default function CollaboratorsClient({ companyId }: { companyId: string }
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+       <Dialog open={isFreightListOpen} onOpenChange={setIsFreightListOpen}>
+        <DialogContent className="sm:max-w-4xl">
+            <DialogHeader>
+                <DialogTitle className="text-2xl">Fretes de {viewingCollaborator?.name}</DialogTitle>
+            </DialogHeader>
+            <div className="py-4 max-h-[60vh] overflow-y-auto">
+                {isFreightsLoading ? (
+                     <div className="flex justify-center items-center h-48">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                ) : collaboratorFreights.length > 0 ? (
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Rota</TableHead>
+                                <TableHead>Data</TableHead>
+                                <TableHead className="text-right">Status</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {collaboratorFreights.map(freight => (
+                                <TableRow key={freight.id}>
+                                    <TableCell>
+                                        <div className="font-medium">{freight.origin.city} &rarr; {freight.destinations[0].city}</div>
+                                        <div className="text-sm text-muted-foreground">{freight.id}</div>
+                                    </TableCell>
+                                     <TableCell>
+                                        {new Date(freight.createdAt.seconds * 1000).toLocaleDateString('pt-BR')}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <Badge variant={getStatusVariant(freight.status)}>{getStatusLabel(freight.status)}</Badge>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                ) : (
+                    <p className="text-center text-muted-foreground py-8">Nenhum frete encontrado para este colaborador.</p>
+                )}
+            </div>
+            <DialogFooter>
+                <Button onClick={() => setIsFreightListOpen(false)}>Fechar</Button>
+            </DialogFooter>
+        </DialogContent>
+       </Dialog>
+
     </>
   );
 }
