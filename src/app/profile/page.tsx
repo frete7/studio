@@ -164,7 +164,7 @@ export default function ProfilePage() {
                                 </CardContent>
                                 <CardFooter>
                                     <Button asChild className='w-full'>
-                                        <Link href="/solicitar-frete">
+                                        <Link href="/fretes/solicitar">
                                             Gerenciar Fretes <ArrowRight className="ml-2 h-4 w-4"/>
                                         </Link>
                                     </Button>
@@ -214,6 +214,20 @@ export default function ProfilePage() {
                             </Card>
                         </div>
                     </div>
+                );
+            case 'admin':
+                return (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Painel do Administrador</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p>Bem-vindo, Administrador. Use o menu de navegação para gerenciar a plataforma.</p>
+                             <Button asChild className="mt-4">
+                                <Link href="/admin">Ir para o Painel de Admin</Link>
+                            </Button>
+                        </CardContent>
+                    </Card>
                 );
             default:
                 return (
