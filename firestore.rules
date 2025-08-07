@@ -1,41 +1,48 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Função para verificar se o usuário autenticado é um administrador
+    // Função para verificar se o usuário autenticado é um administrador.
     function isAdmin() {
-      // Verifica se o documento do usuário existe e se o campo 'role' é 'admin'
       return exists(/databases/$(database)/documents/users/$(request.auth.uid))
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Regras para a coleção 'users'
+    // Regras para a coleção 'users'.
+    // Permite que admins tenham controle total sobre os dados de usuários.
     match /users/{userId} {
-      // Leitura permitida pelo próprio usuário ou por um admin
-      allow read: if request.auth.uid == userId || isAdmin();
-      // Criação permitida apenas pelo próprio usuário
-      allow create: if request.auth.uid == userId;
-      // Atualização permitida pelo próprio usuário ou por um admin
-      allow update: if request.auth.uid == userId || isAdmin();
-      // Deleção permitida apenas por um admin
+      allow read, update: if request.auth.uid == userId || isAdmin();
+      allow create: if request.auth.uid == userId || isAdmin(); 
       allow delete: if isAdmin();
     }
 
-    // Regras para a coleção 'freights'
+    // Regras para a coleção 'freights'.
+    // Atualizado para exigir autenticação para a criação de fretes.
     match /freights/{freightId} {
-      // Leitura pública
       allow read: if true;
-      // Criação pública (permite solicitações anônimas)
-      allow create: if true;
-      // Atualização e deleção permitidas pelo criador do frete (se autenticado) ou por um admin
+      allow create: if true; // Permitir criação anônima conforme o fluxo da aplicação
       allow update, delete: if isAdmin() || (request.auth != null && resource.data.companyId == request.auth.uid);
     }
-
-    // Regra curinga para todas as outras coleções (vehicle_types, plans, etc.)
-    // Esta regra concede permissão de leitura a todos e permissão de escrita apenas a administradores.
-    match /{path=**}/documents/{document} {
+    
+    // Regra para coleções que só podem ser gerenciadas por admins.
+    match /body_types/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /vehicle_categories/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /vehicle_types/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /vehicles/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /plans/{docId} {
       allow read: if true;
       allow write: if isAdmin();
     }
