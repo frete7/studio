@@ -55,7 +55,7 @@ const getStatusLabel = (status: Freight['status']): string => {
 export default function MyFreightsClient({ initialFreights }: { initialFreights: Freight[] }) {
     const [freights, setFreights] = useState(initialFreights);
     const [isLoading, setIsLoading] = useState(false);
-    const [filters, setFilters] = useState({ origin: '', destination: '', type: '' });
+    const [filters, setFilters] = useState({ origin: '', destination: '', type: 'all' });
     const { toast } = useToast();
 
     // Since initialFreights comes from a server component, we update the state if it changes.
@@ -80,7 +80,7 @@ export default function MyFreightsClient({ initialFreights }: { initialFreights:
         return freights.filter(f => {
             const originMatch = !filters.origin || f.origin.city.toLowerCase().includes(filters.origin.toLowerCase());
             const destinationMatch = !filters.destination || f.destinations.some(d => d.city.toLowerCase().includes(filters.destination.toLowerCase()));
-            const typeMatch = !filters.type || f.freightType === filters.type;
+            const typeMatch = filters.type === 'all' || f.freightType === filters.type;
             return originMatch && destinationMatch && typeMatch;
         });
     }, [freights, filters]);
@@ -154,14 +154,14 @@ export default function MyFreightsClient({ initialFreights }: { initialFreights:
                             <Select value={filters.type} onValueChange={value => setFilters(f => ({...f, type: value}))}>
                                 <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="">Todos os Tipos</SelectItem>
+                                    <SelectItem value="all">Todos os Tipos</SelectItem>
                                     <SelectItem value="agregamento">Agregamento</SelectItem>
                                     <SelectItem value="frete-completo">Frete Completo</SelectItem>
                                     <SelectItem value="frete-retorno">Frete de Retorno</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
-                        <Button variant="outline" onClick={() => setFilters({ origin: '', destination: '', type: '' })}>
+                        <Button variant="outline" onClick={() => setFilters({ origin: '', destination: '', type: 'all' })}>
                             <X className="mr-2 h-4 w-4"/>
                             Limpar Filtros
                         </Button>
