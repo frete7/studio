@@ -1255,12 +1255,6 @@ export default function RequestFreightPage() {
   return (
     <section className="container mx-auto px-4 py-12">
         <div className="max-w-3xl mx-auto">
-            <div className="text-center mb-12">
-                <h1 className="text-4xl font-bold font-headline text-primary">Solicitar um Frete</h1>
-                <p className="mt-2 text-lg text-foreground/70">
-                    Preencha o formulário abaixo em poucas etapas para receber um orçamento.
-                </p>
-            </div>
             
             <Card className="shadow-lg">
                 <CardContent className="p-6 md:p-8">
