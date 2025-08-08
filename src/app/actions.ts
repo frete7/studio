@@ -7,7 +7,7 @@ import {
   type OptimizeRouteOutput,
 } from '@/ai/flows/optimize-route';
 import { db } from '@/lib/firebase';
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, updateDoc, writeBatch, where, getCountFromServer, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, updateDoc, writeBatch, where, getCountFromServer, serverTimestamp, Timestamp, collectionGroup, startAt, endAt, orderBy } from 'firebase/firestore';
 
 export async function getOptimizedRoute(
   input: OptimizeRouteInput
@@ -313,6 +313,20 @@ export type BodyType = {
   group: string;
 };
 
+export async function getBodyTypes(): Promise<BodyType[]> {
+    try {
+        const bodyTypesCollection = collection(db, 'body_types');
+        const snapshot = await getDocs(bodyTypesCollection);
+        if (snapshot.empty) {
+            return [];
+        }
+        return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as BodyType));
+    } catch (error) {
+        console.error("Error fetching body types: ", error);
+        return [];
+    }
+}
+
 export async function addBodyType(data: Omit<BodyType, 'id'>): Promise<BodyType> {
   if (!data.name || !data.group) {
     throw new Error('Nome e grupo são obrigatórios.');
@@ -368,7 +382,7 @@ export async function getPlans(): Promise<Plan[]> {
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Plan));
     } catch (error) {
         console.error("Error fetching plans: ", error);
-        throw new Error("Falha ao buscar os planos.");
+        return [];
     }
 }
 
@@ -556,6 +570,18 @@ export type Collaborator = {
   phone: string;
 };
 
+export async function getCollaborators(companyId: string): Promise<Collaborator[]> {
+    if (!companyId) return [];
+    try {
+        const collaboratorsCollection = collection(db, 'users', companyId, 'collaborators');
+        const snapshot = await getDocs(collaboratorsCollection);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Collaborator));
+    } catch (error) {
+        console.error("Error fetching collaborators: ", error);
+        return [];
+    }
+}
+
 export async function addCollaborator(companyId: string, data: Omit<Collaborator, 'id'>): Promise<Collaborator> {
   if (!companyId) throw new Error('ID da empresa é obrigatório.');
   if (!data.name || !data.cpf || !data.department || !data.phone) {
@@ -679,6 +705,110 @@ export async function getFreightsByCollaborator(companyId: string, collaboratorI
         console.error("Error fetching freights by collaborator: ", error);
         throw new Error('Falha ao buscar os fretes do colaborador.');
     }
+}
+
+// Statistics Actions
+export type CompanyStats = {
+    totalFreights: number;
+    activeFreights: number;
+    completedFreights: number;
+    canceledFreights: number;
+};
+
+export async function getCompanyStats(companyId: string): Promise<CompanyStats> {
+    if (!companyId) {
+        throw new Error('ID da empresa é obrigatório.');
+    }
+    
+    try {
+        const freightsCollection = collection(db, 'freights');
+        const baseQuery = query(freightsCollection, where('companyId', '==', companyId));
+
+        const totalSnapshot = await getCountFromServer(baseQuery);
+        const activeSnapshot = await getCountFromServer(query(baseQuery, where('status', '==', 'ativo')));
+        const completedSnapshot = await getCountFromServer(query(baseQuery, where('status', '==', 'concluido')));
+        const canceledSnapshot = await getCountFromServer(query(baseQuery, where('status', '==', 'cancelado')));
+        
+        return {
+            totalFreights: totalSnapshot.data().count,
+            activeFreights: activeSnapshot.data().count,
+            completedFreights: completedSnapshot.data().count,
+            canceledFreights: canceledSnapshot.data().count,
+        };
+
+    } catch (error) {
+        console.error("Error fetching company stats: ", error);
+        throw new Error('Falha ao buscar as estatísticas da empresa.');
+    }
+}
+
+
+export async function getMonthlyFreightStats(companyId: string) {
+  if (!companyId) {
+    throw new Error('O ID da empresa é obrigatório.');
+  }
+
+  const freightsCollection = collection(db, 'freights');
+  const now = new Date();
+  const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+
+  const q = query(
+    freightsCollection,
+    where('companyId', '==', companyId),
+    where('createdAt', '>=', oneYearAgo),
+    orderBy('createdAt', 'asc')
+  );
+
+  try {
+    const snapshot = await getDocs(q);
+    const monthlyData: { [key: string]: { total: number; concluido: number; cancelado: number } } = {};
+
+    snapshot.docs.forEach(doc => {
+      const data = doc.data() as Freight;
+      const createdAt = data.createdAt?.toDate();
+
+      if (createdAt) {
+        const month = createdAt.toISOString().slice(0, 7); // YYYY-MM
+        if (!monthlyData[month]) {
+          monthlyData[month] = { total: 0, concluido: 0, cancelado: 0 };
+        }
+        monthlyData[month].total++;
+        if (data.status === 'concluido') {
+          monthlyData[month].concluido++;
+        }
+        if (data.status === 'cancelado') {
+            monthlyData[month].cancelado++;
+        }
+      }
+    });
+    
+    // Format for chart
+    const formattedData = Object.entries(monthlyData).map(([month, counts]) => ({
+      name: new Date(month + '-02').toLocaleString('default', { month: 'short' }).toUpperCase(),
+      ...counts,
+    }));
+    
+    // Ensure we have data for all last 12 months, even if count is 0
+    const finalData = [];
+    for (let i = 11; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthName = d.toLocaleString('default', { month: 'short' }).toUpperCase();
+        const monthKey = d.toISOString().slice(0,7);
+        const existingData = formattedData.find(m => m.name === monthName);
+        if(existingData) {
+            finalData.push(existingData);
+        } else {
+             finalData.push({ name: monthName, total: 0, concluido: 0, cancelado: 0 });
+        }
+    }
+
+
+    return finalData;
+
+  } catch (error) {
+    console.error("Error fetching monthly freight stats: ", error);
+    throw new Error('Falha ao buscar os dados mensais de fretes.');
+  }
 }
     
 
