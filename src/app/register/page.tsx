@@ -46,8 +46,11 @@ export default function RegisterTypeSelectionPage() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <Button className="w-full" variant="secondary" disabled>
-                                Em Breve
+                             <Button className="w-full" asChild>
+                                <Link href="/register/driver">
+                                    Cadastrar como Motorista
+                                    <ArrowRight className="ml-2 h-4 w-4"/>
+                                </Link>
                             </Button>
                         </CardContent>
                     </Card>
