@@ -126,19 +126,6 @@ export default function MyFreightsClient({ initialFreights }: { initialFreights:
 
     return (
         <div>
-             <div className="flex justify-between items-center mb-8">
-                <div>
-                    <h1 className="text-3xl font-bold font-headline text-primary">Meus Fretes</h1>
-                    <p className="text-foreground/70">Gerencie todos os seus fretes ativos e concluídos.</p>
-                </div>
-                <Button asChild>
-                    <Link href="/fretes/solicitar">
-                        <PackagePlus className="mr-2 h-4 w-4"/>
-                        Solicitar Novo Frete
-                    </Link>
-                </Button>
-            </div>
-            
             <Card className="mb-6">
                  <CardContent className="p-4">
                     <div className="grid md:grid-cols-4 gap-4 items-end">

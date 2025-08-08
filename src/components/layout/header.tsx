@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, Truck, LogOut, User as UserIcon, Cog, Sparkles } from 'lucide-react';
+import { Menu, Truck, LogOut, User as UserIcon, Cog, Sparkles, LayoutDashboard } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -54,10 +54,10 @@ export default function Header() {
           const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/register');
           const allowedPaths = isDashboardPage || isProfilePage || isAuthPage || pathname.startsWith('/api') || pathname.startsWith('/fretes/solicitar') || pathname.startsWith('/solicitar-frete');
 
-          if (userData.status === 'incomplete' && !allowedPaths) {
+          if (userData.status === 'incomplete' && !isProfilePage && !isAuthPage) {
               router.push('/profile');
-          } else if (userData.status === 'pending' && !allowedPaths) {
-              router.push('/profile');
+          } else if (userData.status === 'pending' && !isProfilePage && !isAuthPage && !isDashboardPage) {
+              router.push('/company-dashboard');
           }
 
         } else {
@@ -140,8 +140,12 @@ export default function Header() {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push(userRole === 'company' ? '/company-dashboard' : '/profile')}>
+             <DropdownMenuItem onClick={() => router.push('/profile')}>
               <UserIcon className="mr-2 h-4 w-4" />
+              <span>Meu Perfil</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push(userRole === 'company' ? '/company-dashboard' : '/profile')}>
+              <LayoutDashboard className="mr-2 h-4 w-4" />
               <span>Meu Painel</span>
             </DropdownMenuItem>
              {userRole === 'admin' && (
@@ -217,7 +221,7 @@ export default function Header() {
           ))}
         </nav>
         <div className="hidden md:flex items-center gap-4">
-            {isClient && !isLoading && userRole !== 'company' && (
+            {isClient && !isLoading && (
                 <Button asChild>
                     <Link href="/fretes/solicitar">
                         Solicitar Frete
@@ -252,7 +256,7 @@ export default function Header() {
                       {link.label}
                     </Link>
                   ))}
-                  {isClient && !isLoading && userRole !== 'company' && (
+                  {isClient && !isLoading && (
                     <Link href="/fretes/solicitar" className="font-semibold text-primary" onClick={() => setIsOpen(false)}>
                         Solicitar Frete
                     </Link>

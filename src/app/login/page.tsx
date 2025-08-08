@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -40,7 +41,10 @@ export default function LoginPage() {
 
         if (userData.role === 'admin') {
           router.push('/admin');
-        } else {
+        } else if (userData.role === 'company') {
+          router.push('/company-dashboard');
+        }
+        else {
           router.push('/');
         }
       } else {

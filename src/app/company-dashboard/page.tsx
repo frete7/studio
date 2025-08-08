@@ -8,7 +8,7 @@ import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { User, Clock, ShieldCheck, Loader2, Users, ArrowRight, Package, ShieldAlert, Undo2, Edit, BarChart, CreditCard } from "lucide-react";
+import { User, Clock, ShieldCheck, Loader2, Users, ArrowRight, Package, ShieldAlert, Edit, BarChart, CreditCard } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
@@ -46,14 +46,8 @@ export default function CompanyDashboardPage() {
                             return;
                         }
                         
-                        const isDashboardPage = window.location.pathname.startsWith('/company-dashboard');
-                         const isProfilePage = window.location.pathname.startsWith('/profile');
-                        const isAuthPage = window.location.pathname.startsWith('/login') || window.location.pathname.startsWith('/register');
-                        const allowedPaths = isDashboardPage || isProfilePage || isAuthPage || window.location.pathname.startsWith('/api') || window.location.pathname.startsWith('/fretes/solicitar') || window.location.pathname.startsWith('/solicitar-frete');
-
-                        if ((userProfile.status === 'incomplete' || userProfile.status === 'pending') && !allowedPaths) {
-                            router.push('/profile');
-                        }
+                         // The Header component now handles redirection globally for incomplete/pending states
+                         // This simplifies the logic here.
 
                     } else {
                         // Handle case where user exists in Auth but not Firestore
@@ -74,7 +68,7 @@ export default function CompanyDashboardPage() {
 
 
     const renderContent = () => {
-        if (isLoading) {
+        if (isLoading || !profile) {
             return (
                 <div className="flex h-64 items-center justify-center">
                     <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -82,13 +76,8 @@ export default function CompanyDashboardPage() {
             );
         }
 
-        if (!profile) {
-            return <p>Perfil não encontrado.</p>;
-        }
-
         switch (profile.status) {
             case 'incomplete':
-                 router.push('/profile');
                  return (
                     <div className="flex h-64 items-center justify-center">
                         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -247,16 +236,15 @@ export default function CompanyDashboardPage() {
                     </div>
                 );
             case 'admin':
+                // This case should ideally be handled by the global redirect logic in the header
                 return (
                     <Card>
                         <CardHeader>
                             <CardTitle>Painel do Administrador</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <p>Bem-vindo, Administrador. Use o menu de navegação para gerenciar a plataforma.</p>
-                             <Button asChild className="mt-4">
-                                <Link href="/admin">Ir para o Painel de Admin</Link>
-                            </Button>
+                            <p>Redirecionando para o painel de admin...</p>
+                            <Loader2 className="mt-4 h-8 w-8 animate-spin text-primary" />
                         </CardContent>
                     </Card>
                 );
@@ -266,16 +254,10 @@ export default function CompanyDashboardPage() {
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <User className="h-5 w-5 text-primary" />
-                                Meu Painel
+                                Status do Perfil: {profile.status}
                             </CardTitle>
-                            <CardDescription>
-                                Mantenha suas informações sempre atualizadas. Status: {profile.status}
-                            </CardDescription>
                         </CardHeader>
-                        <CardContent>
-                            <p>Conteúdo do perfil para status: {profile.status}</p>
-                        </CardContent>
-                    </Card>
+                     </Card>
                 )
         }
     }
