@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -19,7 +18,7 @@ import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
-import { addYears, format } from 'date-fns';
+import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -51,6 +50,12 @@ const fileSchema = (types: string[]) => z.any()
   .refine((files) => files?.[0], "Arquivo é obrigatório.")
   .refine((files) => files?.[0]?.size <= MAX_FILE_SIZE, `Tamanho máximo é 5MB.`)
   .refine((files) => types.includes(files?.[0]?.type), `Formato inválido. Tipos aceitos: ${types.join(', ')}.`);
+  
+const optionalFileSchema = (types: string[]) => z.any()
+    .optional()
+    .refine((files) => !files || files.length === 0 || files[0].size <= MAX_FILE_SIZE, `Tamanho máximo é 5MB.`)
+    .refine((files) => !files || files.length === 0 || types.includes(files[0].type), `Formato inválido. Tipos aceitos: ${types.join(", ")}`);
+
 
 const vehicleSchema = z.object({
     brand: z.string().min(2, "Marca é obrigatória."),
@@ -60,9 +65,9 @@ const vehicleSchema = z.object({
     licensePlate: z.string().min(7, "Placa inválida."),
     vehicleTypeId: z.string({ required_error: "Selecione o tipo de veículo." }),
     bodyTypeId: z.string({ required_error: "Selecione o tipo de carroceria." }),
-    crlvFile: fileSchema(ACCEPTED_DOC_TYPES),
-    frontPhoto: fileSchema(ACCEPTED_IMG_TYPES),
-    sidePhoto: fileSchema(ACCEPTED_IMG_TYPES),
+    crlvFile: optionalFileSchema(ACCEPTED_DOC_TYPES),
+    frontPhoto: optionalFileSchema(ACCEPTED_IMG_TYPES),
+    sidePhoto: optionalFileSchema(ACCEPTED_IMG_TYPES),
 });
 
 const formSchema = z.object({
@@ -94,8 +99,8 @@ const formSchema = z.object({
   hasAntt: z.boolean().default(false),
 
   // Step 3
-  selfie: fileSchema(ACCEPTED_IMG_TYPES),
-  cnhFile: fileSchema(ACCEPTED_DOC_TYPES),
+  selfie: optionalFileSchema(ACCEPTED_IMG_TYPES),
+  cnhFile: optionalFileSchema(ACCEPTED_DOC_TYPES),
   cnhCategory: z.string({ required_error: "Categoria da CNH é obrigatória." }),
   cnhNumber: z.string().min(5, "Número da CNH inválido."),
   cnhExpiration: z.date({ required_error: "Data de vencimento é obrigatória."}),
@@ -177,10 +182,11 @@ export default function DriverRegisterForm() {
 
   const { handleSubmit, trigger, getValues, setError } = methods;
 
-  const uploadFile = async (file: File, path: string): Promise<string> => {
+  const uploadFile = async (file: File, path: string): Promise<{url: string, status: 'pending'}> => {
     const fileRef = ref(storage, path);
     await uploadBytes(fileRef, file);
-    return getDownloadURL(fileRef);
+    const url = await getDownloadURL(fileRef);
+    return { url, status: 'pending' };
   };
 
 
@@ -264,6 +270,38 @@ export default function DriverRegisterForm() {
         }
         setIsLoading(false);
     }
+    
+     if (currentStep === 2) { // Document Step
+        if (!getValues('selfie') || getValues('selfie').length === 0) {
+            setError('selfie', { type: 'manual', message: 'A selfie é obrigatória.'});
+            return;
+        }
+         if (!getValues('cnhFile') || getValues('cnhFile').length === 0) {
+            setError('cnhFile', { type: 'manual', message: 'O arquivo da CNH é obrigatório.'});
+            return;
+        }
+    }
+    
+     if (currentStep === 3) { // Vehicle Step
+        const vehicles = getValues('vehicles');
+        let hasError = false;
+        vehicles.forEach((vehicle, index) => {
+            if (!vehicle.crlvFile || vehicle.crlvFile.length === 0) {
+                setError(`vehicles.${index}.crlvFile`, {type: 'manual', message: 'CRLV é obrigatório.'});
+                hasError = true;
+            }
+             if (!vehicle.frontPhoto || vehicle.frontPhoto.length === 0) {
+                setError(`vehicles.${index}.frontPhoto`, {type: 'manual', message: 'Foto frontal é obrigatória.'});
+                hasError = true;
+            }
+             if (!vehicle.sidePhoto || vehicle.sidePhoto.length === 0) {
+                setError(`vehicles.${index}.sidePhoto`, {type: 'manual', message: 'Foto lateral é obrigatória.'});
+                hasError = true;
+            }
+        });
+        if(hasError) return;
+    }
+
 
     if (currentStep < steps.length - 1) {
       setCurrentStep(step => step + 1);
@@ -325,7 +363,7 @@ export default function DriverRegisterForm() {
 // ==================================
 
 const Step1 = () => {
-    const { control } = useFormContext();
+    const { control, formState: { errors } } = useFormContext();
 
     const handleMask = (value: string, maskType: 'cpf' | 'phone') => {
         const unmasked = value.replace(/\D/g, '');
@@ -372,7 +410,7 @@ const Step1 = () => {
                      <FormItem className="flex flex-col"><FormLabel>Data de Nascimento</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><>{field.value ? (format(field.value, "dd/MM/yyyy")) : (<span>Escolha uma data</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar locale={ptBR} mode="single" selected={field.value} onSelect={field.onChange} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
                  )} />
                  <FormField control={control} name="cpf" render={({ field }) => (
-                     <FormItem><FormLabel>CPF</FormLabel><FormControl><Input placeholder="000.000.000-00" {...field} onChange={(e) => field.onChange(handleMask(e.target.value, 'cpf'))} /></FormControl><FormMessage /></FormItem>
+                     <FormItem><FormLabel>CPF</FormLabel><FormControl><Input placeholder="000.000.000-00" {...field} onChange={(e) => field.onChange(handleMask(e.target.value, 'cpf'))} /></FormControl><FormMessage>{errors.cpf && typeof errors.cpf.message === 'string' && errors.cpf.message}</FormMessage></FormItem>
                  )} />
             </div>
              <div className="grid md:grid-cols-2 gap-4">
@@ -536,7 +574,7 @@ const Step3 = () => {
 }
 
 const Step4 = () => {
-    const { control } = useFormContext();
+    const { control, formState: { errors } } = useFormContext();
     const { fields, append, remove } = useFieldArray({
         control,
         name: "vehicles",
@@ -608,7 +646,9 @@ const Step4 = () => {
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Adicionar outro veículo
             </Button>
-            <FormField control={control} name="vehicles" render={() => <FormMessage />} />
+            <FormMessage>
+                {typeof errors.vehicles === 'object' && !Array.isArray(errors.vehicles) && errors.vehicles?.message}
+            </FormMessage>
         </div>
     );
 };
