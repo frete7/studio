@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useRouter } from 'next/navigation';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db, app } from '@/lib/firebase';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { addYears, format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
@@ -144,7 +145,7 @@ export default function DriverRegisterForm() {
     }
   });
 
-  const { handleSubmit, trigger } = methods;
+  const { handleSubmit, trigger, getValues, setError } = methods;
 
   const processForm = async (data: DriverFormData) => {
     // This will be implemented in the final step
@@ -158,6 +159,19 @@ export default function DriverRegisterForm() {
     const output = await trigger(fields, { shouldFocus: true });
     
     if (!output) return;
+
+    if (currentStep === 0) {
+        setIsLoading(true);
+        const cpf = getValues('cpf');
+        const q = query(collection(db, "users"), where("cpf", "==", cpf));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+            setError('cpf', { type: 'manual', message: 'Este CPF já está cadastrado.' });
+            setIsLoading(false);
+            return;
+        }
+        setIsLoading(false);
+    }
 
     if (currentStep < steps.length - 1) {
       setCurrentStep(step => step + 1);
@@ -219,7 +233,7 @@ export default function DriverRegisterForm() {
 // ==================================
 
 const Step1 = () => {
-    const { control, formState: { errors } } = useFormContext();
+    const { control } = useFormContext();
 
     const handleMask = (value: string, maskType: 'cpf' | 'phone') => {
         const unmasked = value.replace(/\D/g, '');
@@ -239,18 +253,31 @@ const Step1 = () => {
         return value;
     };
     
+    const toTitleCase = (str: string) => {
+      return str.replace(
+        /\w\S*/g,
+        (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
+      );
+    };
+    
     return (
         <div className="space-y-6">
             <FormField control={control} name="fullName" render={({ field }) => (
                 <FormItem>
                     <FormLabel>Nome Completo</FormLabel>
-                    <FormControl><Input placeholder="Seu nome completo" {...field} /></FormControl>
+                    <FormControl>
+                        <Input 
+                            placeholder="Seu nome completo" 
+                            {...field}
+                            onChange={(e) => field.onChange(toTitleCase(e.target.value))}
+                        />
+                    </FormControl>
                     <FormMessage />
                 </FormItem>
             )} />
             <div className="grid md:grid-cols-2 gap-4">
                  <FormField control={control} name="birthDate" render={({ field }) => (
-                     <FormItem className="flex flex-col"><FormLabel>Data de Nascimento</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><>{field.value ? (format(field.value, "dd/MM/yyyy")) : (<span>Escolha uma data</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
+                     <FormItem className="flex flex-col"><FormLabel>Data de Nascimento</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><>{field.value ? (format(field.value, "dd/MM/yyyy")) : (<span>Escolha uma data</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar locale={ptBR} mode="single" selected={field.value} onSelect={field.onChange} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
                  )} />
                  <FormField control={control} name="cpf" render={({ field }) => (
                      <FormItem><FormLabel>CPF</FormLabel><FormControl><Input placeholder="000.000.000-00" {...field} onChange={(e) => field.onChange(handleMask(e.target.value, 'cpf'))} /></FormControl><FormMessage /></FormItem>
@@ -407,7 +434,7 @@ const Step3 = () => {
                     <FormItem><FormLabel>Número de Registro da CNH</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
                  <FormField control={control} name="cnhExpiration" render={({ field }) => (
-                     <FormItem className="flex flex-col"><FormLabel>Data de Vencimento da CNH</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><>{field.value ? (format(field.value, "dd/MM/yyyy")) : (<span>Escolha uma data</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => date < new Date()} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
+                     <FormItem className="flex flex-col"><FormLabel>Data de Vencimento da CNH</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><>{field.value ? (format(field.value, "dd/MM/yyyy")) : (<span>Escolha uma data</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar locale={ptBR} mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => date < new Date()} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
                  )} />
             </div>
         </div>
