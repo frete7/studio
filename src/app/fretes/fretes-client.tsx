@@ -246,10 +246,10 @@ export default function FretesClient({
                                 </div>
                                 <div className="flex items-center gap-2">
                                      <MapPin className="h-4 w-4 text-muted-foreground"/>
-                                     <p className="font-semibold">
+                                     <div className="font-semibold">
                                         {freight.destinations[0].city}, {freight.destinations[0].state}
                                         {freight.destinations.length > 1 && <Badge variant="secondary" className="ml-2">+{freight.destinations.length - 1}</Badge>}
-                                     </p>
+                                     </div>
                                 </div>
                             </div>
                             <div className="text-right space-y-2 flex flex-col items-end">
