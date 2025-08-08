@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -197,15 +198,16 @@ export default function DriverRegisterForm() {
         const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
         const user = userCredential.user;
 
-        // 2. Upload files
-        const selfieUrl = await uploadFile(data.selfie[0], `users/${user.uid}/selfie`);
-        const cnhFileUrl = await uploadFile(data.cnhFile[0], `users/${user.uid}/cnh`);
+        // 2. Upload files and create data structure with status
+        const selfieUrl = data.selfie?.[0] ? await uploadFile(data.selfie[0], `users/${user.uid}/selfie`) : null;
+        const cnhFileUrl = data.cnhFile?.[0] ? await uploadFile(data.cnhFile[0], `users/${user.uid}/cnh`) : null;
 
-        const vehicleUploadPromises = data.vehicles.map(async (vehicle, index) => {
+        const vehicleUploadPromises = data.vehicles.map(async (vehicle) => {
             const plate = vehicle.licensePlate.replace(/\s/g, '');
-            const crlvUrl = await uploadFile(vehicle.crlvFile[0], `users/${user.uid}/vehicles/${plate}/crlv`);
-            const frontPhotoUrl = await uploadFile(vehicle.frontPhoto[0], `users/${user.uid}/vehicles/${plate}/front`);
-            const sidePhotoUrl = await uploadFile(vehicle.sidePhoto[0], `users/${user.uid}/vehicles/${plate}/side`);
+            const crlvUrl = vehicle.crlvFile?.[0] ? await uploadFile(vehicle.crlvFile[0], `users/${user.uid}/vehicles/${plate}/crlv`) : null;
+            const frontPhotoUrl = vehicle.frontPhoto?.[0] ? await uploadFile(vehicle.frontPhoto[0], `users/${user.uid}/vehicles/${plate}/front`) : null;
+            const sidePhotoUrl = vehicle.sidePhoto?.[0] ? await uploadFile(vehicle.sidePhoto[0], `users/${user.uid}/vehicles/${plate}/side`) : null;
+            
             return {
                 ...vehicle,
                 crlvFile: crlvUrl,
@@ -218,6 +220,7 @@ export default function DriverRegisterForm() {
 
         // 3. Prepare data for Firestore
         const { confirmPassword, password, confirmPhone, ...formData } = data;
+        
         const firestoreData = {
             ...formData,
             uid: user.uid,
@@ -491,7 +494,7 @@ const Step2 = () => {
     )
 }
 
-const FileInput = ({ name, label, description, acceptedTypes }: { name: any, label: string, description: string, acceptedTypes: string[] }) => {
+const FileInput = ({ name, label, description, acceptedTypes, captureMode }: { name: any, label: string, description: string, acceptedTypes: string[], captureMode?: 'user' | 'environment' }) => {
     const { control, watch } = useFormContext();
     const fileList = watch(name);
     const [preview, setPreview] = useState<string | null>(null);
@@ -532,7 +535,16 @@ const FileInput = ({ name, label, description, acceptedTypes }: { name: any, lab
                                         <p className="text-xs text-muted-foreground">{description}</p>
                                     </div>
                                 )}
-                                <Input id={name} type="file" className="hidden" accept={acceptedTypes.join(',')} onBlur={field.onBlur} name={field.name} onChange={(e) => field.onChange(e.target.files)} />
+                                <Input 
+                                    id={name} 
+                                    type="file" 
+                                    className="hidden" 
+                                    accept={acceptedTypes.join(',')} 
+                                    capture={captureMode}
+                                    onBlur={field.onBlur} 
+                                    name={field.name} 
+                                    onChange={(e) => field.onChange(e.target.files)} 
+                                />
                             </label>
                         </div>
                     </FormControl>
@@ -556,7 +568,7 @@ const Step3 = () => {
 
     return (
         <div className="space-y-6">
-            <FileInput name="selfie" label="Selfie do Rosto" description="PNG, JPG, WEBP (MAX 5MB)" acceptedTypes={ACCEPTED_IMG_TYPES} />
+            <FileInput name="selfie" label="Selfie do Rosto" description="PNG, JPG, WEBP (MAX 5MB)" acceptedTypes={ACCEPTED_IMG_TYPES} captureMode="user" />
             <FileInput name="cnhFile" label="Foto da CNH (Frente e Verso) ou PDF" description="PNG, JPG, PDF (MAX 5MB)" acceptedTypes={ACCEPTED_DOC_TYPES} />
             <FormField control={control} name="cnhCategory" render={({ field }) => (
                 <FormItem><FormLabel>Categoria da CNH</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione a categoria" /></SelectTrigger></FormControl><SelectContent>{cnhCategories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
@@ -636,8 +648,8 @@ const Step4 = () => {
                         </div>
                         <div className="mt-4 space-y-4">
                              <FileInput name={`vehicles.${index}.crlvFile`} label="CRLV" description="Imagem ou PDF" acceptedTypes={ACCEPTED_DOC_TYPES} />
-                             <FileInput name={`vehicles.${index}.frontPhoto`} label="Foto Frontal" description="Imagem do veículo" acceptedTypes={ACCEPTED_IMG_TYPES} />
-                             <FileInput name={`vehicles.${index}.sidePhoto`} label="Foto Lateral" description="Imagem do veículo" acceptedTypes={ACCEPTED_IMG_TYPES} />
+                             <FileInput name={`vehicles.${index}.frontPhoto`} label="Foto Frontal" description="Imagem do veículo" acceptedTypes={ACCEPTED_IMG_TYPES} captureMode="environment" />
+                             <FileInput name={`vehicles.${index}.sidePhoto`} label="Foto Lateral" description="Imagem do veículo" acceptedTypes={ACCEPTED_IMG_TYPES} captureMode="environment" />
                         </div>
                     </Card>
                 ))}
