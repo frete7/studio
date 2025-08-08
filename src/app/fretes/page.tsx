@@ -1,6 +1,6 @@
 
 import type { Metadata } from 'next';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { type BodyType, type Vehicle, type VehicleCategory } from '@/app/actions';
 import FretesClient from './fretes-client';
@@ -24,7 +24,19 @@ async function getFretesInitialData() {
             getDocs(vehicleCategoriesQuery),
         ]);
 
-        const freights = freightsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as any));
+        const freights = freightsSnap.docs.map(doc => {
+            const data = doc.data();
+            // Serialize the 'createdAt' field
+            const serializedCreatedAt = data.createdAt instanceof Timestamp 
+                ? data.createdAt.toDate().toISOString() 
+                : null;
+            
+            return { 
+                ...data, 
+                id: doc.id,
+                createdAt: serializedCreatedAt 
+            } as any;
+        });
         const allBodyTypes = bodyTypesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as BodyType));
         const allVehicleTypes = vehicleTypesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as any));
         const allVehicleCategories = vehicleCategoriesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as VehicleCategory));
