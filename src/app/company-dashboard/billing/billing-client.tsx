@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { CheckCircle, CreditCard, Star } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
 
 type BillingClientProps = {
     allPlans: Plan[];
@@ -21,14 +22,41 @@ export default function BillingClient({ allPlans, currentPlanId }: BillingClient
         return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     }
     
-    // Feature list could be dynamic in a real app
-    const planFeatures = [
-        "Publicação de Fretes Ilimitada",
-        "Acesso ao Otimizador de Rotas",
-        "Dashboard de Estatísticas",
-        "Suporte Prioritário",
-        "Verificação de Motoristas (Beta)"
-    ];
+    const getPlanFeatures = (plan: Plan): string[] => {
+        const features = [];
+        
+        if (plan.freightLimitType === 'unlimited') {
+            features.push("Solicitação de fretes ilimitada");
+        } else {
+            features.push(`${plan.freightLimit} solicitações de frete/mês`);
+        }
+        
+        const allowedTypes = [];
+        if(plan.allowedFreightTypes.agregamento) allowedTypes.push('Agregamento');
+        if(plan.allowedFreightTypes.completo) allowedTypes.push('Completo');
+        if(plan.allowedFreightTypes.retorno) allowedTypes.push('Retorno');
+        features.push(`Acesso aos fretes: ${allowedTypes.join(', ')}`);
+
+
+        if (plan.collaboratorLimitType === 'unlimited') {
+            features.push("Colaboradores ilimitados");
+        } else {
+            features.push(`${plan.collaboratorLimit} colaboradores`);
+        }
+
+        if (plan.hasStatisticsAccess) {
+            features.push("Acesso a estatísticas de desempenho");
+        }
+
+        if (plan.hasReturningDriversAccess) {
+            features.push("Acesso a motoristas de retorno");
+        }
+
+        features.push("Suporte Prioritário");
+
+        return features;
+    }
+
 
     const handleSelectPlan = (planId: string) => {
         setSelectedPlanId(planId);
@@ -53,6 +81,7 @@ export default function BillingClient({ allPlans, currentPlanId }: BillingClient
                 {allPlans.map((plan, index) => {
                     const isCurrent = plan.id === currentPlanId;
                     const isPopular = index === 1; // Example logic to make one plan "popular"
+                    const planFeatures = getPlanFeatures(plan);
 
                     return (
                         <Card key={plan.id} className={cn("flex flex-col", isCurrent && "border-primary border-2", isPopular && "shadow-lg")}>
@@ -66,14 +95,21 @@ export default function BillingClient({ allPlans, currentPlanId }: BillingClient
                                 <CardDescription>{plan.description}</CardDescription>
                             </CardHeader>
                             <CardContent className="flex-grow space-y-6">
-                                <div className="text-center">
-                                    <span className="text-4xl font-bold">{formatCurrency(plan.pricePix)}</span>
-                                    <span className="text-muted-foreground">/mês</span>
+                                <div className="space-y-2">
+                                    <div className="flex justify-between items-baseline">
+                                        <span className="text-muted-foreground">Valor no PIX:</span>
+                                        <span className="text-2xl font-bold">{formatCurrency(plan.pricePix)}<span className='text-sm font-normal text-muted-foreground'>/mês</span></span>
+                                    </div>
+                                    <div className="flex justify-between items-baseline">
+                                         <span className="text-muted-foreground">Valor no Cartão:</span>
+                                        <span className="text-2xl font-bold">{formatCurrency(plan.priceCard)}<span className='text-sm font-normal text-muted-foreground'>/mês</span></span>
+                                    </div>
                                 </div>
+                                <Separator />
                                 <ul className="space-y-3 text-sm">
                                     {planFeatures.map((feature, i) => (
-                                        <li key={i} className="flex items-center gap-2">
-                                            <CheckCircle className="h-4 w-4 text-green-500" />
+                                        <li key={i} className="flex items-start gap-3">
+                                            <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
                                             <span className="text-muted-foreground">{feature}</span>
                                         </li>
                                     ))}
@@ -125,4 +161,3 @@ export default function BillingClient({ allPlans, currentPlanId }: BillingClient
         </div>
     );
 }
-
