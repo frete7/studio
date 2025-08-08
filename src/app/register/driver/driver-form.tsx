@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
-import { Truck, Loader2, Calendar as CalendarIcon, UploadCloud, FileText, CheckCircle } from 'lucide-react';
+import { Truck, Loader2, Calendar as CalendarIcon, UploadCloud, FileText, CheckCircle, PlusCircle, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
@@ -28,6 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
 import Image from 'next/image';
+import { type BodyType, type VehicleType } from '@/app/actions';
 
 // ==================================
 // SCHEMAS & UTILS
@@ -50,6 +51,19 @@ const fileSchema = (types: string[]) => z.any()
   .refine((files) => files?.[0], "Arquivo é obrigatório.")
   .refine((files) => files?.[0]?.size <= MAX_FILE_SIZE, `Tamanho máximo é 5MB.`)
   .refine((files) => types.includes(files?.[0]?.type), `Formato inválido. Tipos aceitos: ${types.join(', ')}.`);
+
+const vehicleSchema = z.object({
+    brand: z.string().min(2, "Marca é obrigatória."),
+    model: z.string().min(2, "Modelo é obrigatório."),
+    year: z.string().length(4, "Ano inválido."),
+    color: z.string().min(2, "Cor é obrigatória."),
+    licensePlate: z.string().min(7, "Placa inválida."),
+    vehicleTypeId: z.string({ required_error: "Selecione o tipo de veículo." }),
+    bodyTypeId: z.string({ required_error: "Selecione o tipo de carroceria." }),
+    crlvFile: fileSchema(ACCEPTED_DOC_TYPES),
+    frontPhoto: fileSchema(ACCEPTED_IMG_TYPES),
+    sidePhoto: fileSchema(ACCEPTED_IMG_TYPES),
+});
 
 const formSchema = z.object({
   // Step 1
@@ -85,14 +99,26 @@ const formSchema = z.object({
   cnhCategory: z.string({ required_error: "Categoria da CNH é obrigatória." }),
   cnhNumber: z.string().min(5, "Número da CNH inválido."),
   cnhExpiration: z.date({ required_error: "Data de vencimento é obrigatória."}),
+
+  // Step 4
+  vehicles: z.array(vehicleSchema).min(1, "Você deve adicionar pelo menos um veículo."),
   
+  // Step 5
+  email: z.string().email("Email inválido."),
+  password: z.string().min(6, "A senha deve ter pelo menos 6 caracteres."),
+  confirmPassword: z.string(),
+
 }).refine(data => data.phone === data.confirmPhone, {
     message: "Os telefones não coincidem.",
     path: ["confirmPhone"],
 }).refine(data => !data.hasCnpj || (data.cnpj && data.cnpj.length === 18), {
     message: "CNPJ é obrigatório e deve ser válido.",
     path: ["cnpj"],
+}).refine(data => data.password === data.confirmPassword, {
+    message: "As senhas não coincidem.",
+    path: ["confirmPassword"],
 });
+
 
 type DriverFormData = z.infer<typeof formSchema>;
 
@@ -100,8 +126,8 @@ const steps = [
     { id: 1, name: 'Dados Pessoais', fields: ['fullName', 'birthDate', 'cpf', 'phone', 'confirmPhone'] },
     { id: 2, name: 'Endereço e Profissional', fields: ['cep', 'logradouro', 'numero', 'complemento', 'bairro', 'cidade', 'uf', 'addressManual', 'hasCnpj', 'cnpj', 'issuesInvoice', 'issuesCte', 'hasAntt'] },
     { id: 3, name: 'Documentos', fields: ['selfie', 'cnhFile', 'cnhCategory', 'cnhNumber', 'cnhExpiration'] },
-    { id: 4, name: 'Veículos' },
-    { id: 5, name: 'Acesso' },
+    { id: 4, name: 'Veículos', fields: ['vehicles'] },
+    { id: 5, name: 'Acesso', fields: ['email', 'password', 'confirmPassword'] },
 ];
 
 const storage = getStorage(app);
@@ -142,14 +168,80 @@ export default function DriverRegisterForm() {
       cnhExpiration: undefined,
       selfie: undefined,
       cnhFile: undefined,
+      vehicles: [],
+      email: '',
+      password: '',
+      confirmPassword: '',
     }
   });
 
   const { handleSubmit, trigger, getValues, setError } = methods;
 
+  const uploadFile = async (file: File, path: string): Promise<string> => {
+    const fileRef = ref(storage, path);
+    await uploadBytes(fileRef, file);
+    return getDownloadURL(fileRef);
+  };
+
+
   const processForm = async (data: DriverFormData) => {
-    // This will be implemented in the final step
-    alert(JSON.stringify(data, null, 2));
+    setIsLoading(true);
+    try {
+        // 1. Create user in Auth
+        const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+        const user = userCredential.user;
+
+        // 2. Upload files
+        const selfieUrl = await uploadFile(data.selfie[0], `users/${user.uid}/selfie`);
+        const cnhFileUrl = await uploadFile(data.cnhFile[0], `users/${user.uid}/cnh`);
+
+        const vehicleUploadPromises = data.vehicles.map(async (vehicle, index) => {
+            const plate = vehicle.licensePlate.replace(/\s/g, '');
+            const crlvUrl = await uploadFile(vehicle.crlvFile[0], `users/${user.uid}/vehicles/${plate}/crlv`);
+            const frontPhotoUrl = await uploadFile(vehicle.frontPhoto[0], `users/${user.uid}/vehicles/${plate}/front`);
+            const sidePhotoUrl = await uploadFile(vehicle.sidePhoto[0], `users/${user.uid}/vehicles/${plate}/side`);
+            return {
+                ...vehicle,
+                crlvFile: crlvUrl,
+                frontPhoto: frontPhotoUrl,
+                sidePhoto: sidePhotoUrl,
+            };
+        });
+        
+        const uploadedVehicles = await Promise.all(vehicleUploadPromises);
+
+        // 3. Prepare data for Firestore
+        const { confirmPassword, password, confirmPhone, ...formData } = data;
+        const firestoreData = {
+            ...formData,
+            uid: user.uid,
+            email: user.email,
+            selfie: selfieUrl,
+            cnhFile: cnhFileUrl,
+            vehicles: uploadedVehicles,
+            role: 'driver',
+            status: 'pending',
+            createdAt: serverTimestamp(),
+        };
+
+        // 4. Save to Firestore
+        await setDoc(doc(db, 'users', user.uid), firestoreData);
+        
+        toast({
+            title: "Cadastro Finalizado!",
+            description: "Seu perfil foi enviado para análise. Você será notificado em breve.",
+        });
+        
+        router.push('/profile');
+    } catch (error: any) {
+        toast({
+            variant: "destructive",
+            title: "Erro no Cadastro",
+            description: error.code === 'auth/email-already-in-use' ? 'Este e-mail já está em uso.' : error.message,
+        });
+    } finally {
+        setIsLoading(false);
+    }
   };
   
   type FieldName = keyof DriverFormData;
@@ -209,8 +301,8 @@ export default function DriverRegisterForm() {
               {currentStep === 0 && <Step1 />}
               {currentStep === 1 && <Step2 />}
               {currentStep === 2 && <Step3 />}
-              {/* Steps 4 and 5 will be added later */}
-               {currentStep > 2 && <p>Próximas etapas em construção...</p>}
+              {currentStep === 3 && <Step4 />}
+              {currentStep === 4 && <Step5 />}
             </form>
           </FormProvider>
           <div className="mt-8 flex justify-between">
@@ -376,6 +468,8 @@ const FileInput = ({ name, label, description, acceptedTypes }: { name: any, lab
             } else {
                 setPreview(null);
             }
+        } else {
+             setPreview(null);
         }
     }, [fileList]);
     
@@ -439,4 +533,155 @@ const Step3 = () => {
             </div>
         </div>
     )
+}
+
+const Step4 = () => {
+    const { control } = useFormContext();
+    const { fields, append, remove } = useFieldArray({
+        control,
+        name: "vehicles",
+    });
+
+    const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
+    const [bodyTypes, setBodyTypes] = useState<BodyType[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            setIsLoading(true);
+            try {
+                const [vtSnap, btSnap] = await Promise.all([
+                    getDocs(collection(db, 'vehicle_types')),
+                    getDocs(collection(db, 'body_types')),
+                ]);
+                setVehicleTypes(vtSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as VehicleType)));
+                setBodyTypes(btSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as BodyType)));
+            } catch (error) {
+                console.error("Failed to fetch vehicle/body types", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchData();
+    }, []);
+
+    const yearOptions = Array.from({ length: 60 }, (_, i) => (new Date().getFullYear() - i).toString());
+
+    if (isLoading) {
+        return <div className="flex justify-center"><Loader2 className="animate-spin" /></div>;
+    }
+
+    return (
+        <div className="space-y-6">
+            <h2 className="text-2xl font-semibold">4. Cadastro de Veículos</h2>
+            <p className="text-muted-foreground">Adicione um ou mais veículos que você utiliza para os fretes.</p>
+            <Separator />
+            <div className="space-y-6">
+                {fields.map((field, index) => (
+                    <Card key={field.id} className="p-4 bg-muted/30 relative">
+                        <div className="flex justify-between items-center mb-4">
+                             <h3 className="text-lg font-medium">Veículo {index + 1}</h3>
+                             <Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2" onClick={() => remove(index)}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                        </div>
+                        <div className="grid md:grid-cols-2 gap-4">
+                             <FormField control={control} name={`vehicles.${index}.brand`} render={({ field }) => (<FormItem><FormLabel>Marca</FormLabel><FormControl><Input placeholder="Ex: Scania" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                             <FormField control={control} name={`vehicles.${index}.model`} render={({ field }) => (<FormItem><FormLabel>Modelo</FormLabel><FormControl><Input placeholder="Ex: R450" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                             <FormField control={control} name={`vehicles.${index}.year`} render={({ field }) => (<FormItem><FormLabel>Ano</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl><SelectContent>{yearOptions.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                             <FormField control={control} name={`vehicles.${index}.color`} render={({ field }) => (<FormItem><FormLabel>Cor</FormLabel><FormControl><Input placeholder="Ex: Branco" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                             <FormField control={control} name={`vehicles.${index}.licensePlate`} render={({ field }) => (<FormItem><FormLabel>Placa</FormLabel><FormControl><Input placeholder="BRA2E19" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        </div>
+                        <div className="grid md:grid-cols-2 gap-4 mt-4">
+                             <FormField control={control} name={`vehicles.${index}.vehicleTypeId`} render={({ field }) => (<FormItem><FormLabel>Tipo de Veículo</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl><SelectContent>{vehicleTypes.map(vt => <SelectItem key={vt.id} value={vt.id}>{vt.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                             <FormField control={control} name={`vehicles.${index}.bodyTypeId`} render={({ field }) => (<FormItem><FormLabel>Tipo de Carroceria</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl><SelectContent>{bodyTypes.map(bt => <SelectItem key={bt.id} value={bt.id}>{bt.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                        </div>
+                        <div className="mt-4 space-y-4">
+                             <FileInput name={`vehicles.${index}.crlvFile`} label="CRLV" description="Imagem ou PDF" acceptedTypes={ACCEPTED_DOC_TYPES} />
+                             <FileInput name={`vehicles.${index}.frontPhoto`} label="Foto Frontal" description="Imagem do veículo" acceptedTypes={ACCEPTED_IMG_TYPES} />
+                             <FileInput name={`vehicles.${index}.sidePhoto`} label="Foto Lateral" description="Imagem do veículo" acceptedTypes={ACCEPTED_IMG_TYPES} />
+                        </div>
+                    </Card>
+                ))}
+            </div>
+            <Button type="button" variant="outline" className="w-full" onClick={() => append({ brand: '', model: '', year: '', color: '', licensePlate: '', vehicleTypeId: '', bodyTypeId: '', crlvFile: undefined, frontPhoto: undefined, sidePhoto: undefined })}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Adicionar outro veículo
+            </Button>
+            <FormField control={control} name="vehicles" render={() => <FormMessage />} />
+        </div>
+    );
+};
+
+const Step5 = () => {
+    const { control, getValues } = useFormContext();
+     const { toast } = useToast();
+
+     const handleCheckEmail = async () => {
+        const email = getValues('email');
+        if (!email || !z.string().email().safeParse(email).success) {
+            toast({ variant: 'destructive', title: 'Email inválido', description: 'Por favor, insira um email válido para verificar.' });
+            return;
+        }
+
+        const q = query(collection(db, "users"), where("email", "==", email));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+            toast({ variant: 'destructive', title: 'Email já cadastrado', description: 'Este email já está em uso. Por favor, use outro.' });
+        } else {
+             toast({ title: 'Email disponível', description: 'Você pode usar este email para o cadastro.' });
+        }
+    }
+
+    return (
+        <div className="space-y-6">
+            <h2 className="text-2xl font-semibold">5. Acesso à Plataforma</h2>
+            <p className="text-muted-foreground">Crie suas credenciais para acessar sua conta.</p>
+            <Separator />
+            <FormField
+                control={control}
+                name="email"
+                render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <div className="flex gap-2">
+                             <FormControl><Input type="email" placeholder="seu@email.com" {...field} /></FormControl>
+                             <Button type="button" variant="outline" onClick={handleCheckEmail}>Verificar</Button>
+                        </div>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+            <div className="grid md:grid-cols-2 gap-4">
+                <FormField
+                    control={control}
+                    name="password"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Senha</FormLabel>
+                            <FormControl><Input type="password" {...field} /></FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                 <FormField
+                    control={control}
+                    name="confirmPassword"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Confirmar Senha</FormLabel>
+                            <FormControl><Input type="password" {...field} /></FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+            </div>
+             <div className="mt-4 text-center text-sm">
+                Já tem uma conta?{' '}
+                <Link href="/login" className="font-semibold text-primary hover:underline">
+                Faça login
+                </Link>
+            </div>
+        </div>
+    );
 }
