@@ -9,6 +9,9 @@ import { useRouter } from 'next/navigation';
 
 import { Loader2 } from "lucide-react";
 import CompanyProfileForm from './company-profile-form';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
 
 type UserProfile = {
@@ -63,6 +66,22 @@ export default function ProfilePage() {
                     <Loader2 className="h-12 w-12 animate-spin text-primary" />
                 </div>
             );
+        }
+        
+        if (profile.role === 'admin') {
+            return (
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Painel do Administrador</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p>Você está logado como administrador.</p>
+                        <Button asChild className="mt-4">
+                            <Link href="/admin">Ir para o Painel de Admin</Link>
+                        </Button>
+                    </CardContent>
+                </Card>
+            )
         }
 
         if (profile.role === 'company') {
