@@ -206,6 +206,8 @@ export default function Header() {
     )
   }
 
+  const solicitRequestLink = user ? "/fretes/solicitar" : "/solicitar-frete?type=completo";
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 max-w-7xl items-center justify-between px-4 md:px-6">
@@ -223,7 +225,7 @@ export default function Header() {
         <div className="hidden md:flex items-center gap-4">
             {isClient && !isLoading && (
                 <Button asChild>
-                    <Link href="/fretes/solicitar">
+                    <Link href={solicitRequestLink}>
                         Solicitar Frete
                         <Sparkles className="ml-2 h-4 w-4" />
                     </Link>
@@ -257,7 +259,7 @@ export default function Header() {
                     </Link>
                   ))}
                   {isClient && !isLoading && (
-                    <Link href="/fretes/solicitar" className="font-semibold text-primary" onClick={() => setIsOpen(false)}>
+                    <Link href={solicitRequestLink} className="font-semibold text-primary" onClick={() => setIsOpen(false)}>
                         Solicitar Frete
                     </Link>
                   )}
