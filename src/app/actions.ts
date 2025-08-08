@@ -117,8 +117,6 @@ export async function updateUserByAdmin(userId: string, data: any): Promise<void
             // Safely merge responsible data
             responsible: {
                 ...(userData.responsible || {}), // Start with existing data or an empty object
-                name: data.responsibleName,
-                cpf: data.responsibleCpf,
             }
         };
 
@@ -373,6 +371,17 @@ export type Plan = {
     pricePix: number;
     priceCard: number;
     userType: 'driver' | 'company';
+    freightLimitType: 'unlimited' | 'limited';
+    freightLimit: number;
+    allowedFreightTypes: {
+        agregamento: boolean;
+        completo: boolean;
+        retorno: boolean;
+    };
+    collaboratorLimitType: 'unlimited' | 'limited';
+    collaboratorLimit: number;
+    hasStatisticsAccess: boolean;
+    hasReturningDriversAccess: boolean;
 };
 
 export async function getPlans(): Promise<Plan[]> {

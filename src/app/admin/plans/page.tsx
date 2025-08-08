@@ -1,9 +1,7 @@
 
 import type { Metadata } from 'next';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { getPlans, type Plan } from '@/app/actions';
 import PlansClient from './plans-client';
-import { type Plan } from '@/app/actions';
 
 export const metadata: Metadata = {
     title: 'Gerenciamento de Planos | Frete7 Admin',
@@ -12,12 +10,11 @@ export const metadata: Metadata = {
 
 async function getPlansData(): Promise<Plan[]> {
     try {
-        const plansCollection = collection(db, 'plans');
-        const snapshot = await getDocs(plansCollection);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Plan));
+        const plans = await getPlans();
+        return plans;
     } catch (error) {
         console.error("Error fetching plans server-side: ", error);
-        return []; // Retorna vazio em caso de erro
+        return [];
     }
 }
 
