@@ -124,13 +124,25 @@ const freightTypes = [
     { id: 'frete de retorno', label: 'Frete de Retorno' },
 ];
 
-export default function FretesClient() {
-    const [freights, setFreights] = useState<any[]>([]);
-    const [allBodyTypes, setAllBodyTypes] = useState<BodyType[]>([]);
-    const [allVehicleTypes, setAllVehicleTypes] = useState<any[]>([]); // Using 'any' for simplicity
-    const [allVehicleCategories, setAllVehicleCategories] = useState<VehicleCategory[]>([]);
+interface FretesClientProps {
+    initialFreights: any[];
+    initialBodyTypes: BodyType[];
+    initialVehicleTypes: any[];
+    initialVehicleCategories: VehicleCategory[];
+}
+
+export default function FretesClient({ 
+    initialFreights, 
+    initialBodyTypes, 
+    initialVehicleTypes, 
+    initialVehicleCategories 
+}: FretesClientProps) {
+    const [freights, setFreights] = useState<any[]>(initialFreights);
+    const [allBodyTypes, setAllBodyTypes] = useState<BodyType[]>(initialBodyTypes);
+    const [allVehicleTypes, setAllVehicleTypes] = useState<any[]>(initialVehicleTypes);
+    const [allVehicleCategories, setAllVehicleCategories] = useState<VehicleCategory[]>(initialVehicleCategories);
     
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(false); // No initial loading
     const [user, setUser] = useState<User | null>(null);
 
     // Filter states
@@ -145,39 +157,15 @@ export default function FretesClient() {
             setUser(currentUser);
         });
         
-        return () => unsubscribeAuth();
-    }, []);
-
-
-    useEffect(() => {
-        const fetchData = async () => {
-            setIsLoading(true);
-            try {
-                const freightsQuery = query(collection(db, 'freights'), where('status', '==', 'ativo'));
-                const bodyTypesQuery = query(collection(db, 'body_types'));
-                const vehicleTypesQuery = query(collection(db, 'vehicle_types'));
-                const vehicleCategoriesQuery = query(collection(db, 'vehicle_categories'));
-
-                const [freightsSnap, bodyTypesSnap, vehicleTypesSnap, vehicleCategoriesSnap] = await Promise.all([
-                    getDocs(freightsQuery),
-                    getDocs(bodyTypesQuery),
-                    getDocs(vehicleTypesQuery),
-                    getDocs(vehicleCategoriesQuery),
-                ]);
-
-                setFreights(freightsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id })));
-                setAllBodyTypes(bodyTypesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as BodyType)));
-                setAllVehicleTypes(vehicleTypesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as any)));
-                setAllVehicleCategories(vehicleCategoriesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as VehicleCategory)));
-
-            } catch (error) {
-                console.error("Error fetching data:", error);
-            } finally {
-                setIsLoading(false);
-            }
+        const freightsQuery = query(collection(db, 'freights'), where('status', '==', 'ativo'));
+        const unsubscribeFreights = onSnapshot(freightsQuery, (snapshot) => {
+             setFreights(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+        });
+        
+        return () => {
+            unsubscribeAuth();
+            unsubscribeFreights();
         };
-
-        fetchData();
     }, []);
     
     const groupedBodyTypes = useMemo(() => groupBy(allBodyTypes, 'group'), [allBodyTypes]);

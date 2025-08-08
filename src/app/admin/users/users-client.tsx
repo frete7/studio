@@ -48,12 +48,13 @@ const getStatusLabel = (status?: string): string => {
 }
 
 
-export default function UsersClient() {
-    const [users, setUsers] = useState<User[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+export default function UsersClient({ initialData }: { initialData: User[] }) {
+    const [users, setUsers] = useState<User[]>(initialData);
+    const [isLoading, setIsLoading] = useState(false); // Start with false as initial data is present
 
     useEffect(() => {
-        setIsLoading(true);
+        // We already have initial data, so no need to set loading to true here.
+        // The onSnapshot will update the list in real-time without a loading spinner.
         const q = query(collection(db, 'users'));
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
             const usersData: User[] = [];
@@ -61,7 +62,8 @@ export default function UsersClient() {
                 usersData.push({ ...doc.data(), uid: doc.id } as User);
             });
             setUsers(usersData);
-            setIsLoading(false);
+        }, (error) => {
+            console.error("Real-time user fetching failed:", error);
         });
 
         return () => unsubscribe();
@@ -138,20 +140,20 @@ export default function UsersClient() {
                  <TabsTrigger value="pending">
                     <ShieldAlert className="mr-2 h-4 w-4" />
                     Pendentes
-                    <Badge variant="secondary" className="ml-2">{isLoading ? '...' : pendingUsers.length}</Badge>
+                    <Badge variant="secondary" className="ml-2">{pendingUsers.length}</Badge>
                 </TabsTrigger>
                 <TabsTrigger value="all">
                     <Users className="mr-2 h-4 w-4" />
                     Todos
-                     <Badge variant="secondary" className="ml-2">{isLoading ? '...' : users.length}</Badge>
+                     <Badge variant="secondary" className="ml-2">{users.length}</Badge>
                 </TabsTrigger>
                 <TabsTrigger value="drivers">
                     Motoristas
-                    <Badge variant="secondary" className="ml-2">{isLoading ? '...' : drivers.length}</Badge>
+                    <Badge variant="secondary" className="ml-2">{drivers.length}</Badge>
                 </TabsTrigger>
                 <TabsTrigger value="companies">
                     Empresas
-                     <Badge variant="secondary" className="ml-2">{isLoading ? '...' : companies.length}</Badge>
+                     <Badge variant="secondary" className="ml-2">{companies.length}</Badge>
                 </TabsTrigger>
             </TabsList>
             <Card className="mt-4">
