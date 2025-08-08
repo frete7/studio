@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useForm, type SubmitHandler, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { type Plan, addPlan, updatePlan, deletePlan } from '@/app/actions';
+import { type Plan, addPlan, updatePlan, deletePlan, getPlans } from '@/app/actions';
 
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -13,10 +13,10 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose, DialogDescription } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription as AlertDialogDescriptionComponent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Loader2, PlusCircle, Trash2, Edit, X, Package, Users, BarChart3, Star, CheckCircle } from 'lucide-react';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription as FormDescriptionComponent } from '@/components/ui/form';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
@@ -68,6 +68,15 @@ export default function PlansClient({ initialData }: { initialData: Plan[] }) {
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
 
   const { toast } = useToast();
+  
+  // Realtime updates
+  useEffect(() => {
+    async function fetchPlans() {
+        const plansData = await getPlans();
+        setPlans(plansData);
+    }
+    fetchPlans();
+  }, []);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -95,8 +104,10 @@ export default function PlansClient({ initialData }: { initialData: Plan[] }) {
     setEditingPlan(plan);
     form.reset({
         ...plan,
-        freightLimit: plan.freightLimit || 0,
-        collaboratorLimit: plan.collaboratorLimit || 0,
+        freightLimit: plan.freightLimit > 0 ? plan.freightLimit : 0,
+        collaboratorLimit: plan.collaboratorLimit > 0 ? plan.collaboratorLimit : 0,
+        freightLimitType: plan.freightLimit === -1 ? 'unlimited' : 'limited',
+        collaboratorLimitType: plan.collaboratorLimit === -1 ? 'unlimited' : 'limited',
     });
     setIsDialogOpen(true);
   };
@@ -116,13 +127,17 @@ export default function PlansClient({ initialData }: { initialData: Plan[] }) {
     };
 
     try {
+      let updatedPlans = [...plans];
       if (editingPlan) {
         await updatePlan(editingPlan.id, dataToSave);
+        updatedPlans = updatedPlans.map(p => p.id === editingPlan.id ? { ...p, ...dataToSave} : p);
         toast({ title: 'Sucesso!', description: 'Plano atualizado.' });
       } else {
-        await addPlan(dataToSave as Omit<Plan, 'id'>);
+        const newPlan = await addPlan(dataToSave as Omit<Plan, 'id'>);
+        updatedPlans.push(newPlan);
         toast({ title: 'Sucesso!', description: 'Novo plano adicionado.' });
       }
+      setPlans(updatedPlans);
       form.reset();
       setIsDialogOpen(false);
       setEditingPlan(null);
@@ -140,6 +155,7 @@ export default function PlansClient({ initialData }: { initialData: Plan[] }) {
   const handleDelete = async (id: string) => {
     try {
         await deletePlan(id);
+        setPlans(plans.filter(p => p.id !== id));
         toast({ title: 'Sucesso!', description: 'Plano removido.' });
     } catch (error) {
          toast({
@@ -199,9 +215,9 @@ export default function PlansClient({ initialData }: { initialData: Plan[] }) {
                       <AlertDialogContent>
                           <AlertDialogHeader>
                             <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
-                            <AlertDialogDescription>
+                            <AlertDialogDescriptionComponent>
                                 Esta ação não pode ser desfeita. Isso irá remover permanentemente o plano.
-                            </AlertDialogDescription>
+                            </AlertDialogDescriptionComponent>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancelar</AlertDialogCancel>
