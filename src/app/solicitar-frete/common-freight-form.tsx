@@ -1117,7 +1117,7 @@ function SummaryView({ data }: { data: FormData }) {
 // Componente Principal da Página
 // =================================================================
 
-export default function RequestFreightPage({ companyId, companyName }: { companyId: string, companyName: string }) {
+export default function RequestFreightPage({ companyId, companyName }: { companyId: string | null, companyName: string | null }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
@@ -1170,7 +1170,7 @@ export default function RequestFreightPage({ companyId, companyName }: { company
     }
   });
 
-  const { handleSubmit, trigger, getValues, formState: { isSubmitting } } = methods;
+  const { handleSubmit, trigger, getValues, formState: { isSubmitting }, } = methods;
 
   async function processForm(data: FormData) {
      try {
@@ -1262,7 +1262,7 @@ export default function RequestFreightPage({ companyId, companyName }: { company
                             <DialogClose asChild>
                                 <Button type="button" variant="secondary">Cancelar</Button>
                             </DialogClose>
-                            <Button onClick={handleSubmit(processForm)} disabled={isSubmitting}>
+                            <Button type="button" onClick={handleSubmit(processForm)} disabled={isSubmitting}>
                                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Finalizar
                             </Button>
