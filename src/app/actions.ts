@@ -477,6 +477,7 @@ export async function addAggregationFreight(companyId: string, companyName: stri
 }
 
 export async function addCompleteFreight(companyId: string | null, companyName: string | null, freightType: 'completo' | 'retorno' | 'comum', data: any): Promise<string> {
+    console.log("LOG: addCompleteFreight called with data:", { companyId, companyName, freightType, data });
     const freightsCollection = collection(db, 'freights');
     
     const prefixes = {
@@ -489,25 +490,31 @@ export async function addCompleteFreight(companyId: string | null, companyName: 
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const nums = '0123456789';
 
-    const randomValues = new Uint32Array(5);
-    crypto.getRandomValues(randomValues);
-    const randomChar = (index: number) => chars[randomValues[index] % chars.length];
-    const randomNum = (index: number) => nums[randomValues[index] % nums.length];
-    const generatedId = `${prefix}-${randomNum(0)}${randomNum(1)}${randomChar(2)}${randomChar(3)}${randomChar(4)}`;
+    try {
+        const randomValues = new Uint32Array(5);
+        crypto.getRandomValues(randomValues);
+        const randomChar = (index: number) => chars[randomValues[index] % chars.length];
+        const randomNum = (index: number) => nums[randomValues[index] % nums.length];
+        const generatedId = `${prefix}-${randomNum(0)}${randomNum(1)}${randomChar(2)}${randomChar(3)}${randomChar(4)}`;
 
-    const freightDoc = {
-        ...data,
-        id: generatedId,
-        companyId: companyId,
-        companyName: companyName,
-        freightType: freightType,
-        status: 'ativo',
-        createdAt: serverTimestamp(),
-    };
+        const freightDoc = {
+            ...data,
+            id: generatedId,
+            companyId: companyId, // Can be null for unauthenticated users
+            companyName: companyName, // Can be "Visitante"
+            freightType: freightType,
+            status: 'ativo',
+            createdAt: serverTimestamp(),
+        };
 
-    const docRef = await addDoc(freightsCollection, freightDoc);
-    
-    return generatedId;
+        const docRef = await addDoc(freightsCollection, freightDoc);
+        console.log("LOG: Freight document written with ID: ", docRef.id);
+        
+        return generatedId;
+    } catch(error) {
+        console.error("ERROR: Failed to add complete freight to Firestore:", error);
+        throw new Error("Falha ao criar a solicitação de frete no banco de dados.");
+    }
 }
 
 export async function updateFreightStatus(freightId: string, status: Freight['status']): Promise<void> {

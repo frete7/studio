@@ -1123,6 +1123,7 @@ export default function RequestFreightPage({ companyId, companyName }: { company
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
   const [freightId, setFreightId] = useState('');
   const [countdown, setCountdown] = useState(10);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -1170,9 +1171,10 @@ export default function RequestFreightPage({ companyId, companyName }: { company
     }
   });
 
-  const { handleSubmit, trigger, getValues, formState: { isSubmitting }, } = methods;
+  const { handleSubmit, trigger, getValues } = methods;
 
   async function processForm(data: FormData) {
+    setIsSubmitting(true);
      try {
         const newId = await addCompleteFreight(companyId, companyName, 'comum', data);
         setFreightId(newId);
@@ -1183,9 +1185,11 @@ export default function RequestFreightPage({ companyId, companyName }: { company
         toast({
             variant: "destructive",
             title: "Erro ao Enviar",
-            description: "Não foi possível salvar sua solicitação. Tente novamente."
+            description: error instanceof Error ? error.message : "Não foi possível salvar sua solicitação. Tente novamente."
         })
         setIsSummaryOpen(false);
+    } finally {
+        setIsSubmitting(false);
     }
   }
   
@@ -1239,7 +1243,7 @@ export default function RequestFreightPage({ companyId, companyName }: { company
                 </div>
             
                 <FormProvider {...methods}>
-                    <form onSubmit={handleSubmit(processForm)}>
+                    <form>
                         <div className={currentStep === 0 ? 'block' : 'hidden'}> <OriginStep /> </div>
                         <div className={currentStep === 1 ? 'block' : 'hidden'}> <DestinationStep /> </div>
                         <div className={currentStep === 2 ? 'block' : 'hidden'}> <ItemsStep /> </div>
