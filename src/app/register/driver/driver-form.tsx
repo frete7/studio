@@ -110,13 +110,38 @@ const storage = getStorage(app);
 // ==================================
 export default function DriverRegisterForm() {
   const [currentStep, setCurrentStep] = useState(0);
-  const [isLoading, setIsLoading] =useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
   const methods = useForm<DriverFormData>({
     resolver: zodResolver(formSchema),
     mode: 'onBlur',
+    defaultValues: {
+      fullName: '',
+      cpf: '',
+      phone: '',
+      confirmPhone: '',
+      cep: '',
+      logradouro: '',
+      numero: '',
+      complemento: '',
+      bairro: '',
+      cidade: '',
+      uf: '',
+      addressManual: false,
+      hasCnpj: false,
+      cnpj: '',
+      issuesInvoice: false,
+      issuesCte: false,
+      hasAntt: false,
+      cnhCategory: undefined,
+      cnhNumber: '',
+      birthDate: undefined,
+      cnhExpiration: undefined,
+      selfie: undefined,
+      cnhFile: undefined,
+    }
   });
 
   const { handleSubmit, trigger } = methods;
