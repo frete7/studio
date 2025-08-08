@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -6,8 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from "date-fns";
 import { ptBR } from 'date-fns/locale';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { addCompleteFreight } from '@/app/actions';
 
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -154,19 +154,6 @@ const steps = [
 
 type IBGEState = { id: number; sigla: string; nome: string; };
 type IBGECity = { id: number; nome: string; };
-
-const generateFreightId = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const nums = '0123456789';
-    const crypto = window.crypto;
-    const array = new Uint32Array(5);
-    crypto.getRandomValues(array);
-
-    const randomChar = (index: number) => chars[array[index] % chars.length];
-    const randomNum = (index: number) => nums[array[index] % nums.length];
-
-    return `#CO-${randomNum(0)}${randomNum(1)}${randomChar(2)}${randomChar(3)}${randomChar(4)}`;
-}
 
 // =================================================================
 // Componentes das Etapas
@@ -1130,11 +1117,12 @@ function SummaryView({ data }: { data: FormData }) {
 // Componente Principal da Página
 // =================================================================
 
-export default function RequestFreightPage() {
+export default function RequestFreightPage({ companyId, companyName }: { companyId: string, companyName: string }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
   const [freightId, setFreightId] = useState('');
+  const [countdown, setCountdown] = useState(10);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -1185,30 +1173,9 @@ export default function RequestFreightPage() {
   const { handleSubmit, trigger, getValues, formState: { isSubmitting } } = methods;
 
   async function processForm(data: FormData) {
-     const generatedId = generateFreightId();
-     setFreightId(generatedId);
      try {
-        // Deep copy and remove circular references for Firestore
-        const dataToSave = JSON.parse(JSON.stringify(data));
-        
-        const freightData = {
-            ...dataToSave,
-            id: generatedId,
-            freightType: 'comum',
-            status: 'ativo',
-            createdAt: serverTimestamp(),
-            origin: `${dataToSave.origin.city}, ${dataToSave.origin.state}`,
-            destinations: dataToSave.destinations.map((d: any) => `${d.city}, ${d.state}`),
-            companyId: 'unauthenticated', // For anonymous requests
-            companyName: dataToSave.contact.fullName,
-        };
-
-        // Remove confirmation phone from data to be saved
-        if (freightData.contact?.confirmPhone) {
-            delete (freightData.contact as any).confirmPhone;
-        }
-
-        await addDoc(collection(db, 'freights'), freightData);
+        const newId = await addCompleteFreight(companyId, companyName, 'completo', data);
+        setFreightId(newId);
         setIsSummaryOpen(false);
         setIsSuccessOpen(true);
     } catch(error) {
@@ -1250,6 +1217,16 @@ export default function RequestFreightPage() {
     router.push('/');
   }
   
+   useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isSuccessOpen && countdown > 0) {
+      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+    } else if (isSuccessOpen && countdown === 0) {
+      router.push('/');
+    }
+    return () => clearTimeout(timer);
+  }, [isSuccessOpen, countdown, router]);
+
   const progress = ((currentStep + 1) / steps.length) * 100;
 
   return (

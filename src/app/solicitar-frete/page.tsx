@@ -3,7 +3,8 @@
 
 import { useState, useEffect } from 'react';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,12 +15,19 @@ import { Box, CornerDownLeft } from 'lucide-react';
 
 export default function RequestFreightRouterPage() {
     const [user, setUser] = useState<FirebaseUser | null>(null);
+    const [profile, setProfile] = useState<any | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const router = useRouter();
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-            setUser(currentUser);
+        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+            if (currentUser) {
+                setUser(currentUser);
+                const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+                if (userDoc.exists()) {
+                    setProfile(userDoc.data());
+                }
+            }
             setIsLoading(false);
         });
         return () => unsubscribe();
@@ -44,7 +52,7 @@ export default function RequestFreightRouterPage() {
                             Preencha os detalhes abaixo e encontre o transportador ideal para sua carga.
                         </p>
                     </div>
-                    <CommonFreightForm />
+                    <CommonFreightForm companyId="unauthenticated" companyName="Visitante" />
                 </div>
             </div>
         );
@@ -110,4 +118,3 @@ export default function RequestFreightRouterPage() {
         </div>
     );
 }
-
