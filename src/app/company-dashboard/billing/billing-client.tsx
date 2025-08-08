@@ -36,15 +36,19 @@ export default function BillingClient({ allPlans, currentPlanId }: BillingClient
         console.log("Selected plan:", planId);
     };
 
-    return (
-        <div className="space-y-8">
-            <div className="text-center">
-                <h1 className="text-4xl font-bold font-headline text-primary">Planos e Assinatura</h1>
-                <p className="mt-2 text-lg text-foreground/70">
-                    Escolha o plano que melhor se adapta às necessidades da sua empresa.
-                </p>
-            </div>
-            
+    const renderPlans = () => {
+        if (!allPlans || allPlans.length === 0) {
+            return (
+                <Card className="text-center p-8">
+                    <CardTitle>Nenhum Plano Disponível</CardTitle>
+                    <CardDescription className="mt-2">
+                        No momento não há planos disponíveis. Por favor, volte mais tarde.
+                    </CardDescription>
+                </Card>
+            )
+        }
+
+        return (
              <div className="grid md:grid-cols-1 lg:grid-cols-2 gap-8 items-start">
                 {allPlans.map((plan, index) => {
                     const isCurrent = plan.id === currentPlanId;
@@ -88,6 +92,19 @@ export default function BillingClient({ allPlans, currentPlanId }: BillingClient
                     );
                 })}
             </div>
+        )
+    }
+
+    return (
+        <div className="space-y-8">
+            <div className="text-center">
+                <h1 className="text-4xl font-bold font-headline text-primary">Planos e Assinatura</h1>
+                <p className="mt-2 text-lg text-foreground/70">
+                    Escolha o plano que melhor se adapta às necessidades da sua empresa.
+                </p>
+            </div>
+            
+            {renderPlans()}
 
             <Card className="mt-12">
                 <CardHeader>
