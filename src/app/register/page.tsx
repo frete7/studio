@@ -1,14 +1,10 @@
 
-'use client';
-
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Building, Truck as TruckIcon } from "lucide-react";
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 
 export default function RegisterTypeSelectionPage() {
-    const router = useRouter();
 
     return (
         <div className="flex min-h-[calc(100vh-128px)] items-center justify-center bg-muted/40 px-4 py-12">
