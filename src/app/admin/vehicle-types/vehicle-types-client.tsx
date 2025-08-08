@@ -52,11 +52,15 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
+interface VehicleTypesClientProps {
+    initialTypes: VehicleType[];
+    initialCategories: VehicleCategory[];
+}
 
-export default function VehicleTypesClient() {
-  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
-  const [vehicleCategories, setVehicleCategories] = useState<VehicleCategory[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+export default function VehicleTypesClient({ initialTypes, initialCategories }: VehicleTypesClientProps) {
+  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>(initialTypes);
+  const [vehicleCategories, setVehicleCategories] = useState<VehicleCategory[]>(initialCategories);
+  const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<VehicleType | null>(null);
@@ -66,8 +70,8 @@ export default function VehicleTypesClient() {
   const categoryMap = new Map(vehicleCategories.map(c => [c.id, c.name]));
 
   useEffect(() => {
-    setIsLoading(true);
-
+    // Initial data is passed as props, so no initial loading needed.
+    // onSnapshot will handle real-time updates.
     const typesQuery = query(collection(db, 'vehicle_types'));
     const categoriesQuery = query(collection(db, 'vehicle_categories'));
 
@@ -79,7 +83,6 @@ export default function VehicleTypesClient() {
     const unsubscribeCategories = onSnapshot(categoriesQuery, (snapshot) => {
       const categoriesData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as VehicleCategory));
       setVehicleCategories(categoriesData);
-      setIsLoading(false); // Only stop loading after categories are also fetched
     });
 
     return () => {
