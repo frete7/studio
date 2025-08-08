@@ -748,18 +748,17 @@ export async function getMonthlyFreightStats(companyId: string) {
     throw new Error('O ID da empresa é obrigatório.');
   }
 
-  const freightsCollection = collection(db, 'freights');
-  const now = new Date();
-  const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-
-  const q = query(
-    freightsCollection,
-    where('companyId', '==', companyId),
-    where('createdAt', '>=', oneYearAgo),
-    orderBy('createdAt', 'asc')
-  );
-
   try {
+    const freightsCollection = collection(db, 'freights');
+    const now = new Date();
+    const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+
+    // Simplified query to avoid needing a composite index
+    const q = query(
+      freightsCollection,
+      where('companyId', '==', companyId)
+    );
+
     const snapshot = await getDocs(q);
     const monthlyData: { [key: string]: { total: number; concluido: number; cancelado: number } } = {};
 
@@ -767,7 +766,8 @@ export async function getMonthlyFreightStats(companyId: string) {
       const data = doc.data() as Freight;
       const createdAt = data.createdAt?.toDate();
 
-      if (createdAt) {
+      // Filter by date in the code
+      if (createdAt && createdAt >= oneYearAgo) {
         const month = createdAt.toISOString().slice(0, 7); // YYYY-MM
         if (!monthlyData[month]) {
           monthlyData[month] = { total: 0, concluido: 0, cancelado: 0 };
@@ -793,7 +793,6 @@ export async function getMonthlyFreightStats(companyId: string) {
     for (let i = 11; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const monthName = d.toLocaleString('default', { month: 'short' }).toUpperCase();
-        const monthKey = d.toISOString().slice(0,7);
         const existingData = formattedData.find(m => m.name === monthName);
         if(existingData) {
             finalData.push(existingData);
@@ -802,7 +801,6 @@ export async function getMonthlyFreightStats(companyId: string) {
         }
     }
 
-
     return finalData;
 
   } catch (error) {
@@ -810,6 +808,8 @@ export async function getMonthlyFreightStats(companyId: string) {
     throw new Error('Falha ao buscar os dados mensais de fretes.');
   }
 }
+    
+
     
 
     
