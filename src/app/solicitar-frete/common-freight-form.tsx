@@ -1174,7 +1174,7 @@ export default function RequestFreightPage({ companyId, companyName }: { company
 
   async function processForm(data: FormData) {
      try {
-        const newId = await addCompleteFreight(companyId, companyName, 'completo', data);
+        const newId = await addCompleteFreight(companyId, companyName, 'comum', data);
         setFreightId(newId);
         setIsSummaryOpen(false);
         setIsSuccessOpen(true);
@@ -1230,82 +1230,79 @@ export default function RequestFreightPage({ companyId, companyName }: { company
   const progress = ((currentStep + 1) / steps.length) * 100;
 
   return (
-    <section className="container mx-auto px-4 py-12">
-        <div className="max-w-3xl mx-auto">
+    <section>
+        <Card className="shadow-lg">
+            <CardContent className="p-6 md:p-8">
+                <div className="mb-8">
+                    <p className="text-sm text-muted-foreground">Etapa {currentStep + 1} de {steps.length}: {steps[currentStep].name}</p>
+                    <Progress value={progress} className="mt-2" />
+                </div>
             
-            <Card className="shadow-lg">
-                <CardContent className="p-6 md:p-8">
-                    <div className="mb-8">
-                        <p className="text-sm text-muted-foreground">Etapa {currentStep + 1} de {steps.length}: {steps[currentStep].name}</p>
-                        <Progress value={progress} className="mt-2" />
-                    </div>
-                
-                    <FormProvider {...methods}>
-                        <form onSubmit={handleSubmit(() => setIsSummaryOpen(true))}>
-                            <div className={currentStep === 0 ? 'block' : 'hidden'}> <OriginStep /> </div>
-                            <div className={currentStep === 1 ? 'block' : 'hidden'}> <DestinationStep /> </div>
-                            <div className={currentStep === 2 ? 'block' : 'hidden'}> <ItemsStep /> </div>
-                            <div className={currentStep === 3 ? 'block' : 'hidden'}> <AdditionalInfoStep /> </div>
-                            <div className={currentStep === 4 ? 'block' : 'hidden'}> <ContactStep /> </div>
-                        </form>
-                    </FormProvider>
+                <FormProvider {...methods}>
+                    <form onSubmit={handleSubmit(processForm)}>
+                        <div className={currentStep === 0 ? 'block' : 'hidden'}> <OriginStep /> </div>
+                        <div className={currentStep === 1 ? 'block' : 'hidden'}> <DestinationStep /> </div>
+                        <div className={currentStep === 2 ? 'block' : 'hidden'}> <ItemsStep /> </div>
+                        <div className={currentStep === 3 ? 'block' : 'hidden'}> <AdditionalInfoStep /> </div>
+                        <div className={currentStep === 4 ? 'block' : 'hidden'}> <ContactStep /> </div>
+                    </form>
+                </FormProvider>
 
-                    {/* Modal de Confirmação */}
-                    <Dialog open={isSummaryOpen} onOpenChange={setIsSummaryOpen}>
-                        <DialogContent className="sm:max-w-2xl">
-                             <DialogHeader>
-                                <DialogTitle className="text-2xl">Confirme sua Solicitação</DialogTitle>
-                                <p className="text-sm text-muted-foreground">
-                                    Por favor, revise todos os dados antes de finalizar.
-                                </p>
-                             </DialogHeader>
-                             <SummaryView data={getValues()} />
-                             <DialogFooter>
-                                <DialogClose asChild>
-                                    <Button type="button" variant="secondary">Cancelar</Button>
-                                </DialogClose>
-                                <Button onClick={handleSubmit(processForm)} disabled={isSubmitting}>
-                                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                    Finalizar
-                                </Button>
-                             </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
+                {/* Modal de Confirmação */}
+                <Dialog open={isSummaryOpen} onOpenChange={setIsSummaryOpen}>
+                    <DialogContent className="sm:max-w-2xl">
+                         <DialogHeader>
+                            <DialogTitle className="text-2xl">Confirme sua Solicitação</DialogTitle>
+                            <p className="text-sm text-muted-foreground">
+                                Por favor, revise todos os dados antes de finalizar.
+                            </p>
+                         </DialogHeader>
+                         <SummaryView data={getValues()} />
+                         <DialogFooter>
+                            <DialogClose asChild>
+                                <Button type="button" variant="secondary">Cancelar</Button>
+                            </DialogClose>
+                            <Button onClick={handleSubmit(processForm)} disabled={isSubmitting}>
+                                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Finalizar
+                            </Button>
+                         </DialogFooter>
+                    </DialogContent>
+                </Dialog>
 
-                    {/* Modal de Sucesso */}
-                    <Dialog open={isSuccessOpen} onOpenChange={setIsSuccessOpen}>
-                        <DialogContent>
-                             <DialogHeader>
-                                <div className="flex flex-col items-center text-center gap-4 py-4">
-                                    <CheckCircle className="h-16 w-16 text-green-500" />
-                                    <DialogTitle className="text-2xl">Parabéns!</DialogTitle>
-                                    <p className="text-muted-foreground">Seu pedido foi feito com sucesso e em breve você começará a receber os primeiros orçamentos.</p>
-                                    <div className="bg-muted rounded-md p-3 w-full text-center mt-2">
-                                        <p className="text-sm">Código do Pedido:</p>
-                                        <p className="font-mono font-bold text-lg text-primary">{freightId}</p>
-                                    </div>
+                {/* Modal de Sucesso */}
+                <Dialog open={isSuccessOpen} onOpenChange={setIsSuccessOpen}>
+                    <DialogContent>
+                         <DialogHeader>
+                            <div className="flex flex-col items-center text-center gap-4 py-4">
+                                <CheckCircle className="h-16 w-16 text-green-500" />
+                                <DialogTitle className="text-2xl">Parabéns!</DialogTitle>
+                                <p className="text-muted-foreground">Seu pedido foi feito com sucesso e em breve você começará a receber os primeiros orçamentos.</p>
+                                <div className="bg-muted rounded-md p-3 w-full text-center mt-2">
+                                    <p className="text-sm">Código do Pedido:</p>
+                                    <p className="font-mono font-bold text-lg text-primary">{freightId}</p>
                                 </div>
-                             </DialogHeader>
-                             <DialogFooter>
-                                <Button onClick={handleFinish} className="w-full">
-                                    Fechar
-                                </Button>
-                             </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
+                            </div>
+                         </DialogHeader>
+                         <DialogFooter>
+                            <Button onClick={handleFinish} className="w-full">
+                                Fechar
+                            </Button>
+                         </DialogFooter>
+                    </DialogContent>
+                </Dialog>
 
-                    <div className="mt-8 flex justify-between">
-                        <Button onClick={prevStep} variant="outline" disabled={currentStep === 0 || isSubmitting}>
-                            Voltar
-                        </Button>
-                        <Button onClick={nextStep} disabled={isSubmitting}>
-                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            {currentStep < steps.length - 1 ? 'Próximo' : 'Revisar e Enviar'}
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
-        </div>
+                <div className="mt-8 flex justify-between">
+                    <Button onClick={prevStep} variant="outline" disabled={currentStep === 0 || isSubmitting}>
+                        Voltar
+                    </Button>
+                    <Button onClick={nextStep} disabled={isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {currentStep < steps.length - 1 ? 'Próximo' : 'Revisar e Enviar'}
+                    </Button>
+                </div>
+            </CardContent>
+        </Card>
     </section>
   );
 }

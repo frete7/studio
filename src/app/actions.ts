@@ -476,12 +476,18 @@ export async function addAggregationFreight(companyId: string, companyName: stri
     return generatedIds;
 }
 
-export async function addCompleteFreight(companyId: string, companyName: string, freightType: 'completo' | 'retorno', data: any): Promise<string> {
-    if (!companyId) throw new Error("ID da empresa é obrigatório.");
+export async function addCompleteFreight(companyId: string, companyName: string, freightType: 'completo' | 'retorno' | 'comum', data: any): Promise<string> {
+    if (!companyId) throw new Error("ID da empresa/usuário é obrigatório.");
 
     const freightsCollection = collection(db, 'freights');
     
-    const prefix = freightType === 'completo' ? '#FC' : '#FR';
+    const prefixes = {
+        'completo': '#FC',
+        'retorno': '#FR',
+        'comum': '#CO'
+    }
+
+    const prefix = prefixes[freightType];
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const nums = '0123456789';
 
@@ -496,7 +502,7 @@ export async function addCompleteFreight(companyId: string, companyName: string,
         id: generatedId,
         companyId: companyId,
         companyName: companyName,
-        freightType: `frete-${freightType}`,
+        freightType: freightType === 'comum' ? 'comum' : `frete-${freightType}`,
         status: 'ativo',
         createdAt: serverTimestamp(),
     };
