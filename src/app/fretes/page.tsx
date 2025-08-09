@@ -10,6 +10,19 @@ export const metadata: Metadata = {
     description: 'Encontre as melhores oportunidades de frete em todo o Brasil.',
 };
 
+// Helper function to serialize Firestore Timestamps in nested objects
+const serializeTimestamps = (data: any) => {
+    for (const key in data) {
+        if (data[key] instanceof Timestamp) {
+            data[key] = data[key].toDate().toISOString();
+        } else if (typeof data[key] === 'object' && data[key] !== null) {
+            serializeTimestamps(data[key]);
+        }
+    }
+    return data;
+};
+
+
 async function getFretesInitialData() {
     try {
         const freightsQuery = query(collection(db, 'freights'), where('status', '==', 'ativo'));
@@ -26,15 +39,12 @@ async function getFretesInitialData() {
 
         const freights = freightsSnap.docs.map(doc => {
             const data = doc.data();
-            // Serialize the 'createdAt' field
-            const serializedCreatedAt = data.createdAt instanceof Timestamp 
-                ? data.createdAt.toDate().toISOString() 
-                : null;
+            // Deep serialize any Timestamps inside the data object
+            const serializedData = serializeTimestamps(data);
             
             return { 
-                ...data, 
+                ...serializedData, 
                 id: doc.id,
-                createdAt: serializedCreatedAt 
             } as any;
         });
         const allBodyTypes = bodyTypesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as BodyType));
