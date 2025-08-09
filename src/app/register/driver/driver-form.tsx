@@ -202,8 +202,8 @@ export default function DriverRegisterForm() {
         const selfieUrl = data.selfie?.[0] ? await uploadFile(data.selfie[0], `users/${user.uid}/selfie`) : null;
         const cnhFileUrl = data.cnhFile?.[0] ? await uploadFile(data.cnhFile[0], `users/${user.uid}/cnh`) : null;
 
-        const vehicleUploadPromises = data.vehicles.map(async (vehicle) => {
-            const plate = vehicle.licensePlate.replace(/\s/g, '');
+        const vehicleUploadPromises = data.vehicles.map(async (vehicle, index) => {
+            const plate = vehicle.licensePlate.replace(/[^A-Z0-9]/g, '');
             const crlvUrl = vehicle.crlvFile?.[0] ? await uploadFile(vehicle.crlvFile[0], `users/${user.uid}/vehicles/${plate}/crlv`) : null;
             const frontPhotoUrl = vehicle.frontPhoto?.[0] ? await uploadFile(vehicle.frontPhoto[0], `users/${user.uid}/vehicles/${plate}/front`) : null;
             const sidePhotoUrl = vehicle.sidePhoto?.[0] ? await uploadFile(vehicle.sidePhoto[0], `users/${user.uid}/vehicles/${plate}/side`) : null;
@@ -229,7 +229,7 @@ export default function DriverRegisterForm() {
             cnhFile: cnhFileUrl,
             vehicles: uploadedVehicles,
             role: 'driver',
-            status: 'pending',
+            status: 'pending', // Overall status starts as pending
             createdAt: serverTimestamp(),
         };
 
@@ -315,7 +315,7 @@ export default function DriverRegisterForm() {
 
   const prevStep = () => {
     if (currentStep > 0) {
-      setCurrentStep(step => step - 1);
+      setCurrentStep(step => step + 1);
     }
   };
 
@@ -391,7 +391,7 @@ const Step1 = () => {
         /\w\S*/g,
         (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
       );
-    };
+    }
     
     return (
         <div className="space-y-6">
