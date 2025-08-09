@@ -59,6 +59,7 @@ export default function CompanyDashboardPage() {
                 return () => unsubscribeSnapshot();
             } else {
                 router.push('/login');
+                setIsLoading(false);
             }
         });
 
@@ -259,6 +260,9 @@ export default function CompanyDashboardPage() {
                                 <User className="h-5 w-5 text-primary" />
                                 Status do Perfil: {profile.status}
                             </CardTitle>
+                             <CardDescription>
+                                Há um problema com seu perfil. Entre em contato com o suporte.
+                             </CardDescription>
                         </CardHeader>
                      </Card>
                 )
