@@ -32,14 +32,14 @@ export default function Header() {
   const [isOpen, setIsOpen] = React.useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [isClient, setIsClient] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
 
   useEffect(() => {
-    setIsClient(true);
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setIsAuthLoading(true);
       if (currentUser) {
         setUser(currentUser);
         const userDocRef = doc(db, 'users', currentUser.uid);
@@ -70,6 +70,7 @@ export default function Header() {
         setUser(null);
         setUserRole(null);
       }
+      setIsAuthLoading(false);
     });
     return () => unsubscribe();
   }, [pathname, router]);
@@ -123,7 +124,7 @@ export default function Header() {
   }
 
   const renderAuthSection = () => {
-    if (!isClient) {
+    if (isAuthLoading) {
       return <div className="h-10 w-24 rounded-md bg-muted animate-pulse" />;
     }
 
@@ -192,7 +193,7 @@ export default function Header() {
   };
   
   const renderMobileAuthSection = () => {
-     if (!isClient) {
+    if (isAuthLoading) {
       return <div className="h-10 w-full rounded-md bg-muted animate-pulse" />;
     }
     
@@ -238,7 +239,7 @@ export default function Header() {
           ))}
         </nav>
         <div className="hidden md:flex items-center gap-4">
-            {isClient && (
+            {!isAuthLoading && (
                 <Button asChild>
                     <Link href={solicitRequestLink}>
                         Solicitar Frete
@@ -249,7 +250,7 @@ export default function Header() {
           {renderAuthSection()}
         </div>
         <div className="md:hidden flex items-center">
-         {isClient && user && (
+         {!isAuthLoading && user && (
             <div className="mr-2">
               {renderAuthSection()}
             </div>
@@ -273,7 +274,7 @@ export default function Header() {
                       {link.label}
                     </Link>
                   ))}
-                  {isClient && (
+                  {!isAuthLoading && (
                     <Link href={solicitRequestLink} className="font-semibold text-primary" onClick={() => setIsOpen(false)}>
                         Solicitar Frete
                     </Link>
