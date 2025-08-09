@@ -7,7 +7,7 @@ import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firesto
 import { db, auth } from '@/lib/firebase';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 
-import { type Freight, type Collaborator } from '@/app/actions';
+import { type Freight } from '@/app/actions';
 import { Loader2, ArrowLeft, User, Mail, Phone, MapPin, Package, AlertCircle, Truck, DollarSign, Lock, Building, MessageSquare, RouteIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,21 +16,16 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 type AggregationFreightDetails = Freight & {
-  responsibleCollaborators: string[];
+  responsibleCollaborators: { id: string, name: string, phone: string }[];
   requiredVehicles: { id: string; name: string; priceTable?: { kmStart: number; kmEnd: number; price: number }[] }[];
   requiredBodyworks: string[];
   orderDetails: any;
   isPriceToCombine: boolean;
 };
 
-type EnrichedCollaborator = Collaborator & {
-  name: string;
-  phone: string;
-};
 
 export default function AgregamentoFreightDetailsPage() {
     const [freight, setFreight] = useState<AggregationFreightDetails | null>(null);
-    const [collaborators, setCollaborators] = useState<EnrichedCollaborator[]>([]);
     const [bodyworkNames, setBodyworkNames] = useState<string[]>([]);
     const [vehicleNames, setVehicleNames] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -65,17 +60,6 @@ export default function AgregamentoFreightDetailsPage() {
                 if (docSnap.exists()) {
                     const freightData = docSnap.data() as AggregationFreightDetails;
                     setFreight(freightData);
-
-                    // Fetch Collaborators
-                    if (freightData.companyId && freightData.responsibleCollaborators?.length > 0) {
-                        const collsQuery = query(
-                            collection(db, `users/${freightData.companyId}/collaborators`),
-                            where('__name__', 'in', freightData.responsibleCollaborators)
-                        );
-                        const collsSnap = await getDocs(collsQuery);
-                        const collsData = collsSnap.docs.map(d => d.data() as EnrichedCollaborator);
-                        setCollaborators(collsData);
-                    }
 
                     // Fetch Bodywork Names
                     if (freightData.requiredBodyworks?.length > 0) {
@@ -276,8 +260,8 @@ export default function AgregamentoFreightDetailsPage() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         {user ? (
-                            collaborators.length > 0 ? (
-                                collaborators.map(c => (
+                            freight.responsibleCollaborators?.length > 0 ? (
+                                freight.responsibleCollaborators.map(c => (
                                     <div key={c.id} className="p-3 border rounded-md bg-muted/30">
                                          <div className="flex items-center gap-3 mb-2">
                                             <User className="h-4 w-4 text-muted-foreground" />
@@ -311,4 +295,3 @@ export default function AgregamentoFreightDetailsPage() {
         </div>
     );
 }
-

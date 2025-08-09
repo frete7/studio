@@ -437,7 +437,7 @@ export type Freight = {
     companyName?: string;
     status: 'ativo' | 'concluido' | 'pendente' | 'cancelado';
     collaboratorId?: string; // Add collaboratorId
-    responsibleCollaborators?: string[];
+    responsibleCollaborators?: { id: string; name: string; phone: string }[];
     [key: string]: any; // Allow other properties
 }
 
@@ -513,7 +513,7 @@ export async function addCompleteFreight(companyId: string | null, companyName: 
         return generatedId;
     } catch(error) {
         console.error("ERROR: Failed to add complete freight to Firestore:", error);
-        throw new Error("Falha ao criar a solicitação de frete no banco de dados.");
+        throw new Error("Falha ao criar la solicitação de frete no banco de dados.");
     }
 }
 
@@ -659,7 +659,7 @@ export async function getCollaboratorStats(companyId: string, collaboratorId: st
             freightsCollection,
             where('companyId', '==', companyId),
             // This assumes collaborator IDs are stored in an array
-            where('responsibleCollaborators', 'array-contains', collaboratorId)
+            where('responsibleCollaborators.id', '==', collaboratorId)
         );
 
         // Get total freights
@@ -695,7 +695,7 @@ export async function getFreightsByCollaborator(companyId: string, collaboratorI
         const q = query(
             freightsCollection,
             where('companyId', '==', companyId),
-            where('responsibleCollaborators', 'array-contains', collaboratorId)
+            where('responsibleCollaborators.id', '==', collaboratorId)
         );
         
         const snapshot = await getDocs(q);
