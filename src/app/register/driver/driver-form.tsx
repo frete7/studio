@@ -241,7 +241,7 @@ export default function DriverRegisterForm() {
             description: "Seu perfil foi enviado para análise. Você será notificado em breve.",
         });
         
-        router.push('/company-dashboard');
+        router.push('/driver-dashboard');
     } catch (error: any) {
         toast({
             variant: "destructive",
@@ -315,7 +315,7 @@ export default function DriverRegisterForm() {
 
   const prevStep = () => {
     if (currentStep > 0) {
-      setCurrentStep(step => step - 1);
+      setCurrentStep(step => step + 1);
     }
   };
 
