@@ -18,9 +18,39 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Badge } from '@/components/ui/badge';
 import { groupBy } from 'lodash';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { cva } from 'class-variance-authority';
+
 
 type IBGEState = { id: number; sigla: string; nome: string; };
 type IBGECity = { id: number; nome: string; };
+
+const freightTypeVariants = cva(
+  "",
+  {
+    variants: {
+      freightType: {
+        comum: "border-transparent bg-sky-500 text-white hover:bg-sky-600",
+        agregamento: "border-transparent bg-blue-500 text-white hover:bg-blue-600",
+        "frete-completo": "border-transparent bg-green-500 text-white hover:bg-green-600",
+        "frete-retorno": "border-transparent bg-orange-500 text-white hover:bg-orange-600",
+      },
+    },
+    defaultVariants: {
+      freightType: "comum",
+    },
+  }
+)
+
+const getFreightTypeLabel = (type: Freight['freightType']): string => {
+    const labels = {
+        'comum': 'Comum',
+        'agregamento': 'Agregamento',
+        'frete-completo': 'Completo',
+        'frete-retorno': 'Retorno',
+    };
+    return labels[type] || type;
+}
+
 
 const LocationSelector = ({ label, selectedCities, onSelectionChange }: { label: string, selectedCities: string[], onSelectionChange: (cities: string[]) => void }) => {
     const [states, setStates] = useState<IBGEState[]>([]);
@@ -253,11 +283,9 @@ export default function FretesClient({
                                 </div>
                             </div>
                             <div className="text-right space-y-2 flex flex-col items-end">
-                                {freight.freightType === 'comum' ? (
-                                    <Badge variant="outline" className="text-base font-semibold border-primary/50 text-primary uppercase">{freight.freightType}</Badge>
-                                ) : (
-                                    <p className="font-bold text-lg text-primary">R$ •••••</p>
-                                )}
+                                <Badge className={cn(freightTypeVariants({ freightType: freight.freightType }), "text-base font-semibold uppercase")}>
+                                    {getFreightTypeLabel(freight.freightType)}
+                                </Badge>
                                 <Button asChild variant="secondary" size="sm">
                                     <Link href={`/fretes/${freight.id}`}>
                                         Ver detalhes
