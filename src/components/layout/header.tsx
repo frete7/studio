@@ -49,7 +49,7 @@ export default function Header() {
           const userData = userDoc.data();
           setUserRole(userData.role);
           
-          const isDashboardPage = pathname.startsWith('/company-dashboard');
+          const isDashboardPage = pathname.startsWith('/company-dashboard') || pathname.startsWith('/driver-dashboard');
           const isProfilePage = pathname.startsWith('/profile');
           const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/register');
           const allowedPaths = isDashboardPage || isProfilePage || isAuthPage || pathname.startsWith('/api') || pathname.startsWith('/fretes/solicitar') || pathname.startsWith('/solicitar-frete');
@@ -57,7 +57,11 @@ export default function Header() {
           if (userData.status === 'incomplete' && !isProfilePage && !isAuthPage) {
               router.push('/profile');
           } else if (userData.status === 'pending' && !isProfilePage && !isAuthPage && !isDashboardPage) {
-              router.push('/company-dashboard');
+               if (userData.role === 'driver') {
+                   router.push('/driver-dashboard');
+               } else {
+                   router.push('/company-dashboard');
+               }
           }
 
         } else {
@@ -92,6 +96,19 @@ export default function Header() {
   const getInitials = (email?: string | null) => {
     if (!email) return 'U';
     return email.substring(0, 2).toUpperCase();
+  }
+  
+  const getDashboardLink = () => {
+    switch (userRole) {
+      case 'admin':
+        return '/admin';
+      case 'company':
+        return '/company-dashboard';
+      case 'driver':
+        return '/driver-dashboard';
+      default:
+        return '/profile';
+    }
   }
   
   const getRoleBadgeVariant = (role: string | null): "default" | "secondary" | "destructive" | "outline" => {
@@ -144,7 +161,7 @@ export default function Header() {
               <UserIcon className="mr-2 h-4 w-4" />
               <span>Meu Perfil</span>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push(userRole === 'company' ? '/company-dashboard' : '/profile')}>
+            <DropdownMenuItem onClick={() => router.push(getDashboardLink())}>
               <LayoutDashboard className="mr-2 h-4 w-4" />
               <span>Meu Painel</span>
             </DropdownMenuItem>
@@ -185,7 +202,7 @@ export default function Header() {
        return (
          <>
           <Button variant="outline" asChild onClick={() => setIsOpen(false)}>
-            <Link href={userRole === 'company' ? '/company-dashboard' : '/profile'}>Meu Painel</Link>
+            <Link href={getDashboardLink()}>Meu Painel</Link>
           </Button>
           <Button onClick={handleLogout} className="w-full">
             Sair

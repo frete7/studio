@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -42,6 +43,8 @@ export default function LoginForm() {
           router.push('/admin');
         } else if (userData.role === 'company') {
           router.push('/company-dashboard');
+        } else if (userData.role === 'driver') {
+            router.push('/driver-dashboard');
         }
         else {
           router.push('/');

@@ -42,8 +42,9 @@ export default function ProfilePage() {
                         const userProfile = { ...doc.data(), uid: doc.id } as UserProfile;
                         setProfile(userProfile);
 
-                        if (userProfile.status !== 'active') {
-                             router.push('/company-dashboard');
+                        const dashboardUrl = userProfile.role === 'driver' ? '/driver-dashboard' : '/company-dashboard';
+                         if (userProfile.status !== 'active' && userProfile.status !== 'incomplete') {
+                             router.push(dashboardUrl);
                          }
 
                     } else {
@@ -93,7 +94,11 @@ export default function ProfilePage() {
              return <CompanyProfileForm profile={profile} />;
         }
         
-        // Placeholder for other roles like 'driver' in the future
+        // Placeholder for driver profile form in the future
+        if (profile.role === 'driver') {
+            return <p>Página de perfil para motorista (em construção).</p>
+        }
+
         return <p>Página de perfil para {profile.role}.</p>
     }
 
