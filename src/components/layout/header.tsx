@@ -39,7 +39,6 @@ export default function Header() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setIsAuthLoading(true);
       if (currentUser) {
         setUser(currentUser);
         const userDocRef = doc(db, 'users', currentUser.uid);
@@ -125,7 +124,7 @@ export default function Header() {
 
   const renderAuthSection = () => {
     if (isAuthLoading) {
-      return <div className="h-10 w-24 rounded-md bg-muted animate-pulse" />;
+      return <div className="h-10 w-24" />; // Placeholder to prevent layout shift
     }
 
     if (user) {
@@ -194,7 +193,7 @@ export default function Header() {
   
   const renderMobileAuthSection = () => {
     if (isAuthLoading) {
-      return <div className="h-10 w-full rounded-md bg-muted animate-pulse" />;
+      return <div className="h-10 w-full" />;
     }
     
     if (user) {
@@ -239,14 +238,12 @@ export default function Header() {
           ))}
         </nav>
         <div className="hidden md:flex items-center gap-4">
-            {!isAuthLoading && (
-                <Button asChild>
-                    <Link href={solicitRequestLink}>
-                        Solicitar Frete
-                        <Sparkles className="ml-2 h-4 w-4" />
-                    </Link>
-                </Button>
-            )}
+            <Button asChild>
+                <Link href={solicitRequestLink}>
+                    Solicitar Frete
+                    <Sparkles className="ml-2 h-4 w-4" />
+                </Link>
+            </Button>
           {renderAuthSection()}
         </div>
         <div className="md:hidden flex items-center">
@@ -274,11 +271,9 @@ export default function Header() {
                       {link.label}
                     </Link>
                   ))}
-                  {!isAuthLoading && (
-                    <Link href={solicitRequestLink} className="font-semibold text-primary" onClick={() => setIsOpen(false)}>
-                        Solicitar Frete
-                    </Link>
-                  )}
+                  <Link href={solicitRequestLink} className="font-semibold text-primary" onClick={() => setIsOpen(false)}>
+                      Solicitar Frete
+                  </Link>
                 </nav>
                 <div className="mt-auto flex flex-col gap-4 pt-6 border-t">
                   {renderMobileAuthSection()}
