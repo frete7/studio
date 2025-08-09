@@ -24,7 +24,7 @@ const freightOptions = [
         description: 'Envie uma carga que ocupa todo o espaço do veículo. Perfeito para grandes volumes.',
         icon: <Box className="h-10 w-10 text-green-500" />,
         buttonText: 'Solicitar Frete Completo',
-        href: '/solicitar-frete?type=completo',
+        href: '/solicitar-frete/empresa?type=completo',
         buttonClass: 'bg-green-500 hover:bg-green-600'
     },
     {
@@ -32,7 +32,7 @@ const freightOptions = [
         description: 'Anuncie uma carga para um motorista que já está voltando para sua região. Mais econômico.',
         icon: <CornerDownLeft className="h-10 w-10 text-orange-500" />,
         buttonText: 'Solicitar Frete de Retorno',
-        href: '/solicitar-frete?type=retorno',
+        href: '/solicitar-frete/empresa?type=retorno',
         buttonClass: 'bg-orange-500 hover:bg-orange-600'
     }
 ];
