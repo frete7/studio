@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { groupBy } from 'lodash';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { cva } from 'class-variance-authority';
+import { cn } from '@/lib/utils';
 
 
 type IBGEState = { id: number; sigla: string; nome: string; };
