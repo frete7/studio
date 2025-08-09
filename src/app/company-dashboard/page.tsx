@@ -91,7 +91,10 @@ export default function CompanyDashboardPage() {
                             <CardTitle className="text-2xl">Aguardando Verificação</CardTitle>
                             <CardDescription className="max-w-md">
                                 Seus dados foram recebidos com sucesso! Nossa equipe está analisando suas informações e documentos.
-                                Você será notificado por e-mail assim que a verificação for concluída.
+                                {profile.role === 'driver' 
+                                    ? ' Assim que seu perfil for aprovado, você poderá encontrar fretes.'
+                                    : ' Você será notificado por e-mail assim que a verificação for concluída.'
+                                }
                             </CardDescription>
                         </CardHeader>
                     </Card>

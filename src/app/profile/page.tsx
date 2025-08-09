@@ -41,6 +41,11 @@ export default function ProfilePage() {
                     if (doc.exists()) {
                         const userProfile = { ...doc.data(), uid: doc.id } as UserProfile;
                         setProfile(userProfile);
+
+                        if (userProfile.status !== 'active') {
+                             router.push('/company-dashboard');
+                         }
+
                     } else {
                         // Handle case where user exists in Auth but not Firestore
                         router.push('/login'); 
