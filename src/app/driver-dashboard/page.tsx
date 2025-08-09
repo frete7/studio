@@ -8,7 +8,7 @@ import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { User, Clock, ShieldCheck, Loader2, Edit, Search, ArrowRight } from "lucide-react";
+import { User, Clock, ShieldCheck, Loader2, Edit, Search, ArrowRight, FileText, Gift, MessageSquareWarning, LifeBuoy } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
@@ -21,6 +21,51 @@ type UserProfile = {
     status: 'incomplete' | 'pending' | 'active' | 'blocked' | 'suspended';
     [key: string]: any;
 }
+
+const dashboardCards = [
+    {
+        title: "Meu Perfil",
+        description: "Visualize e edite seus dados cadastrais, documentos e veículos.",
+        href: "/profile",
+        icon: <User className="h-6 w-6 text-primary" />,
+    },
+    {
+        title: "Visualizar Fretes",
+        description: "Encontre as melhores oportunidades de frete em todo o Brasil.",
+        href: "/fretes",
+        icon: <Search className="h-6 w-6 text-primary" />,
+    },
+    {
+        title: "Cadastrar Volta",
+        description: "Anuncie sua rota de retorno e encontre cargas para otimizar sua viagem.",
+        href: "#", // Placeholder
+        icon: <FileText className="h-6 w-6 text-primary" />,
+    },
+    {
+        title: "Meu Currículo",
+        description: "Apresente sua experiência, qualificações e histórico para as empresas.",
+        href: "#", // Placeholder
+        icon: <FileText className="h-6 w-6 text-primary" />,
+    },
+    {
+        title: "Meus Planos",
+        description: "Gerencie sua assinatura, veja os benefícios e o histórico de pagamentos.",
+        href: "#", // Placeholder
+        icon: <Gift className="h-6 w-6 text-primary" />,
+    },
+    {
+        title: "Sugestões/Denúncias",
+        description: "Envie suas sugestões para melhorarmos ou denuncie qualquer irregularidade.",
+        href: "#", // Placeholder
+        icon: <MessageSquareWarning className="h-6 w-6 text-primary" />,
+    },
+     {
+        title: "Suporte",
+        description: "Precisa de ajuda? Entre em contato com nossa equipe de suporte.",
+        href: "#", // Placeholder
+        icon: <LifeBuoy className="h-6 w-6 text-primary" />,
+    },
+]
 
 
 export default function DriverDashboardPage() {
@@ -93,50 +138,27 @@ export default function DriverDashboardPage() {
                              <p className="text-foreground/70">Bem-vindo, {profile.name}! Tudo pronto para a estrada.</p>
                         </div>
 
-                        <div className="grid md:grid-cols-2 lg:grid-cols-2 gap-6">
-                            <Card className="flex flex-col">
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Search className="h-5 w-5 text-primary" />
-                                        Buscar Fretes
-                                    </CardTitle>
-                                    <CardDescription>
-                                       Encontre as melhores oportunidades de frete em todo o Brasil.
-                                    </CardDescription>
-                                </CardHeader>
-                                <CardContent className="flex-grow">
-                                    <p className='text-sm text-muted-foreground'>Filtre por rota, tipo de carga e valor para encontrar o frete ideal.</p>
-                                </CardContent>
-                                <CardFooter>
-                                    <Button asChild className='w-full'>
-                                        <Link href="/fretes">
-                                            Procurar Fretes <ArrowRight className="ml-2 h-4 w-4"/>
-                                        </Link>
-                                    </Button>
-                                </CardFooter>
-                            </Card>
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <ShieldCheck className="h-5 w-5 text-green-500" />
-                                        Perfil Ativo
-                                    </CardTitle>
-                                    <CardDescription>
-                                        Seu perfil está verificado e ativo na plataforma.
-                                    </CardDescription>
-                                </CardHeader>
-                                <CardContent>
-                                    <p className='text-sm text-muted-foreground'>Mantenha seus dados e documentos sempre atualizados.</p>
-                                </CardContent>
-                                <CardFooter>
-                                    <Button asChild variant="outline" className='w-full'>
-                                        <Link href="/profile">
-                                            <Edit className="mr-2 h-4 w-4" />
-                                            Visualizar e Editar Perfil
-                                        </Link>
-                                    </Button>
-                                </CardFooter>
-                            </Card>
+                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {dashboardCards.map(card => (
+                                <Card key={card.title} className="flex flex-col">
+                                    <CardHeader>
+                                        <CardTitle className="flex items-center gap-3">
+                                            {card.icon}
+                                            <span>{card.title}</span>
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="flex-grow">
+                                        <CardDescription>{card.description}</CardDescription>
+                                    </CardContent>
+                                    <CardFooter>
+                                        <Button asChild variant="outline" className="w-full">
+                                            <Link href={card.href}>
+                                                Acessar <ArrowRight className="ml-2 h-4 w-4"/>
+                                            </Link>
+                                        </Button>
+                                    </CardFooter>
+                                </Card>
+                            ))}
                         </div>
                     </div>
                 );
@@ -156,6 +178,7 @@ export default function DriverDashboardPage() {
                 )
         }
     }
+
 
   return (
     <div className="container mx-auto px-4 py-12">
