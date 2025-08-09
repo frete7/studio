@@ -151,8 +151,8 @@ const LocationSelector = ({ label, selectedCities, onSelectionChange }: { label:
 const freightTypes = [
     { id: 'comum', label: 'Comum' },
     { id: 'agregamento', label: 'Agregamento' },
-    { id: 'frete completo', label: 'Frete Completo' },
-    { id: 'frete de retorno', label: 'Frete de Retorno' },
+    { id: 'frete-completo', label: 'Frete Completo' },
+    { id: 'frete-retorno', label: 'Frete de Retorno' },
 ];
 
 interface FretesClientProps {
@@ -264,38 +264,44 @@ export default function FretesClient({
         }
         return (
             <div className="space-y-4">
-                {filteredFreights.map(freight => (
-                    <Card key={freight.id} className="p-4 hover:shadow-md transition-shadow">
-                        <div className="flex justify-between items-start">
-                            <div className="flex-1 space-y-2">
-                                <div className="flex items-center gap-2">
-                                    <MapPin className="h-4 w-4 text-muted-foreground"/>
-                                    <p className="font-semibold">{freight.origin.city}, {freight.origin.state}</p>
+                {filteredFreights.map(freight => {
+                    const detailLink = freight.freightType === 'agregamento' 
+                        ? `/fretes/agregamento/${freight.id}` 
+                        : `/fretes/${freight.id}`;
+
+                    return (
+                        <Card key={freight.id} className="p-4 hover:shadow-md transition-shadow">
+                            <div className="flex justify-between items-start">
+                                <div className="flex-1 space-y-2">
+                                    <div className="flex items-center gap-2">
+                                        <MapPin className="h-4 w-4 text-muted-foreground"/>
+                                        <p className="font-semibold">{freight.origin.city}, {freight.origin.state}</p>
+                                    </div>
+                                    <div className="pl-6">
+                                         <div className="border-l-2 border-dashed h-4"></div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                         <MapPin className="h-4 w-4 text-muted-foreground"/>
+                                         <div className="font-semibold">
+                                            {freight.destinations[0].city}, {freight.destinations[0].state}
+                                            {freight.destinations.length > 1 && <Badge variant="secondary" className="ml-2">+{freight.destinations.length - 1}</Badge>}
+                                         </div>
+                                    </div>
                                 </div>
-                                <div className="pl-6">
-                                     <div className="border-l-2 border-dashed h-4"></div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                     <MapPin className="h-4 w-4 text-muted-foreground"/>
-                                     <div className="font-semibold">
-                                        {freight.destinations[0].city}, {freight.destinations[0].state}
-                                        {freight.destinations.length > 1 && <Badge variant="secondary" className="ml-2">+{freight.destinations.length - 1}</Badge>}
-                                     </div>
+                                <div className="text-right space-y-2 flex flex-col items-end">
+                                    <Badge className={cn(freightTypeVariants({ freightType: freight.freightType }), "text-base font-semibold uppercase")}>
+                                        {getFreightTypeLabel(freight.freightType)}
+                                    </Badge>
+                                    <Button asChild variant="secondary" size="sm">
+                                        <Link href={detailLink}>
+                                            Ver detalhes
+                                        </Link>
+                                    </Button>
                                 </div>
                             </div>
-                            <div className="text-right space-y-2 flex flex-col items-end">
-                                <Badge className={cn(freightTypeVariants({ freightType: freight.freightType }), "text-base font-semibold uppercase")}>
-                                    {getFreightTypeLabel(freight.freightType)}
-                                </Badge>
-                                <Button asChild variant="secondary" size="sm">
-                                    <Link href={`/fretes/${freight.id}`}>
-                                        Ver detalhes
-                                    </Link>
-                                </Button>
-                            </div>
-                        </div>
-                    </Card>
-                ))}
+                        </Card>
+                    );
+                })}
             </div>
         );
     };
