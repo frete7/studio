@@ -32,7 +32,6 @@ export default function Header() {
   const [isOpen, setIsOpen] = React.useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isClient, setIsClient] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
@@ -71,7 +70,6 @@ export default function Header() {
         setUser(null);
         setUserRole(null);
       }
-      setIsLoading(false);
     });
     return () => unsubscribe();
   }, [pathname, router]);
@@ -125,7 +123,7 @@ export default function Header() {
   }
 
   const renderAuthSection = () => {
-    if (isLoading) {
+    if (!isClient) {
       return <div className="h-10 w-24 rounded-md bg-muted animate-pulse" />;
     }
 
@@ -194,7 +192,7 @@ export default function Header() {
   };
   
   const renderMobileAuthSection = () => {
-     if (isLoading) {
+     if (!isClient) {
       return <div className="h-10 w-full rounded-md bg-muted animate-pulse" />;
     }
     
@@ -240,7 +238,7 @@ export default function Header() {
           ))}
         </nav>
         <div className="hidden md:flex items-center gap-4">
-            {isClient && !isLoading && (
+            {isClient && (
                 <Button asChild>
                     <Link href={solicitRequestLink}>
                         Solicitar Frete
@@ -248,7 +246,7 @@ export default function Header() {
                     </Link>
                 </Button>
             )}
-          {isClient && renderAuthSection()}
+          {renderAuthSection()}
         </div>
         <div className="md:hidden flex items-center">
          {isClient && user && (
@@ -275,14 +273,14 @@ export default function Header() {
                       {link.label}
                     </Link>
                   ))}
-                  {isClient && !isLoading && (
+                  {isClient && (
                     <Link href={solicitRequestLink} className="font-semibold text-primary" onClick={() => setIsOpen(false)}>
                         Solicitar Frete
                     </Link>
                   )}
                 </nav>
                 <div className="mt-auto flex flex-col gap-4 pt-6 border-t">
-                  {isClient && renderMobileAuthSection()}
+                  {renderMobileAuthSection()}
                 </div>
               </div>
             </SheetContent>
