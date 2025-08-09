@@ -41,13 +41,17 @@ export default function CompanyDashboardPage() {
                         const userProfile = { ...doc.data(), uid: doc.id } as UserProfile;
                         setProfile(userProfile);
 
-                        if (userProfile.role === 'admin') {
-                            router.push('/admin');
+                        if (userProfile.role !== 'company') {
+                            // Redirect if not a company, e.g., to admin or driver dashboard
+                            const destination = userProfile.role === 'admin' ? '/admin' : '/driver-dashboard';
+                            router.push(destination);
                             return;
                         }
                         
-                         // The Header component now handles redirection globally for incomplete/pending states
-                         // This simplifies the logic here.
+                         if (userProfile.status === 'incomplete') {
+                             router.push('/profile');
+                             return;
+                         }
 
                     } else {
                         // Handle case where user exists in Auth but not Firestore
@@ -78,12 +82,6 @@ export default function CompanyDashboardPage() {
         }
 
         switch (profile.status) {
-            case 'incomplete':
-                 return (
-                    <div className="flex h-64 items-center justify-center">
-                        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                    </div>
-                );
             case 'pending':
                 return (
                     <Card>
@@ -239,18 +237,11 @@ export default function CompanyDashboardPage() {
                         </div>
                     </div>
                 );
-            case 'admin':
-                // This case should ideally be handled by the global redirect logic in the header
+            case 'incomplete': // This case should be handled by the redirect at the top
                 return (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Painel do Administrador</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <p>Redirecionando para o painel de admin...</p>
-                            <Loader2 className="mt-4 h-8 w-8 animate-spin text-primary" />
-                        </CardContent>
-                    </Card>
+                    <div className="flex h-64 items-center justify-center">
+                        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                    </div>
                 );
             default:
                 return (
@@ -261,7 +252,7 @@ export default function CompanyDashboardPage() {
                                 Status do Perfil: {profile.status}
                             </CardTitle>
                              <CardDescription>
-                                Há um problema com seu perfil. Entre em contato com o suporte.
+                                Há um problema com seu perfil ({profile.status}). Entre em contato com o suporte.
                              </CardDescription>
                         </CardHeader>
                      </Card>

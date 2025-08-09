@@ -46,20 +46,9 @@ export default function Header() {
         if (userDoc.exists()) {
           const userData = userDoc.data();
           setUserRole(userData.role);
-          
-          const isDashboardPage = pathname.startsWith('/company-dashboard') || pathname.startsWith('/driver-dashboard');
-          const isProfilePage = pathname.startsWith('/profile');
-          const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/register');
-          const allowedPaths = isDashboardPage || isProfilePage || isAuthPage || pathname.startsWith('/api') || pathname.startsWith('/fretes/solicitar') || pathname.startsWith('/solicitar-frete');
 
-          if (userData.status === 'incomplete' && !isProfilePage && !isAuthPage) {
+          if (userData.status === 'incomplete' && !pathname.startsWith('/profile') && !pathname.startsWith('/login') && !pathname.startsWith('/register')) {
               router.push('/profile');
-          } else if (userData.status === 'pending' && !isProfilePage && !isAuthPage && !isDashboardPage) {
-               if (userData.role === 'driver') {
-                   router.push('/driver-dashboard');
-               } else {
-                   router.push('/company-dashboard');
-               }
           }
 
         } else {
@@ -124,7 +113,7 @@ export default function Header() {
 
   const renderAuthSection = () => {
     if (isAuthLoading) {
-      return <div className="h-10 w-24" />; // Placeholder to prevent layout shift
+      return <div className="h-10 w-24 rounded-md bg-muted animate-pulse" />;
     }
 
     if (user) {
@@ -193,7 +182,7 @@ export default function Header() {
   
   const renderMobileAuthSection = () => {
     if (isAuthLoading) {
-      return <div className="h-10 w-full" />;
+      return null;
     }
     
     if (user) {

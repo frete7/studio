@@ -41,12 +41,6 @@ export default function ProfilePage() {
                     if (doc.exists()) {
                         const userProfile = { ...doc.data(), uid: doc.id } as UserProfile;
                         setProfile(userProfile);
-
-                        const dashboardUrl = userProfile.role === 'driver' ? '/driver-dashboard' : '/company-dashboard';
-                         if (userProfile.status !== 'active' && userProfile.status !== 'incomplete') {
-                             router.push(dashboardUrl);
-                         }
-
                     } else {
                         // Handle case where user exists in Auth but not Firestore
                         router.push('/login'); 
@@ -57,6 +51,7 @@ export default function ProfilePage() {
                 return () => unsubscribeSnapshot();
             } else {
                 router.push('/login');
+                setIsLoading(false);
             }
         });
 
