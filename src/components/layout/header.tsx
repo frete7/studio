@@ -223,7 +223,7 @@ export default function Header() {
     )
   }
 
-  const solicitRequestLink = user ? "/fretes/solicitar" : "/solicitar-frete?type=completo";
+  const solicitRequestLink = userRole === 'company' ? "/fretes/solicitar" : "/solicitar-frete?type=completo";
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
