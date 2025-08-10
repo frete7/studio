@@ -36,8 +36,8 @@ export default function CadastrarVoltaPage() {
 
                         const [vehiclesSnapshot, vehicleTypesSnapshot, bodyTypesSnapshot] = await Promise.all([
                             getDocs(vehiclesQuery),
-                            getDocs(vehicleTypesSnapshot),
-                            getDocs(bodyTypesSnapshot)
+                            getDocs(vehicleTypesQuery),
+                            getDocs(bodyTypesQuery)
                         ]);
                         
                         const vehicleTypesMap = new Map(vehicleTypesSnapshot.docs.map(doc => [doc.id, doc.data() as VehicleType]));
