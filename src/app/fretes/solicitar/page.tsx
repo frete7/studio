@@ -43,9 +43,9 @@ export default function RequestFreightTypePage() {
             <div className="max-w-4xl mx-auto">
                  <div className="mb-8">
                      <Button asChild variant="outline">
-                        <Link href="/profile/my-freights">
+                        <Link href="/profile">
                             <ArrowLeft className="mr-2 h-4 w-4" />
-                            Voltar para Meus Fretes
+                            Voltar para o Painel
                         </Link>
                     </Button>
                 </div>
