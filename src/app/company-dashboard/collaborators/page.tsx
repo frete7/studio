@@ -1,22 +1,20 @@
 
-'use client';
-import type { Metadata } from 'next';
-import { useState, useEffect } from 'react';
-import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
-import { useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import { getCollaborators, type Collaborator } from '@/app/actions';
 import CollaboratorsClient from './collaborators-client';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import { auth } from '@/lib/firebase';
 
-/*
-export const metadata: Metadata = {
-    title: 'Gerenciamento de Colaboradores | Frete7',
-    description: 'Adicione, edite e gerencie os colaboradores da sua empresa.',
-};
-*/
+// Since we cannot get the user on the server without a proper auth library,
+// we must make this a client component to fetch data based on the logged-in user.
+// To optimize, we could pass a server-fetched list and have the client re-fetch if needed,
+// but for simplicity and correctness with Firebase Auth, client-side fetching is required here.
+'use client';
+import { useState, useEffect } from 'react';
+import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
+import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 
 
 export default function CollaboratorsPage() {
@@ -46,7 +44,7 @@ export default function CollaboratorsPage() {
     }
     
     if (!user) {
-        return null; // or a login prompt
+        return null;
     }
 
     return (

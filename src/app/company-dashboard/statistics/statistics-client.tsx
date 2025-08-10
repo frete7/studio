@@ -2,12 +2,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-import { getCompanyStats, getMonthlyFreightStats, type CompanyStats } from '@/app/actions';
+import { type CompanyStats } from '@/app/actions';
 import { Loader2, ArrowLeft, BarChart, Package, PackageCheck, Ban } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -27,44 +24,15 @@ type MonthlyStats = {
     cancelado: number;
 }
 
+type StatisticsClientProps = {
+    initialCompanyStats: CompanyStats | null;
+    initialMonthlyStats: MonthlyStats[];
+}
 
-export default function StatisticsClient() {
-    const [user, setUser] = useState<FirebaseUser | null>(null);
-    const [companyStats, setCompanyStats] = useState<CompanyStats | null>(null);
-    const [monthlyStats, setMonthlyStats] = useState<MonthlyStats[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const router = useRouter();
+export default function StatisticsClient({ initialCompanyStats, initialMonthlyStats }: StatisticsClientProps) {
+    const [companyStats] = useState<CompanyStats | null>(initialCompanyStats);
+    const [monthlyStats] = useState<MonthlyStats[]>(initialMonthlyStats);
 
-     useEffect(() => {
-        const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-            if (currentUser) {
-                setUser(currentUser);
-                fetchData(currentUser.uid);
-            } else {
-                router.push('/login');
-            }
-        });
-        
-        return () => unsubscribeAuth();
-    }, [router]);
-
-    const fetchData = async (companyId: string) => {
-        setIsLoading(true);
-        try {
-            const [companyData, monthlyData] = await Promise.all([
-                getCompanyStats(companyId),
-                getMonthlyFreightStats(companyId)
-            ]);
-            setCompanyStats(companyData);
-            setMonthlyStats(monthlyData as MonthlyStats[]);
-        } catch (error) {
-            console.error("Failed to fetch statistics", error);
-            // Handle error with a toast or message
-        } finally {
-            setIsLoading(false);
-        }
-    }
-    
     const chartConfig = {
         total: {
             label: "Total Anunciado",
@@ -79,17 +47,13 @@ export default function StatisticsClient() {
             color: "hsl(var(--destructive))",
         },
     }
-
-    if (isLoading) {
+    
+    if (!companyStats) {
         return (
-            <div className="flex h-screen items-center justify-center">
+             <div className="flex h-screen items-center justify-center">
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
             </div>
-        );
-    }
-    
-     if (!user || !companyStats) {
-        return null;
+        )
     }
 
     return (

@@ -1,45 +1,57 @@
 
 'use client';
 
-import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import { useRouter } from 'next/navigation';
 import { getCompanyStats, getMonthlyFreightStats } from '@/app/actions';
 import StatisticsClient from './statistics-client';
-
-/*
-export const metadata: Metadata = {
-    title: 'Estatísticas | Frete7',
-    description: 'Visualize o desempenho da sua operação na plataforma.',
-};
-*/
-
-// Revalidate this page every 5 minutes to keep stats fresh
-export const revalidate = 300; 
+import { Loader2 } from 'lucide-react';
 
 export default function StatisticsPage() {
-    // This is a server component, we can't use the auth hook.
-    // We assume if the user gets here, they are logged in.
-    // A more robust solution would use NextAuth.js or server-side auth checks.
-    
-    // As we can't reliably get the UID on the server without a full auth solution like NextAuth,
-    // this page will be fetched on the client.
-    // For a production app, this data fetching should happen here on the server.
-    
-    // Example of how it would work with a userId
-    // const userId = auth.currentUser?.uid; // This doesn't work on server components
-    // if (!userId) {
-    //    notFound();
-    // }
-    // const [companyStats, monthlyStats] = await Promise.all([
-    //     getCompanyStats(userId),
-    //     getMonthlyFreightStats(userId),
-    // ]);
+    const [user, setUser] = useState<FirebaseUser | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [stats, setStats] = useState(null);
+    const [monthlyStats, setMonthlyStats] = useState([]);
+    const router = useRouter();
+
+    useEffect(() => {
+        const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
+            if (currentUser) {
+                setUser(currentUser);
+                try {
+                    const [companyData, monthlyData] = await Promise.all([
+                        getCompanyStats(currentUser.uid),
+                        getMonthlyFreightStats(currentUser.uid),
+                    ]);
+                    setStats(companyData as any);
+                    setMonthlyStats(monthlyData as any);
+                } catch (error) {
+                    console.error("Failed to fetch stats on client", error);
+                } finally {
+                    setIsLoading(false);
+                }
+            } else {
+                router.push('/login');
+            }
+        });
+
+        return () => unsubscribeAuth();
+    }, [router]);
+
+    if (isLoading) {
+        return (
+            <div className="flex h-screen items-center justify-center">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
+        );
+    }
     
     return (
         <div className="container mx-auto px-4 py-12">
             <div className="max-w-6xl mx-auto">
-                 <StatisticsClient />
+                 <StatisticsClient initialCompanyStats={stats} initialMonthlyStats={monthlyStats} />
             </div>
         </div>
     );

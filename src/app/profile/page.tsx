@@ -1,17 +1,23 @@
 
-'use client';
 
-import { useState, useEffect } from 'react';
-import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
-import { useRouter } from 'next/navigation';
-
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { Loader2 } from "lucide-react";
 import CompanyProfileForm from './company-profile-form';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+
+// This component can't be fully server-rendered because Firebase Auth state
+// is primarily managed on the client. We will make the page itself a client component
+// to handle the auth logic.
+'use client';
+
+import { useState, useEffect } from 'react';
+import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
+import { onSnapshot } from 'firebase/firestore';
+import { auth } from '@/lib/firebase';
+import { useRouter } from 'next/navigation';
 
 
 type UserProfile = {
@@ -42,7 +48,6 @@ export default function ProfilePage() {
                         const userProfile = { ...doc.data(), uid: doc.id } as UserProfile;
                         setProfile(userProfile);
                     } else {
-                        // Handle case where user exists in Auth but not Firestore
                         router.push('/login'); 
                     }
                     setIsLoading(false);
@@ -89,7 +94,6 @@ export default function ProfilePage() {
              return <CompanyProfileForm profile={profile} />;
         }
         
-        // Placeholder for driver profile form in the future
         if (profile.role === 'driver') {
             return <p>Página de perfil para motorista (em construção).</p>
         }
