@@ -48,6 +48,12 @@ const destinationSchema = locationSchema.extend({
     stops: z.coerce.number().int().min(1, "Deve haver pelo menos 1 parada.")
 });
 
+const collaboratorSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  phone: z.string(),
+});
+
 const orderDetailsSchema = z.object({
     whatWillBeLoaded: z.string().min(3, "Este campo é obrigatório."),
     weight: z.string().min(1, "O peso é obrigatório.").refine(val => !isNaN(parseFloat(val)) && parseFloat(val) >= 0, { message: "O peso não pode ser negativo." }),
@@ -109,7 +115,7 @@ const orderDetailsSchema = z.object({
 
 
 const formSchema = z.object({
-  responsibleCollaborators: z.array(z.string()).refine(value => value.some(item => item), {
+  responsibleCollaborators: z.array(collaboratorSchema).refine(value => value.length > 0, {
     message: "Você deve selecionar pelo menos um colaborador.",
   }),
   origin: locationSchema,
@@ -235,6 +241,8 @@ function StepCollaborators({ companyId }: { companyId: string }) {
                             control={control}
                             name="responsibleCollaborators"
                             render={({ field }) => {
+                                const selectedCollaborator = { id: item.id, name: item.name, phone: item.phone };
+                                const isChecked = field.value?.some((c: any) => c.id === item.id);
                                 return (
                                 <FormItem
                                     key={item.id}
@@ -242,13 +250,13 @@ function StepCollaborators({ companyId }: { companyId: string }) {
                                 >
                                     <FormControl>
                                     <Checkbox
-                                        checked={field.value?.includes(item.id)}
+                                        checked={isChecked}
                                         onCheckedChange={(checked) => {
                                         return checked
-                                            ? field.onChange([...(field.value || []), item.id])
+                                            ? field.onChange([...(field.value || []), selectedCollaborator])
                                             : field.onChange(
                                                 field.value?.filter(
-                                                (value) => value !== item.id
+                                                (c: any) => c.id !== item.id
                                                 )
                                             )
                                         }}
@@ -840,16 +848,12 @@ function SummaryView({ data, onEdit, allData, companyId, freightType }: { data: 
     useEffect(() => {
         const fetchNames = async () => {
             if(responsibleCollaborators.length > 0){
-                const collaboratorsCollection = collection(db, `users/${companyId}/collaborators`);
-                const q = query(collaboratorsCollection);
-                const colls = await getDocs(q);
-                const namesMap = new Map(colls.docs.map(d => [d.id, d.data().name]));
-                const names = responsibleCollaborators.map(id => namesMap.get(id) || id);
-                setCollaboratorNames(names);
+                 const selectedCollaborators = allData.collaborators.filter((c: Collaborator) => responsibleCollaborators.includes(c.id));
+                 setCollaboratorNames(selectedCollaborators.map((c: Collaborator) => c.name));
             }
         };
         fetchNames();
-    }, [responsibleCollaborators, companyId]);
+    }, [responsibleCollaborators, allData.collaborators]);
     
     const getBodyworkNames = () => {
         if (!requiredBodyworks || !allData.groupedBodyworks) return [];
@@ -991,6 +995,7 @@ export default function RequestCompanyFreightPage() {
       groupedVehicleTypes: {},
       vehicleTypes: [],
       vehicleCategories: [],
+      collaborators: [],
   });
 
   const freightType = (searchParams.get('type') || 'completo') as 'completo' | 'retorno';
@@ -1058,18 +1063,20 @@ export default function RequestCompanyFreightPage() {
         setIsLoading(false);
     });
     
-     const fetchData = async () => {
+     const fetchData = async (uid: string) => {
           setIsDataLoading(true);
           try {
-              const [bodyTypesSnap, vehicleTypesSnap, vehicleCategoriesSnap] = await Promise.all([
+              const [bodyTypesSnap, vehicleTypesSnap, vehicleCategoriesSnap, collaboratorsSnap] = await Promise.all([
                   getDocs(query(collection(db, 'body_types'))),
                   getDocs(query(collection(db, 'vehicle_types'))),
                   getDocs(query(collection(db, 'vehicle_categories'))),
+                  getDocs(query(collection(db, `users/${uid}/collaborators`)))
               ]);
 
               const bodyTypes: BodyType[] = bodyTypesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as BodyType));
               const vehicleTypes: VehicleType[] = vehicleTypesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as VehicleType));
               const vehicleCategories: VehicleCategory[] = vehicleCategoriesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as VehicleCategory));
+              const collaborators: Collaborator[] = collaboratorsSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Collaborator));
 
               const groupedBodyworks = groupBy(bodyTypes, 'group');
               const categoryMap = new Map(vehicleCategories.map(c => [c.id, c.name]));
@@ -1081,6 +1088,7 @@ export default function RequestCompanyFreightPage() {
                   groupedVehicleTypes,
                   vehicleTypes,
                   vehicleCategories,
+                  collaborators,
               });
 
           } catch (error) {
@@ -1089,10 +1097,13 @@ export default function RequestCompanyFreightPage() {
               setIsDataLoading(false);
           }
       };
-      fetchData();
+      
+      if(user?.uid) {
+        fetchData(user.uid);
+      }
 
     return () => unsubscribe();
-  }, [router]);
+  }, [router, user?.uid]);
 
   async function processForm(data: FormData) {
       if (!user || !profile) {
@@ -1215,7 +1226,7 @@ export default function RequestCompanyFreightPage() {
                       <Button onClick={prevStep} variant="outline" disabled={currentStep === 0 || isSubmitting}>
                           Voltar
                       </Button>
-                      <Button onClick={nextStep} disabled={isSubmitting || !user || (currentStep === 3 && isDataLoading)}>
+                      <Button onClick={nextStep} disabled={isSubmitting || !user || (currentStep === 0 && allData.collaborators.length === 0) || ((currentStep ===3) && isDataLoading)}>
                           {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                           {currentStep < steps.length - 1 ? 'Próximo' : 'Revisar Solicitação'}
                       </Button>
@@ -1271,4 +1282,5 @@ export default function RequestCompanyFreightPage() {
     </>
   );
 }
+
 
