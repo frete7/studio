@@ -8,7 +8,7 @@ import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { User, Clock, ShieldCheck, Loader2, Edit, Search, ArrowRight, FileText, Gift, MessageSquareWarning, LifeBuoy } from "lucide-react";
+import { User, Clock, ShieldCheck, Loader2, Edit, Search, ArrowRight, FileText, Gift, MessageSquareWarning, LifeBuoy, ClipboardList } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
@@ -44,8 +44,8 @@ const dashboardCards = [
     {
         title: "Meu Currículo",
         description: "Apresente sua experiência, qualificações e histórico para as empresas.",
-        href: "#", // Placeholder
-        icon: <FileText className="h-6 w-6 text-primary" />,
+        href: "/driver-dashboard/curriculo",
+        icon: <ClipboardList className="h-6 w-6 text-primary" />,
     },
     {
         title: "Meus Planos",

@@ -7,7 +7,7 @@ import {
   type OptimizeRouteOutput,
 } from '@/ai/flows/optimize-route';
 import { db } from '@/lib/firebase';
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, updateDoc, writeBatch, where, getCountFromServer, serverTimestamp, Timestamp, collectionGroup, startAt, endAt, orderBy } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, updateDoc, writeBatch, where, getCountFromServer, serverTimestamp, Timestamp, collectionGroup, startAt, endAt, orderBy, arrayUnion, arrayRemove } from 'firebase/firestore';
 
 export async function getOptimizedRoute(
   input: OptimizeRouteInput
@@ -872,8 +872,56 @@ export async function addReturnTrips(driverId: string, data: any) {
 }
     
 
-    
+// Resume Actions
+export async function updateUserResume(userId: string, data: any) {
+    if (!userId) {
+        throw new Error('ID do usuário é obrigatório.');
+    }
+    const userDocRef = doc(db, 'users', userId);
+    await updateDoc(userDocRef, data);
+}
+
+export async function addResumeItem(userId: string, field: 'academicFormation' | 'professionalExperience' | 'qualifications', data: any) {
+    if (!userId || !field || !data) {
+        throw new Error('Dados inválidos.');
+    }
+    const userDocRef = doc(db, 'users', userId);
+    await updateDoc(userDocRef, {
+        [field]: arrayUnion({ ...data, id: new Date().toISOString() })
+    });
+}
+
+export async function updateResumeItem(userId: string, field: 'academicFormation' | 'professionalExperience' | 'qualifications', data: any) {
+    if (!userId || !field || !data || !data.id) {
+        throw new Error('Dados inválidos para atualização.');
+    }
+    const userDocRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userDocRef);
+    if (userDoc.exists()) {
+        const existingData = userDoc.data()[field] || [];
+        const updatedData = existingData.map((item: any) => (item.id === data.id ? data : item));
+        await updateDoc(userDocRef, { [field]: updatedData });
+    }
+}
+
+export async function deleteResumeItem(userId: string, field: 'academicFormation' | 'professionalExperience' | 'qualifications', itemId: string) {
+    if (!userId || !field || !itemId) {
+        throw new Error('Dados inválidos para exclusão.');
+    }
+    const userDocRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userDocRef);
+     if (userDoc.exists()) {
+        const existingData = userDoc.data()[field] || [];
+        const itemToRemove = existingData.find((item: any) => item.id === itemId);
+        if (itemToRemove) {
+            await updateDoc(userDocRef, {
+                [field]: arrayRemove(itemToRemove)
+            });
+        }
+    }
+}
 
     
+
 
 
