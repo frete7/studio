@@ -388,13 +388,16 @@ export default function CurriculoClient({ profile }: { profile: any }) {
                         <PhotoUploader profile={profile} />
                         <div>
                             <CardTitle className="text-2xl">{profile.name}</CardTitle>
-                            <CardDescription>{calculateAge(profile.birthDate)}</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
                 <CardContent className="space-y-2">
                      <div className="flex items-center gap-2 text-sm text-muted-foreground"><Phone className="h-4 w-4" />{profile.phone}</div>
                      <div className="flex items-center gap-2 text-sm text-muted-foreground"><Mail className="h-4 w-4" />{profile.email}</div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <CalendarIcon className="h-4 w-4" />
+                        Data de Nasc.: {profile.birthDate ? `${format(new Date(profile.birthDate), 'dd/MM/yyyy')} ${calculateAge(profile.birthDate)}` : 'Não informado'}
+                     </div>
                 </CardContent>
             </Card>
 
