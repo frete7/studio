@@ -15,7 +15,7 @@ import { updateUserResume, addResumeItem, updateResumeItem, deleteResumeItem } f
 import { useToast } from '@/hooks/use-toast';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
@@ -312,6 +312,7 @@ export default function CurriculoClient({ profile }: { profile: any }) {
     const [isSearchable, setIsSearchable] = useState(profile.isSearchable || false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [dialogContent, setDialogContent] = useState<React.ReactNode | null>(null);
+    const [dialogTitle, setDialogTitle] = useState('');
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
     const handleSearchableToggle = async (checked: boolean) => {
@@ -342,14 +343,19 @@ export default function CurriculoClient({ profile }: { profile: any }) {
     
     const openDialog = (type: 'academic' | 'experience' | 'qualification', defaultValues?: any) => {
         const onFormSubmit = () => setIsDialogOpen(false);
+        const isEditing = !!defaultValues;
+
         switch (type) {
             case 'academic':
+                setDialogTitle(isEditing ? 'Editar Formação Acadêmica' : 'Adicionar Formação Acadêmica');
                 setDialogContent(<AcademicForm userId={profile.uid} defaultValues={defaultValues} onFormSubmit={onFormSubmit} />);
                 break;
             case 'experience':
+                setDialogTitle(isEditing ? 'Editar Experiência Profissional' : 'Adicionar Experiência Profissional');
                 setDialogContent(<ExperienceForm userId={profile.uid} defaultValues={defaultValues} onFormSubmit={onFormSubmit} />);
                 break;
             case 'qualification':
+                setDialogTitle(isEditing ? 'Editar Qualificação' : 'Adicionar Qualificação');
                 setDialogContent(<QualificationForm userId={profile.uid} defaultValues={defaultValues} onFormSubmit={onFormSubmit} />);
                 break;
         }
@@ -371,7 +377,6 @@ export default function CurriculoClient({ profile }: { profile: any }) {
                 <CardContent className="p-4 flex items-center justify-between">
                     <div className="space-y-0.5">
                         <FormLabel>Permitir que empresas busquem meu currículo</FormLabel>
-                        <FormDescription>Seu perfil será visível nos resultados de busca de empresas.</FormDescription>
                     </div>
                     <Switch checked={isSearchable} onCheckedChange={handleSearchableToggle} disabled={isSubmitting} />
                 </CardContent>
@@ -393,8 +398,13 @@ export default function CurriculoClient({ profile }: { profile: any }) {
                 </CardContent>
             </Card>
 
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogContent>{dialogContent}</DialogContent>
+             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>{dialogTitle}</DialogTitle>
+                    </DialogHeader>
+                    {dialogContent}
+                </DialogContent>
             </Dialog>
 
             <Card>
