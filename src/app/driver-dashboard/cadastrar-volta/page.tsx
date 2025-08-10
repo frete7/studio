@@ -30,28 +30,31 @@ export default function CadastrarVoltaPage() {
                     setProfile(userDoc.data());
                     
                     try {
+                        // Query only for the vehicles inside the user's subcollection
                         const vehiclesQuery = query(collection(db, 'users', currentUser.uid, 'vehicles'));
-                        const vehicleTypesQuery = query(collection(db, 'vehicle_types'));
-                        const bodyTypesQuery = query(collection(db, 'body_types'));
+                        const vehiclesSnapshot = await getDocs(vehiclesQuery);
 
-                        const [vehiclesSnapshot, vehicleTypesSnapshot, bodyTypesSnapshot] = await Promise.all([
-                            getDocs(vehiclesQuery),
-                            getDocs(vehicleTypesQuery),
-                            getDocs(bodyTypesQuery)
-                        ]);
-                        
-                        const vehicleTypesMap = new Map(vehicleTypesSnapshot.docs.map(doc => [doc.id, doc.data() as VehicleType]));
-                        const bodyTypesMap = new Map(bodyTypesSnapshot.docs.map(doc => [doc.id, doc.data() as BodyType]));
+                        const vehicleDataPromises = vehiclesSnapshot.docs.map(async (vehicleDoc) => {
+                            const vehicleData = vehicleDoc.data();
+                            
+                            // Fetch names for vehicleType and bodyType for each vehicle
+                            const vehicleTypeRef = doc(db, 'vehicle_types', vehicleData.vehicleTypeId);
+                            const bodyTypeRef = doc(db, 'body_types', vehicleData.bodyTypeId);
 
-                        const userVehicles = vehiclesSnapshot.docs.map(doc => {
-                            const vehicleData = doc.data();
-                            return { 
-                                id: doc.id, 
+                            const [vehicleTypeSnap, bodyTypeSnap] = await Promise.all([
+                                getDoc(vehicleTypeRef),
+                                getDoc(bodyTypeRef)
+                            ]);
+
+                            return {
+                                id: vehicleDoc.id,
                                 ...vehicleData,
-                                typeName: vehicleTypesMap.get(vehicleData.vehicleTypeId)?.name || 'N/A',
-                                bodyworkName: bodyTypesMap.get(vehicleData.bodyTypeId)?.name || 'N/A',
+                                typeName: vehicleTypeSnap.exists() ? vehicleTypeSnap.data().name : 'N/A',
+                                bodyworkName: bodyTypeSnap.exists() ? bodyTypeSnap.data().name : 'N/A',
                             };
                         });
+                        
+                        const userVehicles = await Promise.all(vehicleDataPromises);
                         setVehicles(userVehicles);
 
                     } catch (e) {
