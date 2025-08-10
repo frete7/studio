@@ -13,7 +13,7 @@ import { app } from '@/lib/firebase';
 
 import { updateUserResume, addResumeItem, updateResumeItem, deleteResumeItem } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -371,7 +371,7 @@ export default function CurriculoClient({ profile }: { profile: any }) {
                 <CardContent className="p-4 flex items-center justify-between">
                     <div className="space-y-0.5">
                         <FormLabel>Permitir que empresas busquem meu currículo</FormLabel>
-                        <p className="text-sm text-muted-foreground">Seu perfil será visível nos resultados de busca de empresas.</p>
+                        <FormDescription>Seu perfil será visível nos resultados de busca de empresas.</FormDescription>
                     </div>
                     <Switch checked={isSearchable} onCheckedChange={handleSearchableToggle} disabled={isSubmitting} />
                 </CardContent>
