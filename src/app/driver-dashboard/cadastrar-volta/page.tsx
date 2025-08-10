@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import CadastrarVoltaClient from './cadastrar-volta-client';
+import { type VehicleType, type BodyType } from '@/app/actions';
 
 export default function CadastrarVoltaPage() {
     const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -28,10 +29,36 @@ export default function CadastrarVoltaPage() {
                 if (userDoc.exists()) {
                     setProfile(userDoc.data());
                     
-                    const vehiclesQuery = query(collection(db, 'users', currentUser.uid, 'vehicles'));
-                    const vehiclesSnapshot = await getDocs(vehiclesQuery);
-                    const userVehicles = vehiclesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    setVehicles(userVehicles);
+                    try {
+                        const vehiclesQuery = query(collection(db, 'users', currentUser.uid, 'vehicles'));
+                        const vehicleTypesQuery = query(collection(db, 'vehicle_types'));
+                        const bodyTypesQuery = query(collection(db, 'body_types'));
+
+                        const [vehiclesSnapshot, vehicleTypesSnapshot, bodyTypesSnapshot] = await Promise.all([
+                            getDocs(vehiclesQuery),
+                            getDocs(vehicleTypesSnapshot),
+                            getDocs(bodyTypesSnapshot)
+                        ]);
+                        
+                        const vehicleTypesMap = new Map(vehicleTypesSnapshot.docs.map(doc => [doc.id, doc.data() as VehicleType]));
+                        const bodyTypesMap = new Map(bodyTypesSnapshot.docs.map(doc => [doc.id, doc.data() as BodyType]));
+
+                        const userVehicles = vehiclesSnapshot.docs.map(doc => {
+                            const vehicleData = doc.data();
+                            return { 
+                                id: doc.id, 
+                                ...vehicleData,
+                                typeName: vehicleTypesMap.get(vehicleData.vehicleTypeId)?.name || 'N/A',
+                                bodyworkName: bodyTypesMap.get(vehicleData.bodyTypeId)?.name || 'N/A',
+                            };
+                        });
+                        setVehicles(userVehicles);
+
+                    } catch (e) {
+                         console.error("Error fetching vehicles and related data: ", e);
+                         setVehicles([]);
+                    }
+
 
                 } else {
                     router.push('/login');
@@ -79,5 +106,3 @@ export default function CadastrarVoltaPage() {
         </div>
     );
 }
-
-    

@@ -375,7 +375,11 @@ export default function CadastrarVoltaClient({ driverId, profile, vehicles }: { 
                                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                                             <FormControl><SelectTrigger><SelectValue placeholder="Selecione um veículo..." /></SelectTrigger></FormControl>
                                             <SelectContent>
-                                                {vehicles.map(v => <SelectItem key={v.id} value={v.id}>{v.model} ({v.licensePlate})</SelectItem>)}
+                                                {vehicles.map(v => (
+                                                    <SelectItem key={v.id} value={v.id}>
+                                                        {v.model} ({v.licensePlate}) - <span className="text-muted-foreground italic">{v.typeName}, {v.bodyworkName}</span>
+                                                    </SelectItem>
+                                                ))}
                                             </SelectContent>
                                         </Select>
                                         <FormMessage />
