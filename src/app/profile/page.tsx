@@ -1,23 +1,17 @@
 
+'use client';
 
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { useState, useEffect } from 'react';
+import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
+import { onSnapshot, doc } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
+import { useRouter } from 'next/navigation';
+
 import { Loader2 } from "lucide-react";
 import CompanyProfileForm from './company-profile-form';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-
-// This component can't be fully server-rendered because Firebase Auth state
-// is primarily managed on the client. We will make the page itself a client component
-// to handle the auth logic.
-'use client';
-
-import { useState, useEffect } from 'react';
-import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { onSnapshot } from 'firebase/firestore';
-import { auth } from '@/lib/firebase';
-import { useRouter } from 'next/navigation';
 
 
 type UserProfile = {
