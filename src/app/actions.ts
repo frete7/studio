@@ -829,7 +829,53 @@ export async function getMonthlyFreightStats(companyId: string) {
   }
 }
     
+// Driver Actions
+export async function addReturnTrips(driverId: string, data: any) {
+    if (!driverId) throw new Error("ID do motorista é obrigatório.");
+    if (!data.returns || data.returns.length === 0) {
+        throw new Error("Pelo menos uma viagem de retorno deve ser fornecida.");
+    }
+    
+    const returnTripsCollection = collection(db, 'return_trips');
+    const batch = writeBatch(db);
 
+    const driverDocRef = doc(db, 'users', driverId);
+    const driverDoc = await getDoc(driverDocRef);
+
+    if (!driverDoc.exists()) {
+        throw new Error("Motorista não encontrado.");
+    }
+
+    const driverData = driverDoc.data();
+
+    data.returns.forEach((trip: any) => {
+        const docRef = doc(returnTripsCollection); // Auto-generate ID
+        batch.set(docRef, {
+            driverId,
+            driverName: driverData.name,
+            driverPhone: driverData.phone,
+            hasCnpj: data.hasCnpj,
+            issuesInvoice: data.issuesInvoice,
+            origin: data.origin,
+            destination: {
+                type: trip.destinationType,
+                state: trip.destinationState,
+                city: trip.destinationCity,
+            },
+            departureDate: data.departureDate,
+            vehicle: data.vehicle,
+            availability: data.availability,
+            notes: data.notes,
+            status: 'active',
+            createdAt: serverTimestamp(),
+        });
+    });
+
+    await batch.commit();
+}
     
 
     
+
+    
+

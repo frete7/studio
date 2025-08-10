@@ -38,7 +38,7 @@ const dashboardCards = [
     {
         title: "Cadastrar Volta",
         description: "Anuncie sua rota de retorno e encontre cargas para otimizar sua viagem.",
-        href: "#", // Placeholder
+        href: "/driver-dashboard/cadastrar-volta",
         icon: <FileText className="h-6 w-6 text-primary" />,
     },
     {

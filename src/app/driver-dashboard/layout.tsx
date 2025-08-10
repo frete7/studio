@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 
 const navItems = [
     { href: '/driver-dashboard', label: 'Início', icon: Home },
-    { href: '#', label: 'Cad. Volta', icon: FileText },
+    { href: '/driver-dashboard/cadastrar-volta', label: 'Cad. Volta', icon: FileText },
     { href: '#', label: 'Currículo', icon: ClipboardList },
     { href: '/profile', label: 'Perfil', icon: User },
 ];
