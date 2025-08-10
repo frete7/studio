@@ -329,13 +329,14 @@ export default function CurriculoClient({ profile }: { profile: any }) {
         }
     };
 
-    const calculateAge = (birthDate: string | undefined) => {
+    const calculateAge = (birthDate: any) => {
         if (!birthDate) return '';
+        const date = birthDate.toDate ? birthDate.toDate() : new Date(birthDate);
+        if (isNaN(date.getTime())) return ''; // Invalid date
         const today = new Date();
-        const birth = new Date(birthDate);
-        let age = today.getFullYear() - birth.getFullYear();
-        const m = today.getMonth() - birth.getMonth();
-        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+        let age = today.getFullYear() - date.getFullYear();
+        const m = today.getMonth() - date.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < date.getDate())) {
             age--;
         }
         return `(${age} anos)`;
@@ -396,7 +397,7 @@ export default function CurriculoClient({ profile }: { profile: any }) {
                      <div className="flex items-center gap-2 text-sm text-muted-foreground"><Mail className="h-4 w-4" />{profile.email}</div>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <CalendarIcon className="h-4 w-4" />
-                        Data de Nasc.: {profile.birthDate ? `${format(new Date(profile.birthDate), 'dd/MM/yyyy')} ${calculateAge(profile.birthDate)}` : 'Não informado'}
+                        Data de Nasc.: {profile.birthDate?.toDate ? `${format(profile.birthDate.toDate(), 'dd/MM/yyyy')} ${calculateAge(profile.birthDate)}` : 'Não informado'}
                      </div>
                 </CardContent>
             </Card>
