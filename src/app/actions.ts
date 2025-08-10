@@ -847,25 +847,22 @@ export async function addReturnTrips(driverId: string, data: any) {
     }
 
     const driverData = driverDoc.data();
+    
+    const { returns, ...baseData } = data;
 
-    data.returns.forEach((trip: any) => {
+    returns.forEach((trip: any) => {
         const docRef = doc(returnTripsCollection); // Auto-generate ID
         batch.set(docRef, {
+            ...baseData,
             driverId,
             driverName: driverData.name,
             driverPhone: driverData.phone,
-            hasCnpj: data.hasCnpj,
-            issuesInvoice: data.issuesInvoice,
-            origin: data.origin,
+            origin: trip.origin,
             destination: {
                 type: trip.destinationType,
                 state: trip.destinationState,
                 city: trip.destinationCity,
             },
-            departureDate: data.departureDate,
-            vehicle: data.vehicle,
-            availability: data.availability,
-            notes: data.notes,
             status: 'active',
             createdAt: serverTimestamp(),
         });
@@ -878,4 +875,5 @@ export async function addReturnTrips(driverId: string, data: any) {
     
 
     
+
 

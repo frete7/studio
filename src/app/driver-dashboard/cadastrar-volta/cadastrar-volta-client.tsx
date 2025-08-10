@@ -21,7 +21,7 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { Loader2, PlusCircle, Trash2, CalendarIcon } from 'lucide-react';
+import { Loader2, PlusCircle, Trash2, CalendarIcon, ChevronDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -29,7 +29,14 @@ type IBGEState = { id: number; sigla: string; nome: string; };
 type IBGECity = { id: number; nome: string; };
 
 
+const locationSchema = z.object({
+  state: z.string({ required_error: "O estado é obrigatório."}).min(1, "O estado é obrigatório."),
+  city: z.string({ required_error: "A cidade é obrigatória."}).min(1, "A cidade é obrigatória."),
+});
+
+
 const returnTripSchema = z.object({
+  origin: locationSchema,
   destinationType: z.enum(['brasil', 'estado', 'cidade'], { required_error: "Selecione o tipo de destino." }),
   destinationState: z.string().optional(),
   destinationCity: z.string().optional(),
@@ -42,125 +49,151 @@ const returnTripSchema = z.object({
 });
 
 const formSchema = z.object({
-  origin: z.string().min(3, "A cidade de origem é obrigatória."),
   departureDate: z.date({ required_error: "A data de partida é obrigatória." }),
-  departureTime: z.string({ required_error: "A hora de partida é obrigatória." }),
+  departureTime: z.string({ required_error: "A hora de partida é obrigatória." }).min(1, "A hora de partida é obrigatória."),
   vehicle: z.string({ required_error: "Selecione um veículo." }),
   availability: z.enum(['vazio', 'parcial'], { required_error: "Selecione a disponibilidade." }),
   notes: z.string().optional(),
   hasCnpj: z.boolean().default(false),
   issuesInvoice: z.boolean().default(false),
-  returns: z.array(returnTripSchema).min(1, "Adicione pelo menos um retorno.").max(5, "Você pode adicionar no máximo 5 retornos."),
+  returns: z.array(returnTripSchema).min(1, "Adicione pelo menos uma rota de retorno.").max(5, "Você pode adicionar no máximo 5 rotas."),
 });
 
 type FormData = z.infer<typeof formSchema>;
 
 
-function DestinationFields({ nestIndex }: { nestIndex: number }) {
+function LocationSelector({ nestName, label }: { nestName: string, label: string }) {
     const { control, watch, setValue } = useFormContext<FormData>();
     const [states, setStates] = useState<IBGEState[]>([]);
     const [cities, setCities] = useState<IBGECity[]>([]);
     const [isLoadingStates, setIsLoadingStates] = useState(false);
     const [isLoadingCities, setIsLoadingCities] = useState(false);
 
-    const destinationType = watch(`returns.${nestIndex}.destinationType`);
-    const selectedState = watch(`returns.${nestIndex}.destinationState`);
+    const selectedState = watch(`${nestName}.state` as const);
 
     useEffect(() => {
         setIsLoadingStates(true);
         fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome')
             .then(res => res.json())
-            .then(data => { setStates(data); setIsLoadingStates(false); });
+            .then((data : IBGEState[]) => { setStates(data); setIsLoadingStates(false); });
     }, []);
 
     useEffect(() => {
         if (selectedState) {
             setIsLoadingCities(true);
-            setValue(`returns.${nestIndex}.destinationCity`, '');
+            setValue(`${nestName}.city` as const, '', { shouldValidate: true });
             fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${selectedState}/municipios?orderBy=nome`)
                 .then(res => res.json())
-                .then(data => { setCities(data); setIsLoadingCities(false); });
+                .then((data: IBGECity[]) => { setCities(data); setIsLoadingCities(false); });
         } else {
             setCities([]);
         }
-    }, [selectedState, nestIndex, setValue]);
+    }, [selectedState, nestName, setValue]);
 
     return (
         <div className="space-y-4">
-            <FormField
-                control={control}
-                name={`returns.${nestIndex}.destinationType`}
-                render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>Tipo de Destino</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl>
-                            <SelectContent>
-                                <SelectItem value="brasil">Brasil Todo</SelectItem>
-                                <SelectItem value="estado">Apenas Estado</SelectItem>
-                                <SelectItem value="cidade">Cidade Específica</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <FormMessage />
-                    </FormItem>
-                )}
-            />
-            {(destinationType === 'estado' || destinationType === 'cidade') && (
+            <FormLabel>{label}</FormLabel>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                     control={control}
-                    name={`returns.${nestIndex}.destinationState`}
+                    name={`${nestName}.state` as const}
                     render={({ field }) => (
-                         <FormItem>
-                            <FormLabel>Estado</FormLabel>
+                        <FormItem>
                             <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoadingStates}>
-                                <FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl>
+                                <FormControl><SelectTrigger><SelectValue placeholder="Selecione o Estado" /></SelectTrigger></FormControl>
                                 <SelectContent>{states.map(s => <SelectItem key={s.id} value={s.sigla}>{s.nome}</SelectItem>)}</SelectContent>
                             </Select>
                             <FormMessage />
                         </FormItem>
                     )}
                 />
-            )}
-            {destinationType === 'cidade' && (
                  <FormField
                     control={control}
-                    name={`returns.${nestIndex}.destinationCity`}
+                    name={`${nestName}.city` as const}
                     render={({ field }) => (
                          <FormItem>
-                            <FormLabel>Cidade</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!selectedState || isLoadingCities}>
-                                <FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl>
+                            <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value} disabled={!selectedState || isLoadingCities}>
+                                <FormControl><SelectTrigger><SelectValue placeholder="Selecione a Cidade" /></SelectTrigger></FormControl>
                                 <SelectContent>{cities.map(c => <SelectItem key={c.id} value={c.nome}>{c.nome}</SelectItem>)}</SelectContent>
                             </Select>
                             <FormMessage />
                         </FormItem>
                     )}
                 />
-            )}
+            </div>
         </div>
-    )
+    );
 }
 
+function DestinationFields({ nestIndex }: { nestIndex: number }) {
+    const { control, watch } = useFormContext<FormData>();
+    return <LocationSelector nestName={`returns.${nestIndex}.origin`} label="Estou saindo de:" />;
+}
+
+function ReturnCard({ nestIndex, remove }: { nestIndex: number; remove: (index: number) => void; }) {
+    const { control, watch } = useFormContext<FormData>();
+    const [isCollapsed, setIsCollapsed] = useState(false);
+
+    const origin = watch(`returns.${nestIndex}.origin`);
+    const destinationType = watch(`returns.${nestIndex}.destinationType`);
+    const destinationState = watch(`returns.${nestIndex}.destinationState`);
+    const destinationCity = watch(`returns.${nestIndex}.destinationCity`);
+
+    const getReturnTitle = () => {
+        if (!origin.state || !origin.city) return `Retorno ${nestIndex + 1}`;
+        let destText = 'Brasil Todo';
+        if (destinationType === 'estado') destText = `Estado de ${destinationState}`;
+        if (destinationType === 'cidade') destText = `${destinationCity}, ${destinationState}`;
+
+        return `De ${origin.city}, ${origin.state} para ${destText}`;
+    }
+    
+    return (
+        <Card className="relative">
+            <CardHeader className="flex flex-row items-center justify-between cursor-pointer" onClick={() => setIsCollapsed(!isCollapsed)}>
+                <CardTitle className="text-base font-medium">{getReturnTitle()}</CardTitle>
+                <div className="flex items-center gap-2">
+                    <Button type="button" variant="ghost" size="icon" className="hover:bg-transparent" onClick={(e) => { e.stopPropagation(); setIsCollapsed(!isCollapsed); }}>
+                        <ChevronDown className={cn("h-4 w-4 transition-transform", isCollapsed && "rotate-180")} />
+                    </Button>
+                    <Button type="button" variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); remove(nestIndex); }}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                </div>
+            </CardHeader>
+            {!isCollapsed && (
+                <CardContent className="space-y-6">
+                    <LocationSelector nestName={`returns.${nestIndex}.origin`} label="Estou saindo de:" />
+                    <Separator />
+                    <LocationSelector nestName={`returns.${nestIndex}`} label="Vou retornar para:" />
+                </CardContent>
+            )}
+        </Card>
+    );
+}
 
 export default function CadastrarVoltaClient({ driverId, profile, vehicles }: { driverId: string, profile: any, vehicles: any[] }) {
     const { toast } = useToast();
     const router = useRouter();
-    const [isSubmitting, setIsSubmitting] = useState(false);
     
     const methods = useForm<FormData>({
         resolver: zodResolver(formSchema),
         defaultValues: {
-            origin: '',
             departureTime: '',
             availability: 'vazio',
             notes: '',
             hasCnpj: profile.hasCnpj || false,
             issuesInvoice: profile.issuesInvoice || false,
-            returns: [{ destinationType: 'brasil' }],
+            returns: [{ 
+                origin: { state: '', city: ''},
+                destinationType: 'brasil',
+                destinationState: '',
+                destinationCity: '',
+            }],
         }
     });
     
-    const { control, handleSubmit } = methods;
+    const { control, handleSubmit, formState: { isSubmitting } } = methods;
 
     const { fields, append, remove } = useFieldArray({
         control,
@@ -168,7 +201,6 @@ export default function CadastrarVoltaClient({ driverId, profile, vehicles }: { 
     });
     
     const onSubmit = async (data: FormData) => {
-        setIsSubmitting(true);
         try {
             const combinedDateTime = new Date(data.departureDate);
             const [hours, minutes] = data.departureTime.split(':');
@@ -192,11 +224,8 @@ export default function CadastrarVoltaClient({ driverId, profile, vehicles }: { 
                 title: 'Erro ao cadastrar',
                 description: error instanceof Error ? error.message : 'Ocorreu um erro.',
             });
-        } finally {
-            setIsSubmitting(false);
         }
     };
-
 
     return (
         <FormProvider {...methods}>
@@ -204,39 +233,11 @@ export default function CadastrarVoltaClient({ driverId, profile, vehicles }: { 
                 <Card>
                     <CardHeader>
                         <CardTitle>Dados da Viagem</CardTitle>
+                        <CardDescription>Informações gerais que se aplicam a todas as rotas de retorno.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
                          <div className="grid md:grid-cols-2 gap-6">
-                            <FormField
-                                control={control}
-                                name="origin"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Estou saindo de:</FormLabel>
-                                        <FormControl><Input placeholder="Cidade de Origem" {...field} /></FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={control}
-                                name="vehicle"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Veículo Utilizado</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                            <FormControl><SelectTrigger><SelectValue placeholder="Selecione um veículo..." /></SelectTrigger></FormControl>
-                                            <SelectContent>
-                                                {vehicles.map(v => <SelectItem key={v.id} value={v.id}>{v.model} ({v.licensePlate})</SelectItem>)}
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                        </div>
-                        <div className="grid md:grid-cols-2 gap-6">
-                            <FormField
+                             <FormField
                                 control={control}
                                 name="departureDate"
                                 render={({ field }) => (
@@ -271,22 +272,40 @@ export default function CadastrarVoltaClient({ driverId, profile, vehicles }: { 
                                 )}
                             />
                         </div>
-                         <FormField
-                            control={control}
-                            name="availability"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Disponibilidade do Veículo</FormLabel>
-                                    <FormControl>
-                                        <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex gap-4 pt-2">
-                                            <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="vazio" /></FormControl><FormLabel>Vazio</FormLabel></FormItem>
-                                            <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="parcial" /></FormControl><FormLabel>Parcial</FormLabel></FormItem>
-                                        </RadioGroup>
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
+                        <div className="grid md:grid-cols-2 gap-6">
+                             <FormField
+                                control={control}
+                                name="vehicle"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Veículo Utilizado</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormControl><SelectTrigger><SelectValue placeholder="Selecione um veículo..." /></SelectTrigger></FormControl>
+                                            <SelectContent>
+                                                {vehicles.map(v => <SelectItem key={v.id} value={v.id}>{v.model} ({v.licensePlate})</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                             <FormField
+                                control={control}
+                                name="availability"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Disponibilidade do Veículo</FormLabel>
+                                        <FormControl>
+                                            <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex gap-4 pt-2">
+                                                <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="vazio" /></FormControl><FormLabel>Vazio</FormLabel></FormItem>
+                                                <FormItem className="flex items-center space-x-2"><FormControl><RadioGroupItem value="parcial" /></FormControl><FormLabel>Parcial</FormLabel></FormItem>
+                                            </RadioGroup>
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
                         <div className="grid md:grid-cols-2 gap-4">
                              <FormField control={control} name="hasCnpj" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-3"><FormLabel>Possuo CNPJ</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
                              <FormField control={control} name="issuesInvoice" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-3"><FormLabel>Emito Nota Fiscal</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
@@ -306,26 +325,15 @@ export default function CadastrarVoltaClient({ driverId, profile, vehicles }: { 
                 </Card>
 
                 <div className="space-y-6 mt-8">
+                     <h2 className="text-xl font-bold">Rotas de Retorno</h2>
                      {fields.map((field, index) => (
-                        <Card key={field.id} className="relative">
-                            <CardHeader>
-                                <CardTitle>Retorno {index + 1}</CardTitle>
-                                {fields.length > 1 && (
-                                     <Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2" onClick={() => remove(index)}>
-                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                    </Button>
-                                )}
-                            </CardHeader>
-                            <CardContent>
-                                <DestinationFields nestIndex={index} />
-                            </CardContent>
-                        </Card>
+                        <ReturnCard key={field.id} nestIndex={index} remove={remove} />
                      ))}
                 </div>
                  {fields.length < 5 && (
-                    <Button type="button" variant="outline" className="w-full mt-6" onClick={() => append({ destinationType: 'brasil' })}>
+                    <Button type="button" variant="outline" className="w-full mt-6" onClick={() => append({ origin: {state: '', city: ''}, destinationType: 'brasil', destinationCity: '', destinationState: '' })}>
                         <PlusCircle className="mr-2 h-4 w-4" />
-                        Adicionar outro retorno
+                        Adicionar outra rota de retorno
                     </Button>
                  )}
                   <FormField control={control} name="returns" render={({fieldState}) => <FormMessage className="text-center mt-2">{fieldState.error?.root?.message}</FormMessage>} />
@@ -340,5 +348,3 @@ export default function CadastrarVoltaClient({ driverId, profile, vehicles }: { 
         </FormProvider>
     );
 }
-
-    
