@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -26,11 +25,12 @@ export default function MyFreightsPage() {
                     setInitialFreights(freights);
                 } catch (error) {
                     console.error("Failed to fetch freights", error);
+                } finally {
+                    setIsLoading(false);
                 }
             } else {
                 router.push('/login');
             }
-            setIsLoading(false);
         });
 
         return () => unsubscribeAuth();
