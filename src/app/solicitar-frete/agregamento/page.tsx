@@ -61,7 +61,7 @@ export default function AgregamentoPage() {
             <div className="max-w-3xl mx-auto">
                 <div className="mb-8">
                      <Button asChild variant="outline" className="mb-4">
-                        <Link href="/profile">
+                        <Link href="/company-dashboard">
                             <ArrowLeft className="mr-2 h-4 w-4" />
                             Voltar para o Painel
                         </Link>
