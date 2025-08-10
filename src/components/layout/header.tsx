@@ -47,10 +47,6 @@ export default function Header() {
           const userData = userDoc.data();
           setUserRole(userData.role);
 
-          if (userData.status === 'incomplete' && !pathname.startsWith('/profile') && !pathname.startsWith('/login') && !pathname.startsWith('/register')) {
-              router.push('/profile');
-          }
-
         } else {
           setUserRole('user');
         }
@@ -63,21 +59,20 @@ export default function Header() {
     return () => unsubscribe();
   }, [pathname, router]);
   
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      toast({
-        title: 'Você saiu!',
-        description: 'Até a próxima!',
-      });
-      router.push('/login');
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao sair',
-        description: 'Não foi possível fazer o logout. Tente novamente.',
-      });
-    }
+  const handleLogout = () => {
+    router.push('/login');
+    signOut(auth).then(() => {
+        toast({
+            title: 'Você saiu!',
+            description: 'Até a próxima!',
+        });
+    }).catch((error) => {
+        toast({
+            variant: 'destructive',
+            title: 'Erro ao sair',
+            description: 'Não foi possível fazer o logout. Tente novamente.',
+        });
+    });
   };
   
   const getInitials = (email?: string | null) => {
@@ -113,7 +108,7 @@ export default function Header() {
 
   const renderAuthSection = () => {
     if (isAuthLoading) {
-      return <div className="h-10 w-24 rounded-md bg-muted animate-pulse" />;
+      return <div className="h-10 w-10 rounded-full bg-muted animate-pulse" />;
     }
 
     if (user) {
@@ -210,7 +205,7 @@ export default function Header() {
     )
   }
 
-  const solicitRequestLink = userRole === 'company' ? "/fretes/solicitar" : "/solicitar-frete?type=completo";
+  const solicitRequestLink = userRole === 'company' ? "/fretes/solicitar" : "/solicitar-frete";
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
