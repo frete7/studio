@@ -7,6 +7,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import Image from 'next/image';
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { app } from '@/lib/firebase';
 
 import { updateUserResume, addResumeItem, updateResumeItem, deleteResumeItem } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
@@ -23,7 +26,9 @@ import { Separator } from '@/components/ui/separator';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
-import { Loader2, User, Mail, Phone, CalendarIcon, PlusCircle, Edit, Trash2, GraduationCap, Briefcase, Sparkles } from 'lucide-react';
+import { Loader2, User, Mail, Phone, CalendarIcon, PlusCircle, Edit, Trash2, GraduationCap, Briefcase, Sparkles, UploadCloud } from 'lucide-react';
+
+const storage = getStorage(app);
 
 // Sub-components for forms
 const AcademicForm = ({ userId, defaultValues, onFormSubmit }: { userId: string, defaultValues?: any, onFormSubmit: () => void }) => {
@@ -191,6 +196,115 @@ const QualificationForm = ({ userId, defaultValues, onFormSubmit }: { userId: st
     );
 };
 
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const ACCEPTED_IMG_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+
+const PhotoUploader = ({ profile }: { profile: any }) => {
+    const { toast } = useToast();
+    const [isPhotoDialogOpen, setIsPhotoDialogOpen] = useState(false);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [preview, setPreview] = useState<string | null>(profile.photoURL);
+    const [isUploading, setIsUploading] = useState(false);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            if (file.size > MAX_FILE_SIZE) {
+                toast({ variant: "destructive", title: "Erro", description: "O arquivo é muito grande (máx 5MB)." });
+                return;
+            }
+            if (!ACCEPTED_IMG_TYPES.includes(file.type)) {
+                toast({ variant: "destructive", title: "Erro", description: "Formato de arquivo inválido." });
+                return;
+            }
+            setSelectedFile(file);
+            setPreview(URL.createObjectURL(file));
+        }
+    }
+
+    const handleSave = async () => {
+        if (!selectedFile) return;
+        setIsUploading(true);
+        try {
+            const filePath = `users/${profile.uid}/profilePicture/${selectedFile.name}`;
+            const fileRef = ref(storage, filePath);
+            await uploadBytes(fileRef, selectedFile);
+            const downloadURL = await getDownloadURL(fileRef);
+            await updateUserResume(profile.uid, { photoURL: downloadURL });
+            toast({ title: "Sucesso!", description: "Foto de perfil atualizada." });
+            setIsPhotoDialogOpen(false);
+        } catch (error) {
+            toast({ variant: "destructive", title: "Erro", description: "Não foi possível salvar a foto." });
+        } finally {
+            setIsUploading(false);
+        }
+    }
+
+    const handleRemove = async () => {
+        setIsUploading(true);
+        try {
+            // Optional: Delete file from storage
+            if (profile.photoURL) {
+                const fileRef = ref(storage, profile.photoURL);
+                await deleteObject(fileRef).catch(err => console.warn("Could not delete old photo, it might not exist.", err));
+            }
+            await updateUserResume(profile.uid, { photoURL: null });
+            toast({ title: "Sucesso!", description: "Foto de perfil removida." });
+            setPreview(null);
+            setSelectedFile(null);
+            setIsPhotoDialogOpen(false);
+        } catch (error) {
+            toast({ variant: "destructive", title: "Erro", description: "Não foi possível remover a foto." });
+        } finally {
+            setIsUploading(false);
+        }
+    }
+    
+     const getInitials = (name: string) => {
+        if (!name) return '';
+        return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+    }
+
+    return (
+        <div className="flex items-center gap-4">
+             <Avatar className="h-20 w-20 border">
+                <AvatarImage src={profile.photoURL} alt={profile.name} />
+                <AvatarFallback>{getInitials(profile.name)}</AvatarFallback>
+            </Avatar>
+            <Dialog open={isPhotoDialogOpen} onOpenChange={setIsPhotoDialogOpen}>
+                <DialogTrigger asChild>
+                    <Button variant="outline">Editar Foto</Button>
+                </DialogTrigger>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Atualizar Foto de Perfil</DialogTitle>
+                    </DialogHeader>
+                    <div className="flex flex-col items-center gap-4 py-4">
+                        <Avatar className="h-32 w-32 border">
+                            <AvatarImage src={preview || undefined} />
+                            <AvatarFallback><User className="h-16 w-16" /></AvatarFallback>
+                        </Avatar>
+                        <label htmlFor="photo-upload" className={cn(buttonVariants({variant: "outline"}), "cursor-pointer")}>
+                            <UploadCloud className="mr-2 h-4 w-4"/>
+                            Escolher Arquivo
+                        </label>
+                        <input id="photo-upload" type="file" className="hidden" accept={ACCEPTED_IMG_TYPES.join(',')} onChange={handleFileChange} />
+                         <p className="text-xs text-muted-foreground">PNG, JPG, WEBP (Máx 5MB)</p>
+                    </div>
+                    <DialogFooter className="grid grid-cols-2 gap-2 sm:flex">
+                        {profile.photoURL && <Button variant="destructive" onClick={handleRemove} disabled={isUploading}>Remover Foto</Button>}
+                        <div className="col-start-2 flex justify-end gap-2">
+                             <DialogClose asChild><Button variant="secondary">Cancelar</Button></DialogClose>
+                            <Button onClick={handleSave} disabled={isUploading || !selectedFile}>
+                                {isUploading ? <Loader2 className="animate-spin" /> : "Salvar"}
+                            </Button>
+                        </div>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
+    )
+}
 
 // Main Component
 export default function CurriculoClient({ profile }: { profile: any }) {
@@ -251,18 +365,13 @@ export default function CurriculoClient({ profile }: { profile: any }) {
         }
     }
     
-    const getInitials = (name: string) => {
-        if (!name) return '';
-        return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
-    }
-    
     return (
         <div className="space-y-8">
             <Card>
                 <CardContent className="p-4 flex items-center justify-between">
                     <div className="space-y-0.5">
                         <FormLabel>Permitir que empresas busquem meu currículo</FormLabel>
-                        <FormDescription>Seu perfil será visível nos resultados de busca de empresas.</FormDescription>
+                        <p className="text-sm text-muted-foreground">Seu perfil será visível nos resultados de busca de empresas.</p>
                     </div>
                     <Switch checked={isSearchable} onCheckedChange={handleSearchableToggle} disabled={isSubmitting} />
                 </CardContent>
@@ -271,10 +380,7 @@ export default function CurriculoClient({ profile }: { profile: any }) {
             <Card>
                 <CardHeader>
                     <div className="flex items-center gap-4">
-                        <Avatar className="h-20 w-20 border">
-                            <AvatarImage src={profile.photoURL} alt={profile.name} />
-                             <AvatarFallback>{getInitials(profile.name)}</AvatarFallback>
-                        </Avatar>
+                        <PhotoUploader profile={profile} />
                         <div>
                             <CardTitle className="text-2xl">{profile.name}</CardTitle>
                             <CardDescription>{calculateAge(profile.birthDate)}</CardDescription>
