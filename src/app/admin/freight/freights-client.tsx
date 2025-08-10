@@ -1,8 +1,7 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { type Freight } from '@/app/actions';
@@ -70,26 +69,25 @@ const getStatusLabel = (status: Freight['status']): string => {
 }
 
 
-export default function FreightsClient() {
-    const [freights, setFreights] = useState<Freight[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+export default function FreightsClient({ initialFreights }: { initialFreights: Freight[] }) {
+    const [freights, setFreights] = useState<Freight[]>(initialFreights);
+    const [isLoading, setIsLoading] = useState(false);
     const router = useRouter();
 
     useEffect(() => {
-        setIsLoading(true);
         const q = query(collection(db, 'freights'));
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
             const data: Freight[] = [];
             querySnapshot.forEach((doc) => {
-                const freightData = doc.data() as Freight;
+                const freightData = doc.data() as any;
                  // Ensure destinations is always an array
                 if (!Array.isArray(freightData.destinations)) {
                     freightData.destinations = [];
                 }
-                data.push({ ...freightData, id: doc.id });
+                const createdAt = freightData.createdAt?.toDate ? freightData.createdAt.toDate().toISOString() : null;
+                data.push({ ...freightData, id: doc.id, createdAt });
             });
             setFreights(data);
-            setIsLoading(false);
         });
 
         return () => unsubscribe();
@@ -166,7 +164,7 @@ export default function FreightsClient() {
                                 </TableCell>
                                 <TableCell className="hidden md:table-cell pt-5">{freight.companyName || 'N/A'}</TableCell>
                                  <TableCell className="hidden sm:table-cell pt-5">
-                                    {freight.createdAt?.seconds ? new Date(freight.createdAt.seconds * 1000).toLocaleDateString('pt-BR') : 'N/A'}
+                                    {freight.createdAt ? new Date(freight.createdAt).toLocaleDateString('pt-BR') : 'N/A'}
                                 </TableCell>
                                 <TableCell className="text-right pt-5">
                                     <Badge variant="outline" className={freightStatusVariants({status: freight.status})}>

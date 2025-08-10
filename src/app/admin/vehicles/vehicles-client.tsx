@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -29,11 +28,11 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-export default function VehiclesClient() {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
-  const [vehicleCategories, setVehicleCategories] = useState<VehicleCategory[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+export default function VehiclesClient({ initialVehicles, initialVehicleTypes, initialVehicleCategories }: { initialVehicles: Vehicle[], initialVehicleTypes: VehicleType[], initialVehicleCategories: VehicleCategory[] }) {
+  const [vehicles, setVehicles] = useState<Vehicle[]>(initialVehicles);
+  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>(initialVehicleTypes);
+  const [vehicleCategories, setVehicleCategories] = useState<VehicleCategory[]>(initialVehicleCategories);
+  const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
@@ -45,8 +44,6 @@ export default function VehiclesClient() {
   const typeToCategoryMap = new Map(vehicleTypes.map(t => [t.id, t.categoryId]));
 
   useEffect(() => {
-    setIsLoading(true);
-
     const vehiclesQuery = query(collection(db, 'vehicles'));
     const typesQuery = query(collection(db, 'vehicle_types'));
     const categoriesQuery = query(collection(db, 'vehicle_categories'));
@@ -66,24 +63,11 @@ export default function VehiclesClient() {
       setVehicleCategories(data);
     });
 
-    // Stop loading when all data is fetched, assuming categories is the last one.
-    // A more robust solution might use Promise.all with getDocs if realtime is not strictly needed.
-    const unsubscribe = () => {
-        unsubscribeVehicles();
-        unsubscribeTypes();
-        unsubscribeCategories();
-    }
-    
-    // This is a simple way to set loading to false. In a real app, you might want to
-    // track loading state for each collection.
-    const initialLoad = async () => {
-        await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate loading
-        setIsLoading(false);
-    }
-    initialLoad();
-
-
-    return () => unsubscribe();
+    return () => {
+      unsubscribeVehicles();
+      unsubscribeTypes();
+      unsubscribeCategories();
+    };
   }, []);
 
   const form = useForm<FormData>({

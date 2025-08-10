@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -49,9 +48,9 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-export default function CategoriesClient() {
-  const [categories, setCategories] = useState<VehicleCategory[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+export default function CategoriesClient({ initialCategories }: { initialCategories: VehicleCategory[] }) {
+  const [categories, setCategories] = useState<VehicleCategory[]>(initialCategories);
+  const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<VehicleCategory | null>(null);
@@ -60,7 +59,6 @@ export default function CategoriesClient() {
 
 
   useEffect(() => {
-    setIsLoading(true);
     const q = query(collection(db, 'vehicle_categories'));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
         const categoriesData: VehicleCategory[] = [];
@@ -68,15 +66,13 @@ export default function CategoriesClient() {
             categoriesData.push({ ...doc.data(), id: doc.id } as VehicleCategory);
         });
         setCategories(categoriesData);
-        setIsLoading(false);
     }, (error) => {
         console.error("Error fetching categories: ", error);
         toast({
             variant: "destructive",
             title: "Erro ao buscar categorias",
-            description: "Verifique suas permissões ou tente novamente mais tarde."
+            description: "Não foi possível sincronizar os dados em tempo real."
         });
-        setIsLoading(false);
     });
 
     return () => unsubscribe();
