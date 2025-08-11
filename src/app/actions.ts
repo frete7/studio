@@ -1077,14 +1077,6 @@ export async function savePushSubscription(userId: string, subscription: PushSub
 
 
 // Support Chat Actions
-export type SupportChatMessage = {
-    id: string;
-    text: string;
-    sender: 'user' | 'support';
-    createdAt: Timestamp;
-    fileUrl?: string;
-};
-
 export async function sendSupportChatMessage(
     userId: string,
     messageData: { text: string; sender: 'user' | 'support'; fileUrl?: string }
@@ -1129,4 +1121,43 @@ export async function getSupportChatHistory(userId: string) {
         console.error("Error fetching support chat history: ", error);
         return [];
     }
+}
+
+
+// Suggestions and Complaints Actions
+export async function addSuggestion(userId: string, suggestion: string): Promise<void> {
+  if (!userId) throw new Error("Usuário não autenticado.");
+  if (!suggestion) throw new Error("A sugestão não pode estar vazia.");
+  
+  try {
+    const suggestionsCollection = collection(db, 'suggestions');
+    await addDoc(suggestionsCollection, {
+      userId,
+      suggestion,
+      createdAt: serverTimestamp(),
+      status: 'new',
+    });
+  } catch (error) {
+    console.error("Error adding suggestion:", error);
+    throw new Error("Não foi possível enviar a sugestão.");
+  }
+}
+
+export async function addComplaint(userId: string, title: string, description: string): Promise<void> {
+  if (!userId) throw new Error("Usuário não autenticado.");
+  if (!title || !description) throw new Error("Título e descrição são obrigatórios.");
+
+  try {
+    const complaintsCollection = collection(db, 'complaints');
+    await addDoc(complaintsCollection, {
+      userId,
+      title,
+      description,
+      createdAt: serverTimestamp(),
+      status: 'new',
+    });
+  } catch (error) {
+    console.error("Error adding complaint:", error);
+    throw new Error("Não foi possível enviar a denúncia.");
+  }
 }

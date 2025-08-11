@@ -66,7 +66,7 @@ const dashboardCards = [
     {
         title: "Sugestões/Denúncias",
         description: "Envie suas sugestões para melhorarmos ou denuncie qualquer irregularidade.",
-        href: "#", // Placeholder
+        href: "/driver-dashboard/suggestions",
         icon: <MessageSquareWarning className="h-6 w-6 text-primary" />,
     },
      {
