@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose, DialogDescription } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -61,10 +61,20 @@ export default function SupportClient({ userId, userProfile, initialTickets }: {
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const updatedTickets: SupportTicket[] = [];
             snapshot.forEach((doc) => {
-                updatedTickets.push({ id: doc.id, ...doc.data() } as SupportTicket);
+                const data = doc.data();
+                // Ensure timestamps are valid before trying to convert
+                const createdAt = data.createdAt?.toDate ? data.createdAt.toDate() : new Date();
+                const lastUpdatedAt = data.lastUpdatedAt?.toDate ? data.lastUpdatedAt.toDate() : new Date();
+
+                updatedTickets.push({ 
+                    id: doc.id, 
+                    ...data,
+                    createdAt,
+                    lastUpdatedAt,
+                } as SupportTicket);
             });
             // Sort by last update date descending
-            updatedTickets.sort((a, b) => b.lastUpdatedAt.seconds - a.lastUpdatedAt.seconds);
+            updatedTickets.sort((a, b) => b.lastUpdatedAt.getTime() - a.lastUpdatedAt.getTime());
             setTickets(updatedTickets);
         });
         return () => unsubscribe();
@@ -78,9 +88,14 @@ export default function SupportClient({ userId, userProfile, initialTickets }: {
         const unsubscribeMessages = onSnapshot(messagesQuery, (snapshot) => {
              const loadedMessages: SupportMessage[] = [];
              snapshot.forEach(doc => {
-                 loadedMessages.push({ id: doc.id, ...doc.data() } as SupportMessage)
+                 const data = doc.data();
+                 loadedMessages.push({ 
+                     id: doc.id, 
+                     ...data,
+                     createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
+                 } as SupportMessage)
              });
-             loadedMessages.sort((a, b) => a.createdAt.seconds - b.createdAt.seconds);
+             loadedMessages.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
              setMessages(loadedMessages);
              setIsLoadingMessages(false);
         });
@@ -172,7 +187,7 @@ export default function SupportClient({ userId, userProfile, initialTickets }: {
                                     <CardContent className="p-4 flex justify-between items-center">
                                         <div>
                                             <p className="font-semibold">{ticket.title}</p>
-                                            <p className="text-sm text-muted-foreground">{ticket.protocol} - Atualizado {formatDistanceToNow(ticket.lastUpdatedAt.toDate(), { addSuffix: true, locale: ptBR })}</p>
+                                            <p className="text-sm text-muted-foreground">{ticket.protocol} - Atualizado {formatDistanceToNow(ticket.lastUpdatedAt, { addSuffix: true, locale: ptBR })}</p>
                                         </div>
                                         <Badge variant={getStatusVariant(ticket.status)}>{ticket.status}</Badge>
                                     </CardContent>
@@ -203,7 +218,7 @@ export default function SupportClient({ userId, userProfile, initialTickets }: {
                                             Ver anexo
                                         </a>
                                     )}
-                                    <p className="text-xs opacity-70 mt-1 text-right">{format(msg.createdAt.toDate(), 'HH:mm')}</p>
+                                    <p className="text-xs opacity-70 mt-1 text-right">{format(msg.createdAt, 'HH:mm')}</p>
                                 </div>
                             </div>
                          ))}
