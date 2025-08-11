@@ -6,22 +6,27 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { doc, updateDoc, getDoc, getDocs, collection } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, app } from '@/lib/firebase';
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import Image from 'next/image';
 
-import { Button } from '@/components/ui/button';
+
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardFooter, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, Mail, User, Phone, MapPin, Edit, Truck, PlusCircle, Trash2 } from 'lucide-react';
+import { Loader2, Mail, User, Phone, MapPin, Edit, Truck, PlusCircle, Trash2, UploadCloud, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { type BodyType, type VehicleType, getVehicleBodyTypes, getVehicleTypes } from '@/app/actions';
+import { type BodyType, type VehicleType, getVehicleBodyTypes, getVehicleTypes, updateUserResume } from '@/app/actions';
+import { cn } from '@/lib/utils';
 
+const storage = getStorage(app);
 
 const personalInfoSchema = z.object({
   fullName: z.string().min(3, 'Nome completo é obrigatório.'),
@@ -33,6 +38,120 @@ const documentsSchema = z.object({
   cnhCategory: z.string(),
   rntrc: z.string().optional(),
 });
+
+
+// ==================================
+// Photo Uploader Component
+// ==================================
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const ACCEPTED_IMG_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+
+const PhotoUploader = ({ profile }: { profile: any }) => {
+    const { toast } = useToast();
+    const [isPhotoDialogOpen, setIsPhotoDialogOpen] = useState(false);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [preview, setPreview] = useState<string | null>(profile.photoURL);
+    const [isUploading, setIsUploading] = useState(false);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            if (file.size > MAX_FILE_SIZE) {
+                toast({ variant: "destructive", title: "Erro", description: "O arquivo é muito grande (máx 5MB)." });
+                return;
+            }
+            if (!ACCEPTED_IMG_TYPES.includes(file.type)) {
+                toast({ variant: "destructive", title: "Erro", description: "Formato de arquivo inválido." });
+                return;
+            }
+            setSelectedFile(file);
+            setPreview(URL.createObjectURL(file));
+        }
+    }
+
+    const handleSave = async () => {
+        if (!selectedFile) return;
+        setIsUploading(true);
+        try {
+            const filePath = `users/${profile.uid}/profilePicture/${selectedFile.name}`;
+            const fileRef = ref(storage, filePath);
+            await uploadBytes(fileRef, selectedFile);
+            const downloadURL = await getDownloadURL(fileRef);
+            await updateUserResume(profile.uid, { photoURL: downloadURL });
+            toast({ title: "Sucesso!", description: "Foto de perfil atualizada." });
+            setIsPhotoDialogOpen(false);
+        } catch (error) {
+            toast({ variant: "destructive", title: "Erro", description: "Não foi possível salvar a foto." });
+        } finally {
+            setIsUploading(false);
+        }
+    }
+
+    const handleRemove = async () => {
+        setIsUploading(true);
+        try {
+            if (profile.photoURL) {
+                const fileRef = ref(storage, profile.photoURL);
+                await deleteObject(fileRef).catch(err => console.warn("Could not delete old photo, it might not exist.", err));
+            }
+            await updateUserResume(profile.uid, { photoURL: null });
+            toast({ title: "Sucesso!", description: "Foto de perfil removida." });
+            setPreview(null);
+            setSelectedFile(null);
+            setIsPhotoDialogOpen(false);
+        } catch (error) {
+            toast({ variant: "destructive", title: "Erro", description: "Não foi possível remover a foto." });
+        } finally {
+            setIsUploading(false);
+        }
+    }
+    
+     const getInitials = (name: string) => {
+        if (!name) return '';
+        return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+    }
+
+    return (
+        <div className="flex items-center gap-4">
+             <Avatar className="h-24 w-24 border-2 border-primary">
+                <AvatarImage src={profile.photoURL} alt={profile.name} />
+                <AvatarFallback>{getInitials(profile.fullName)}</AvatarFallback>
+            </Avatar>
+            <Dialog open={isPhotoDialogOpen} onOpenChange={setIsPhotoDialogOpen}>
+                <DialogTrigger asChild>
+                    <Button variant="outline">Editar Foto</Button>
+                </DialogTrigger>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Atualizar Foto de Perfil</DialogTitle>
+                    </DialogHeader>
+                    <div className="flex flex-col items-center gap-4 py-4">
+                        <Avatar className="h-32 w-32 border">
+                            <AvatarImage src={preview || undefined} />
+                            <AvatarFallback><User className="h-16 w-16" /></AvatarFallback>
+                        </Avatar>
+                        <label htmlFor="photo-upload" className={cn(buttonVariants({variant: "outline"}), "cursor-pointer")}>
+                            <UploadCloud className="mr-2 h-4 w-4"/>
+                            Escolher Arquivo
+                        </label>
+                        <input id="photo-upload" type="file" className="hidden" accept={ACCEPTED_IMG_TYPES.join(',')} onChange={handleFileChange} />
+                         <p className="text-xs text-muted-foreground">PNG, JPG, WEBP (Máx 5MB)</p>
+                    </div>
+                    <DialogFooter className="grid grid-cols-2 gap-2 sm:flex">
+                        {profile.photoURL && <Button variant="destructive" onClick={handleRemove} disabled={isUploading}>Remover Foto</Button>}
+                        <div className="col-start-2 flex justify-end gap-2">
+                             <DialogClose asChild><Button variant="secondary">Cancelar</Button></DialogClose>
+                            <Button onClick={handleSave} disabled={isUploading || !selectedFile}>
+                                {isUploading ? <Loader2 className="animate-spin" /> : "Salvar"}
+                            </Button>
+                        </div>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
+    )
+}
+
 
 // Componente para o formulário do veículo
 const VehicleModal = ({ userId, vehicle, onSave, allVehicleTypes, allBodyTypes }: { userId: string, vehicle?: any, onSave: () => void, allVehicleTypes: any[], allBodyTypes: any[] }) => {
@@ -296,10 +415,7 @@ export default function DriverProfileForm({ profile }: { profile: any }) {
             <Card>
                  <CardHeader>
                     <div className="flex flex-col md:flex-row items-start gap-6">
-                        <Avatar className="h-24 w-24 border-2 border-primary">
-                            <AvatarImage src={profile.photoURL ?? ''} alt={profile.name} />
-                            <AvatarFallback>{getInitials(profile.fullName)}</AvatarFallback>
-                        </Avatar>
+                        <PhotoUploader profile={profile} />
                         <div className="flex-1 pt-2">
                             <div className="flex items-center gap-4">
                                 <CardTitle className="text-2xl">{profile.fullName}</CardTitle>
