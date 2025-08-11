@@ -10,7 +10,7 @@ import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Eye, Loader2, MapPin, Search, Filter, X } from 'lucide-react';
+import { Eye, Loader2, MapPin, Search, Filter, X, Truck } from 'lucide-react';
 import Link from 'next/link';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
@@ -268,11 +268,28 @@ export default function FretesClient({
                     const detailLink = freight.freightType === 'agregamento' 
                         ? `/fretes/agregamento/${freight.id}` 
                         : `/fretes/${freight.id}`;
+                    
+                    const requiredVehicleNames = (freight.requiredVehicles || [])
+                        .map((id: string) => allVehicleTypes.find(v => v.id === id)?.name)
+                        .filter(Boolean);
+                    
+                    const requiredBodyworkNames = (freight.requiredBodyworks || [])
+                        .map((id: string) => allBodyTypes.find(b => b.id === id)?.name)
+                        .filter(Boolean);
+
+                    const allTags = [...requiredVehicleNames, ...requiredBodyworkNames];
+                    const displayedTags = allTags.slice(0, 3);
+                    const hiddenTagsCount = allTags.length - displayedTags.length;
+
+                    // Calculate total number of stops/destinations beyond the first one
+                    const additionalStops = (freight.destinations.length - 1) + 
+                        (freight.destinations[0]?.stops > 1 ? freight.destinations[0].stops -1 : 0);
 
                     return (
                         <Card key={freight.id} className="p-4 hover:shadow-md transition-shadow">
-                            <div className="flex justify-between items-start">
-                                <div className="flex-1 space-y-2">
+                            <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                                <div className="flex-1 space-y-3">
+                                    <p className="text-xs font-mono text-muted-foreground">Pedido: {freight.id}</p>
                                     <div className="flex items-center gap-2">
                                         <MapPin className="h-4 w-4 text-muted-foreground"/>
                                         <p className="font-semibold">{freight.origin.city}, {freight.origin.state}</p>
@@ -282,13 +299,17 @@ export default function FretesClient({
                                     </div>
                                     <div className="flex items-center gap-2">
                                          <MapPin className="h-4 w-4 text-muted-foreground"/>
-                                         <div className="font-semibold">
-                                            {freight.destinations[0].city}, {freight.destinations[0].state}
-                                            {freight.destinations.length > 1 && <Badge variant="secondary" className="ml-2">+{freight.destinations.length - 1}</Badge>}
+                                         <div className="font-semibold flex items-center gap-2">
+                                            <span>{freight.destinations[0].city}, {freight.destinations[0].state}</span>
+                                            {additionalStops > 0 && <Badge variant="secondary">+{additionalStops}</Badge>}
                                          </div>
                                     </div>
+                                    <div className="pt-2 flex flex-wrap gap-2">
+                                        {displayedTags.map(tag => <Badge key={tag} variant="outline" className="text-xs"><Truck className="mr-1 h-3 w-3"/>{tag}</Badge>)}
+                                        {hiddenTagsCount > 0 && <Badge variant="secondary" className="text-xs">+{hiddenTagsCount}</Badge>}
+                                    </div>
                                 </div>
-                                <div className="text-right space-y-2 flex flex-col items-end">
+                                <div className="w-full sm:w-auto text-right space-y-2 flex flex-col items-end">
                                     <Badge className={cn(freightTypeVariants({ freightType: freight.freightType }), "text-base font-semibold uppercase")}>
                                         {getFreightTypeLabel(freight.freightType)}
                                     </Badge>
