@@ -190,7 +190,7 @@ export default function FretesClient({
         
         const freightsQuery = query(collection(db, 'freights'), where('status', '==', 'ativo'));
         const unsubscribeFreights = onSnapshot(freightsQuery, (snapshot) => {
-             setFreights(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+             setFreights(snapshot.docs.map(doc => ({ ...doc.data(), firestoreId: doc.id })));
         });
         
         return () => {
@@ -266,18 +266,14 @@ export default function FretesClient({
             <div className="space-y-4">
                 {filteredFreights.map(freight => {
                     const detailLink = freight.freightType === 'agregamento' 
-                        ? `/fretes/agregamento/${freight.id}` 
-                        : `/fretes/${freight.id}`;
+                        ? `/fretes/agregamento/${freight.firestoreId}` 
+                        : `/fretes/${freight.firestoreId}`;
                     
                     const requiredVehicleNames = (freight.requiredVehicles || [])
                         .map((id: string) => allVehicleTypes.find(v => v.id === id)?.name)
                         .filter(Boolean);
-                    
-                    const requiredBodyworkNames = (freight.requiredBodyworks || [])
-                        .map((id: string) => allBodyTypes.find(b => b.id === id)?.name)
-                        .filter(Boolean);
 
-                    const allTags = [...requiredVehicleNames, ...requiredBodyworkNames];
+                    const allTags = [...requiredVehicleNames];
                     const displayedTags = allTags.slice(0, 3);
                     const hiddenTagsCount = allTags.length - displayedTags.length;
 
