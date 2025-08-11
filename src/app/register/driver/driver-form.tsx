@@ -149,7 +149,6 @@ const storage = getStorage(app);
 // ==================================
 // STEP COMPONENTS
 // ==================================
-
 const Step1 = () => {
     const { control, formState: { errors } } = useFormContext<DriverFormData>();
 
