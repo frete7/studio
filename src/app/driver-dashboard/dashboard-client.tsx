@@ -7,7 +7,7 @@ import { db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { User, Clock, ShieldCheck, Loader2, Edit, Search, ArrowRight, FileText, Gift, MessageSquareWarning, LifeBuoy, ClipboardList, Map } from "lucide-react";
+import { User, Clock, ShieldCheck, Loader2, Edit, Search, ArrowRight, FileText, Gift, MessageSquareWarning, LifeBuoy, ClipboardList, Map, Bell } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
@@ -32,6 +32,12 @@ const dashboardCards = [
         description: "Encontre as melhores oportunidades de frete em todo o Brasil.",
         href: "/fretes",
         icon: <Search className="h-6 w-6 text-primary" />,
+    },
+    {
+        title: "Notificações",
+        description: "Veja as últimas atualizações sobre seus fretes e propostas.",
+        href: "#", // Placeholder
+        icon: <Bell className="h-6 w-6 text-primary" />,
     },
     {
         title: "Cadastrar Volta",
