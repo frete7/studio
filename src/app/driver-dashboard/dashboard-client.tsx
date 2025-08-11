@@ -35,8 +35,8 @@ const dashboardCards = [
     },
     {
         title: "Notificações",
-        description: "Veja as últimas atualizações sobre seus fretes e propostas.",
-        href: "#", // Placeholder
+        description: "Configure alertas de fretes para as cidades do seu interesse.",
+        href: "/driver-dashboard/notifications",
         icon: <Bell className="h-6 w-6 text-primary" />,
     },
     {

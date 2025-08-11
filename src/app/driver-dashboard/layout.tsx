@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Home, Search, User, FileText, ClipboardList } from "lucide-react";
+import { Home, Search, User, FileText, ClipboardList, Bell } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 const navItems = [
     { href: '/driver-dashboard', label: 'Início', icon: Home },
     { href: '/driver-dashboard/cadastrar-volta', label: 'Cad. Volta', icon: FileText },
-    { href: '/driver-dashboard/curriculo', label: 'Currículo', icon: ClipboardList },
+    { href: '/driver-dashboard/notifications', label: 'Alertas', icon: Bell },
     { href: '/profile', label: 'Perfil', icon: User },
 ];
 

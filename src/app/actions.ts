@@ -7,7 +7,7 @@ import {
   type OptimizeRouteOutput,
 } from '@/ai/flows/optimize-route';
 import { db } from '@/lib/firebase';
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, updateDoc, writeBatch, where, getCountFromServer, serverTimestamp, Timestamp, collectionGroup, startAt, endAt, orderBy, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, updateDoc, writeBatch, where, getCountFromServer, serverTimestamp, Timestamp, collectionGroup, startAt, endAt, orderBy, arrayUnion, arrayRemove, setDoc } from 'firebase/firestore';
 
 export async function getOptimizedRoute(
   input: OptimizeRouteInput
@@ -1044,5 +1044,20 @@ export async function deleteResumeItem(userId: string, field: 'academicFormation
                 [field]: arrayRemove(itemToRemove)
             });
         }
+    }
+}
+
+
+// Notification Actions
+export async function saveNotificationSettings(userId: string, cities: string[]) {
+    if (!userId) {
+        throw new Error('ID do usuário é obrigatório.');
+    }
+    const settingsDocRef = doc(db, 'users', userId, 'notification_settings', 'cities');
+    try {
+        await setDoc(settingsDocRef, { cities });
+    } catch (error) {
+        console.error("Error saving notification settings:", error);
+        throw new Error("Não foi possível salvar as configurações de notificação.");
     }
 }
