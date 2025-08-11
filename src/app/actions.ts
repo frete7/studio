@@ -1089,8 +1089,12 @@ export async function sendSupportChatMessage(
     userId: string,
     messageData: { text: string; sender: 'user' | 'support'; fileUrl?: string }
 ) {
-    if (!userId || !messageData.text) {
-        throw new Error("Dados da mensagem inválidos.");
+    if (!userId) {
+        throw new Error("ID do usuário inválido.");
+    }
+    
+    if (!messageData.text && !messageData.fileUrl) {
+         throw new Error("A mensagem não pode estar vazia.");
     }
 
     try {

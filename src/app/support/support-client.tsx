@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { onSnapshot, collection, query, orderBy } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, app } from '@/lib/firebase';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -24,15 +24,19 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
 const replySchema = z.object({
-    text: z.string().min(1, "A mensagem não pode estar vazia."),
+    text: z.string(),
     file: z.any()
         .optional()
         .refine((files) => !files || files.length === 0 || files[0].size <= 5 * 1024 * 1024, 'O arquivo deve ter no máximo 5MB.')
         .refine((files) => !files || files.length === 0 || ['image/jpeg', 'image/png', 'application/pdf'].includes(files[0].type), 'Apenas imagens (JPG, PNG) e PDF são permitidos.'),
+}).refine(data => data.text.trim().length > 0 || (data.file && data.file.length > 0), {
+    message: "A mensagem não pode estar vazia.",
+    path: ["text"],
 });
+
 type ReplyFormData = z.infer<typeof replySchema>;
 
-const storage = getStorage();
+const storage = getStorage(app);
 
 export default function SupportClient({ userId }: { userId: string }) {
     const [messages, setMessages] = useState<SupportChatMessage[]>([]);
@@ -97,7 +101,7 @@ export default function SupportClient({ userId }: { userId: string }) {
                 sender: 'user',
                 fileUrl: fileUrl,
             });
-            replyForm.reset();
+            replyForm.reset({ text: '', file: undefined });
         } catch (error) {
             toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível enviar sua mensagem.' });
         } finally {
@@ -129,7 +133,7 @@ export default function SupportClient({ userId }: { userId: string }) {
                                         </div>
                                     </Link>
                                 )}
-                                <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+                                {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
                                 <p className="text-xs opacity-70 mt-1 text-right">{format(msg.createdAt, 'HH:mm')}</p>
                             </div>
                         </div>
@@ -183,6 +187,7 @@ export default function SupportClient({ userId }: { userId: string }) {
                                     {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin"/> : <Send className="h-4 w-4"/>}
                                 </Button>
                             </div>
+                             <FormField control={replyForm.control} name="text" render={({fieldState}) => <FormMessage>{fieldState.error?.message}</FormMessage>} />
                         </form>
                     </Form>
                 </div>
