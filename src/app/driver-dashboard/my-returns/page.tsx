@@ -27,7 +27,6 @@ import {
 import { Badge } from '@/components/ui/badge';
 
 export default function MyReturnsPage() {
-    const [user, setUser] = useState<FirebaseUser | null>(null);
     const [returnTrips, setReturnTrips] = useState<ReturnTrip[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const router = useRouter();
@@ -36,17 +35,17 @@ export default function MyReturnsPage() {
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             if (currentUser) {
-                setUser(currentUser);
                 try {
                     const trips = await getReturnTripsByDriver(currentUser.uid);
                     setReturnTrips(trips);
                 } catch (error) {
                     toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível carregar suas viagens de retorno.' });
+                } finally {
+                    setIsLoading(false);
                 }
             } else {
                 router.push('/login');
             }
-            setIsLoading(false);
         });
         return () => unsubscribe();
     }, [router, toast]);
@@ -168,4 +167,3 @@ export default function MyReturnsPage() {
         </div>
     );
 }
-

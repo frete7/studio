@@ -20,14 +20,19 @@ export default function NotificationsPage() {
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             if (currentUser) {
-                setUser(currentUser);
-                const settingsDocRef = doc(db, 'users', currentUser.uid, 'notification_settings', 'cities');
-                const settingsDoc = await getDoc(settingsDocRef);
-                setSettings(settingsDoc.exists() ? settingsDoc.data() : { cities: [] });
+                try {
+                    setUser(currentUser);
+                    const settingsDocRef = doc(db, 'users', currentUser.uid, 'notification_settings', 'cities');
+                    const settingsDoc = await getDoc(settingsDocRef);
+                    setSettings(settingsDoc.exists() ? settingsDoc.data() : { cities: [] });
+                } catch (error) {
+                    console.error("Error fetching settings:", error);
+                } finally {
+                    setIsLoading(false);
+                }
             } else {
                 router.push('/login');
             }
-            setIsLoading(false);
         });
 
         return () => unsubscribe();
@@ -41,7 +46,7 @@ export default function NotificationsPage() {
         );
     }
     
-    if (!user) {
+    if (!user || !settings) {
         return null;
     }
 

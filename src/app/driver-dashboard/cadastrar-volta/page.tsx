@@ -22,22 +22,22 @@ export default function CadastrarVoltaPage() {
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             if (currentUser) {
-                setUser(currentUser);
-                const userDocRef = doc(db, 'users', currentUser.uid);
-                const userDoc = await getDoc(userDocRef);
+                try {
+                    const userDocRef = doc(db, 'users', currentUser.uid);
+                    const vehiclesQuery = query(collection(db, 'users', currentUser.uid, 'vehicles'));
 
-                if (userDoc.exists()) {
-                    setProfile(userDoc.data());
-                    
-                    try {
-                        // Query only for the vehicles inside the user's subcollection
-                        const vehiclesQuery = query(collection(db, 'users', currentUser.uid, 'vehicles'));
-                        const vehiclesSnapshot = await getDocs(vehiclesQuery);
+                    const [userDoc, vehiclesSnapshot] = await Promise.all([
+                        getDoc(userDocRef),
+                        getDocs(vehiclesQuery),
+                    ]);
+
+                    if (userDoc.exists()) {
+                        setUser(currentUser);
+                        setProfile(userDoc.data());
 
                         const vehicleDataPromises = vehiclesSnapshot.docs.map(async (vehicleDoc) => {
                             const vehicleData = vehicleDoc.data();
                             
-                            // Fetch names for vehicleType and bodyType for each vehicle
                             const vehicleTypeRef = doc(db, 'vehicle_types', vehicleData.vehicleTypeId);
                             const bodyTypeRef = doc(db, 'body_types', vehicleData.bodyTypeId);
 
@@ -56,24 +56,23 @@ export default function CadastrarVoltaPage() {
                         
                         const userVehicles = await Promise.all(vehicleDataPromises);
                         setVehicles(userVehicles);
-
-                    } catch (e) {
-                         console.error("Error fetching vehicles and related data: ", e);
-                         setVehicles([]);
+                    } else {
+                        router.push('/login');
                     }
-
-
-                } else {
-                    router.push('/login');
+                } catch (e) {
+                    console.error("Error fetching page data: ", e);
+                    router.push('/driver-dashboard');
+                } finally {
+                    setIsLoading(false);
                 }
             } else {
                 router.push('/login');
             }
-            setIsLoading(false);
         });
 
         return () => unsubscribe();
     }, [router]);
+
 
     if (isLoading || !profile) {
         return (

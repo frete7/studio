@@ -12,7 +12,6 @@ import { Button } from '@/components/ui/button';
 import CurriculoClient from './curriculo-client';
 
 export default function CurriculoPage() {
-    const [user, setUser] = useState<FirebaseUser | null>(null);
     const [profile, setProfile] = useState<any | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const router = useRouter();
@@ -23,7 +22,6 @@ export default function CurriculoPage() {
                 const userDocRef = doc(db, 'users', currentUser.uid);
                 const unsubSnapshot = onSnapshot(userDocRef, (doc) => {
                     if (doc.exists()) {
-                        setUser(currentUser);
                         setProfile({ uid: doc.id, ...doc.data() });
                     } else {
                         router.push('/login');
@@ -48,8 +46,8 @@ export default function CurriculoPage() {
         );
     }
     
-    if (!user || !profile) {
-        return null; // Or a more elaborate loading/error state
+    if (!profile) {
+        return null;
     }
 
     return (

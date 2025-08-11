@@ -95,6 +95,15 @@ export default function DashboardClient({ initialProfile }: { initialProfile: Us
         return () => unsubscribeSnapshot();
     }, [profile?.uid]);
 
+    if (!profile) {
+        return (
+            <div className="flex h-64 items-center justify-center">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
+        );
+    }
+
+
     switch (profile.status) {
         case 'pending':
             return (
