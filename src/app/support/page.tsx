@@ -3,30 +3,56 @@
 
 import { useState, useEffect } from 'react';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import SupportClient from './support-client';
+import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { type SupportChatMessage } from '../actions';
+import { useToast } from '@/hooks/use-toast';
 
 export default function SupportPage() {
     const [user, setUser] = useState<FirebaseUser | null>(null);
+    const [messages, setMessages] = useState<SupportChatMessage[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const router = useRouter();
+    const { toast } = useToast();
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+        const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
             if (currentUser) {
                 setUser(currentUser);
+                const q = query(collection(db, 'users', currentUser.uid, 'supportChat'), orderBy('createdAt', 'asc'));
+                
+                const unsubscribeChat = onSnapshot(q, (snapshot) => {
+                    const loadedMessages: SupportChatMessage[] = [];
+                    snapshot.forEach((doc) => {
+                        const data = doc.data();
+                        loadedMessages.push({
+                            id: doc.id,
+                            ...data,
+                            createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
+                        } as SupportChatMessage);
+                    });
+                    setMessages(loadedMessages);
+                    setIsLoading(false);
+                }, (error) => {
+                    console.error("Error fetching chat: ", error);
+                    toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível carregar o chat.'});
+                    setIsLoading(false);
+                });
+
+                return () => unsubscribeChat();
             } else {
                 router.push('/login');
+                setIsLoading(false);
             }
-            setIsLoading(false);
         });
 
-        return () => unsubscribe();
-    }, [router]);
+        return () => unsubscribeAuth();
+    }, [router, toast]);
 
     if (isLoading) {
         return (
@@ -57,7 +83,7 @@ export default function SupportPage() {
                         Converse com nossa equipe para tirar dúvidas ou resolver problemas.
                     </p>
                 </div>
-                <SupportClient userId={user.uid} />
+                <SupportClient userId={user.uid} initialMessages={messages} />
             </div>
         </div>
     );

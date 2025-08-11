@@ -5,13 +5,12 @@ import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { onSnapshot, collection, query, orderBy } from 'firebase/firestore';
-import { db, app } from '@/lib/firebase';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import Link from 'next/link';
 
-import { sendSupportChatMessage, type SupportChatMessage } from '../actions';
+import { sendSupportChatMessage } from '../actions';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,7 +20,16 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Loader2, Paperclip, Send, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import Link from 'next/link';
+
+
+export type SupportChatMessage = {
+  id: string;
+  text: string;
+  sender: 'user' | 'support';
+  createdAt: any;
+  fileUrl?: string;
+};
+
 
 const replySchema = z.object({
     text: z.string(),
@@ -36,14 +44,17 @@ const replySchema = z.object({
 
 type ReplyFormData = z.infer<typeof replySchema>;
 
-const storage = getStorage(app);
+const storage = getStorage();
 
-export default function SupportClient({ userId }: { userId: string }) {
-    const [messages, setMessages] = useState<SupportChatMessage[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+export default function SupportClient({ userId, initialMessages }: { userId: string, initialMessages: SupportChatMessage[] }) {
+    const [messages, setMessages] = useState<SupportChatMessage[]>(initialMessages);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
     const scrollAreaRef = useRef<HTMLDivElement>(null);
+    
+    useEffect(() => {
+        setMessages(initialMessages);
+    }, [initialMessages]);
 
     const replyForm = useForm<ReplyFormData>({ 
         resolver: zodResolver(replySchema),
@@ -53,33 +64,8 @@ export default function SupportClient({ userId }: { userId: string }) {
         }
     });
     const attachedFile = replyForm.watch('file');
-
-    useEffect(() => {
-        if (!userId) return;
-        setIsLoading(true);
-        const q = query(collection(db, 'users', userId, 'supportChat'), orderBy('createdAt', 'asc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const loadedMessages: SupportChatMessage[] = [];
-            snapshot.forEach((doc) => {
-                const data = doc.data();
-                loadedMessages.push({
-                    id: doc.id,
-                    ...data,
-                    createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
-                } as SupportChatMessage);
-            });
-            setMessages(loadedMessages);
-            setIsLoading(false);
-        }, (error) => {
-            console.error("Error fetching chat: ", error);
-            toast({ variant: 'destructive', title: 'Erro', description: 'Não foi possível carregar o chat.'});
-            setIsLoading(false);
-        });
-        return () => unsubscribe();
-    }, [userId, toast]);
     
     useEffect(() => {
-        // Auto-scroll to bottom
         if (scrollAreaRef.current) {
             scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
         }
@@ -96,6 +82,13 @@ export default function SupportClient({ userId }: { userId: string }) {
                 await uploadBytes(fileRef, file);
                 fileUrl = await getDownloadURL(fileRef);
             }
+
+            if (!data.text && !fileUrl) {
+                toast({ variant: 'destructive', title: 'Erro', description: 'A mensagem não pode estar vazia.' });
+                setIsSubmitting(false);
+                return;
+            }
+
             await sendSupportChatMessage(userId, {
                 text: data.text,
                 sender: 'user',
@@ -110,10 +103,6 @@ export default function SupportClient({ userId }: { userId: string }) {
     };
 
     const renderChat = () => {
-        if (isLoading) {
-            return <div className="flex justify-center items-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
-        }
-
         if (messages.length === 0) {
             return <div className="flex flex-col justify-center items-center h-full text-center text-muted-foreground"><p>Nenhuma mensagem ainda.</p><p>Envie sua primeira mensagem para iniciar a conversa.</p></div>;
         }
@@ -134,7 +123,7 @@ export default function SupportClient({ userId }: { userId: string }) {
                                     </Link>
                                 )}
                                 {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
-                                <p className="text-xs opacity-70 mt-1 text-right">{format(msg.createdAt, 'HH:mm')}</p>
+                                <p className="text-xs opacity-70 mt-1 text-right">{format(msg.createdAt, 'HH:mm', { locale: ptBR })}</p>
                             </div>
                         </div>
                     ))}
