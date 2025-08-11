@@ -5,8 +5,6 @@ import { db } from '@/lib/firebase';
 import { notFound } from 'next/navigation';
 import FreightDetailsClient from './freight-details-client';
 import { type Freight } from '@/app/actions';
-import { getAuth } from 'firebase-admin/auth';
-import { getFirebaseAdminApp } from '@/lib/firebase-admin';
 
 
 type FreightDetailsPageProps = {
@@ -29,7 +27,7 @@ async function getFreight(id: string) {
         }
     });
     
-    return { ...data, id: docSnap.id } as Freight;
+    return { ...data, firestoreId: docSnap.id, id: data.id } as Freight;
 }
 
 export default async function FreightDetailsPage({ params }: FreightDetailsPageProps) {
