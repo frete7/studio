@@ -149,7 +149,7 @@ const storage = getStorage(app);
 // ==================================
 // FORM COMPONENT
 // ==================================
-export default function DriverRegisterForm() {
+export default function DriverRegisterForm({ allVehicleTypes, allBodyTypes }: { allVehicleTypes: VehicleType[], allBodyTypes: BodyType[] }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -350,7 +350,7 @@ export default function DriverRegisterForm() {
               {currentStep === 0 && <Step1 />}
               {currentStep === 1 && <Step2 />}
               {currentStep === 2 && <Step3 />}
-              {currentStep === 3 && <Step4 />}
+              {currentStep === 3 && <Step4 allVehicleTypes={allVehicleTypes} allBodyTypes={allBodyTypes} />}
               {currentStep === 4 && <Step5 />}
             </form>
           </FormProvider>
@@ -595,41 +595,14 @@ const Step3 = () => {
     )
 }
 
-const Step4 = () => {
+const Step4 = ({ allVehicleTypes, allBodyTypes }: { allVehicleTypes: VehicleType[], allBodyTypes: BodyType[] }) => {
     const { control, formState: { errors } } = useFormContext();
     const { fields, append, remove } = useFieldArray({
         control,
         name: "vehicles",
     });
 
-    const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
-    const [bodyTypes, setBodyTypes] = useState<BodyType[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-
-    useEffect(() => {
-        const fetchData = async () => {
-            setIsLoading(true);
-            try {
-                const [vtSnap, btSnap] = await Promise.all([
-                    getDocs(collection(db, 'vehicle_types')),
-                    getDocs(collection(db, 'body_types')),
-                ]);
-                setVehicleTypes(vtSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as VehicleType)));
-                setBodyTypes(btSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as BodyType)));
-            } catch (error) {
-                console.error("Failed to fetch vehicle/body types", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchData();
-    }, []);
-
     const yearOptions = Array.from({ length: 60 }, (_, i) => (new Date().getFullYear() - i).toString());
-
-    if (isLoading) {
-        return <div className="flex justify-center"><Loader2 className="animate-spin" /></div>;
-    }
 
     return (
         <div className="space-y-6">
@@ -653,8 +626,8 @@ const Step4 = () => {
                              <FormField control={control} name={`vehicles.${index}.licensePlate`} render={({ field }) => (<FormItem><FormLabel>Placa</FormLabel><FormControl><Input placeholder="BRA2E19" {...field} /></FormControl><FormMessage /></FormItem>)} />
                         </div>
                         <div className="grid md:grid-cols-2 gap-4 mt-4">
-                             <FormField control={control} name={`vehicles.${index}.vehicleTypeId`} render={({ field }) => (<FormItem><FormLabel>Tipo de Veículo</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl><SelectContent>{vehicleTypes.map(vt => <SelectItem key={vt.id} value={vt.id}>{vt.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                             <FormField control={control} name={`vehicles.${index}.bodyTypeId`} render={({ field }) => (<FormItem><FormLabel>Tipo de Carroceria</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl><SelectContent>{bodyTypes.map(bt => <SelectItem key={bt.id} value={bt.id}>{bt.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                             <FormField control={control} name={`vehicles.${index}.vehicleTypeId`} render={({ field }) => (<FormItem><FormLabel>Tipo de Veículo</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl><SelectContent>{allVehicleTypes.map(vt => <SelectItem key={vt.id} value={vt.id}>{vt.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                             <FormField control={control} name={`vehicles.${index}.bodyTypeId`} render={({ field }) => (<FormItem><FormLabel>Tipo de Carroceria</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl><SelectContent>{allBodyTypes.map(bt => <SelectItem key={bt.id} value={bt.id}>{bt.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                         </div>
                         <div className="mt-4 space-y-4">
                              <FileInput name={`vehicles.${index}.crlvFile`} label="CRLV" description="Imagem ou PDF" acceptedTypes={ACCEPTED_DOC_TYPES} />
@@ -747,4 +720,3 @@ const Step5 = () => {
         </div>
     );
 }
-
