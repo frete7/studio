@@ -501,8 +501,8 @@ const Step2 = () => {
             <FormField control={control} name="hasAntt" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-4"><div className="space-y-0.5"><FormLabel>Possui ANTT (Agência Nacional de Transportes Terrestres)?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
              {hasAntt && <FormField control={control} name="rntrc" render={({ field }) => (<FormItem><FormLabel>RNTRC</FormLabel><FormControl><Input placeholder="Número do RNTRC" {...field} /></FormControl><FormMessage /></FormItem>)} />}
         </div>
-    )
-}
+    );
+};
 
 const FileInput = ({ name, label, description, acceptedTypes, captureMode }: { name: any, label: string, description: string, acceptedTypes: string[], captureMode?: 'user' | 'environment' }) => {
     const { control, watch } = useFormContext();
@@ -570,7 +570,7 @@ const FileInput = ({ name, label, description, acceptedTypes, captureMode }: { n
             )}
         />
     )
-}
+};
 
 const Step3 = () => {
     const { control } = useFormContext();
@@ -592,8 +592,8 @@ const Step3 = () => {
                  )} />
             </div>
         </div>
-    )
-}
+    );
+};
 
 const Step4 = ({ allVehicleTypes, allBodyTypes }: { allVehicleTypes: VehicleType[], allBodyTypes: BodyType[] }) => {
     const { control, formState: { errors } } = useFormContext();
