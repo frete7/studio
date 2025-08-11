@@ -1061,3 +1061,16 @@ export async function saveNotificationSettings(userId: string, cities: string[])
         throw new Error("Não foi possível salvar as configurações de notificação.");
     }
 }
+
+export async function savePushSubscription(userId: string, subscription: PushSubscriptionJSON) {
+  if (!userId) {
+    throw new Error('ID do usuário é obrigatório.');
+  }
+  const subDocRef = doc(db, 'users', userId, 'push_subscriptions', subscription.endpoint.slice(-10));
+  try {
+    await setDoc(subDocRef, subscription);
+  } catch (error) {
+    console.error("Error saving push subscription:", error);
+    throw new Error("Não foi possível salvar a inscrição de notificação.");
+  }
+}

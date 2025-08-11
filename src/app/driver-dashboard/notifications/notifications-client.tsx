@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { saveNotificationSettings } from '@/app/actions';
+import { saveNotificationSettings, savePushSubscription } from '@/app/actions';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -105,8 +105,8 @@ export default function NotificationsClient({ userId, initialSettings }: { userI
     };
     
     const requestNotificationPermission = async () => {
-        if (!('Notification' in window)) {
-            toast({ variant: 'destructive', title: 'Erro', description: 'Este navegador não suporta notificações.' });
+        if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+            toast({ variant: 'destructive', title: 'Erro', description: 'Este navegador não suporta notificações push.' });
             return;
         }
 
@@ -115,7 +115,23 @@ export default function NotificationsClient({ userId, initialSettings }: { userI
 
         if (permission === 'granted') {
             toast({ title: 'Sucesso!', description: 'Notificações autorizadas.' });
-            // Here you would typically register the service worker and get the subscription
+            
+            try {
+                const registration = await navigator.serviceWorker.ready;
+                const subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    // REMOVE: this is insecure
+                    applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+                });
+                
+                await savePushSubscription(userId, subscription);
+                toast({ title: 'Inscrição realizada!', description: 'Você está pronto para receber notificações.' });
+
+            } catch (error) {
+                console.error('Push subscription failed: ', error);
+                toast({ variant: 'destructive', title: 'Falha na inscrição', description: 'Não foi possível se inscrever para notificações.' });
+            }
+
         } else {
             toast({ variant: 'destructive', title: 'Permissão negada', description: 'Você precisa autorizar para receber notificações.' });
         }
