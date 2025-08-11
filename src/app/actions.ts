@@ -625,7 +625,7 @@ export async function getFilteredFreights(filters: FreightFilters): Promise<any[
              const data = doc.data();
              const createdAt = data.createdAt;
              let serializableCreatedAt = null;
-             if (createdAt && typeof createdAt.toDate === 'function') {
+             if (createdAt instanceof Timestamp) {
                 serializableCreatedAt = createdAt.toDate().toISOString();
              }
 

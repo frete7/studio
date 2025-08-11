@@ -11,15 +11,21 @@ export const metadata: Metadata = {
 };
 
 // Helper function to serialize Firestore Timestamps in nested objects
-const serializeTimestamps = (data: any) => {
+const serializeData = (data: any) => {
+    const serialized: { [key: string]: any } = {};
     for (const key in data) {
-        if (data[key] instanceof Timestamp) {
-            data[key] = data[key].toDate().toISOString();
-        } else if (typeof data[key] === 'object' && data[key] !== null) {
-            serializeTimestamps(data[key]);
-        }
+      const value = data[key];
+      if (value instanceof Timestamp) {
+        serialized[key] = value.toDate().toISOString();
+      } else if (Array.isArray(value)) {
+        serialized[key] = value.map(item => typeof item === 'object' && item !== null ? serializeData(item) : item);
+      } else if (typeof value === 'object' && value !== null && !value.toDate) { // Check it's a plain object
+        serialized[key] = serializeData(value);
+      } else {
+        serialized[key] = value;
+      }
     }
-    return data;
+    return serialized;
 };
 
 
@@ -43,7 +49,7 @@ async function getFretesInitialData() {
         const allVehicleCategories = vehicleCategoriesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as VehicleCategory));
         
         // Serialize any Timestamps before passing to the client component
-        const serializedFreights = initialFreights.map(freight => serializeTimestamps(freight));
+        const serializedFreights = initialFreights.map(freight => serializeData(freight));
 
         return { initialFreights: serializedFreights, allBodyTypes, allVehicleTypes, allVehicleCategories };
     } catch (error) {
