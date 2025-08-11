@@ -1454,7 +1454,7 @@ export default function AgregamentoClient({ companyId, companyName }: { companyI
     <Dialog open={isSummaryOpen} onOpenChange={setIsSummaryOpen}>
         <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
-                <DialogTitle className="text-2xl">Confirme sua Solicitação</DialogTitle>
+                <DialogTitle>Confirme sua Solicitação</DialogTitle>
                 <p className="text-sm text-muted-foreground">
                     Por favor, revise todos os dados antes de finalizar.
                 </p>
@@ -1478,7 +1478,7 @@ export default function AgregamentoClient({ companyId, companyName }: { companyI
                 <DialogHeader>
                 <div className="flex flex-col items-center text-center gap-4 py-4">
                     <CheckCircle className="h-16 w-16 text-green-500" />
-                    <DialogTitle className="text-2xl">Pedidos Realizados com Sucesso!</DialogTitle>
+                    <DialogTitle>Pedidos Realizados com Sucesso!</DialogTitle>
                     <p className="text-muted-foreground">Suas solicitações já estão ativas na plataforma para os motoristas visualizarem.</p>
                      <div className="bg-muted rounded-md p-3 w-full text-center mt-2 space-y-2 max-h-40 overflow-y-auto">
                         <p className="text-sm font-semibold">Códigos dos Pedidos Gerados:</p>
