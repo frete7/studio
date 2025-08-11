@@ -10,7 +10,7 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db, app } from '@/lib/firebase';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
@@ -720,3 +720,5 @@ const Step5 = () => {
         </div>
     );
 }
+
+    
