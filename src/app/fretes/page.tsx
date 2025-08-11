@@ -2,7 +2,7 @@
 import type { Metadata } from 'next';
 import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { type BodyType, type Vehicle, type VehicleCategory, getFreightsByCompany, getFilteredFreights } from '@/app/actions';
+import { type BodyType, type Vehicle, type VehicleCategory, getFilteredFreights } from '@/app/actions';
 import FretesClient from './fretes-client';
 
 export const metadata: Metadata = {
@@ -11,21 +11,22 @@ export const metadata: Metadata = {
 };
 
 // Helper function to serialize Firestore Timestamps in nested objects
-const serializeData = (data: any) => {
-    const serialized: { [key: string]: any } = {};
-    for (const key in data) {
-      const value = data[key];
-      if (value instanceof Timestamp) {
-        serialized[key] = value.toDate().toISOString();
-      } else if (Array.isArray(value)) {
-        serialized[key] = value.map(item => typeof item === 'object' && item !== null ? serializeData(item) : item);
-      } else if (typeof value === 'object' && value !== null && !value.toDate) { // Check it's a plain object
-        serialized[key] = serializeData(value);
-      } else {
-        serialized[key] = value;
-      }
+const serializeData = (data: any): any => {
+    if (!data) return data;
+    if (Array.isArray(data)) {
+        return data.map(serializeData);
     }
-    return serialized;
+    if (data instanceof Timestamp) {
+        return data.toDate().toISOString();
+    }
+    if (typeof data === 'object' && data !== null) {
+        const serialized: { [key: string]: any } = {};
+        for (const key in data) {
+            serialized[key] = serializeData(data[key]);
+        }
+        return serialized;
+    }
+    return data;
 };
 
 
