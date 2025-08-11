@@ -1076,21 +1076,8 @@ export async function savePushSubscription(userId: string, subscription: PushSub
 }
 
 
-// Support Ticket Actions
-export type SupportTicket = {
-    id: string;
-    protocol: string;
-    userId: string;
-    userName: string;
-    userPhone: string;
-    userCpf: string;
-    title: string;
-    status: 'pendente' | 'analisando' | 'aguardando' | 'concluido';
-    createdAt: Timestamp;
-    lastUpdatedAt: Timestamp;
-};
-
-export type SupportMessage = {
+// Support Chat Actions
+export type SupportChatMessage = {
     id: string;
     text: string;
     sender: 'user' | 'support';
@@ -1098,81 +1085,34 @@ export type SupportMessage = {
     fileUrl?: string;
 };
 
-export async function createSupportTicket(
-    userId: string, 
-    userData: { name: string, phone: string, cpf: string }, 
-    ticketData: { title: string, description: string }
+export async function sendSupportChatMessage(
+    userId: string,
+    messageData: { text: string; sender: 'user' | 'support'; fileUrl?: string }
 ) {
-    if (!userId || !ticketData.title || !ticketData.description) {
-        throw new Error("Dados insuficientes para criar o chamado.");
-    }
-
-    try {
-        const protocol = `#${Math.floor(10000000 + Math.random() * 90000000).toString()}`;
-        const ticketRef = await addDoc(collection(db, 'support_tickets'), {
-            protocol,
-            userId,
-            userName: userData.name,
-            userPhone: userData.phone,
-            userCpf: userData.cpf,
-            title: ticketData.title,
-            status: 'pendente',
-            createdAt: serverTimestamp(),
-            lastUpdatedAt: serverTimestamp(),
-        });
-
-        const initialMessage = {
-            text: ticketData.description,
-            sender: 'user',
-            createdAt: serverTimestamp(),
-        };
-        await addDoc(collection(ticketRef, 'messages'), initialMessage);
-
-        return ticketRef.id;
-
-    } catch (error) {
-        console.error("Error creating support ticket: ", error);
-        throw new Error("Não foi possível abrir o chamado.");
-    }
-}
-
-
-export async function addSupportTicketMessage(
-    ticketId: string, 
-    messageData: { text: string, sender: 'user' | 'support', fileUrl?: string }
-) {
-    if (!ticketId || !messageData.text) {
+    if (!userId || !messageData.text) {
         throw new Error("Dados da mensagem inválidos.");
     }
-    
-    try {
-        const ticketRef = doc(db, 'support_tickets', ticketId);
-        const messagesCollection = collection(ticketRef, 'messages');
 
-        await addDoc(messagesCollection, {
+    try {
+        const chatCollectionRef = collection(db, 'users', userId, 'supportChat');
+        await addDoc(chatCollectionRef, {
             ...messageData,
             createdAt: serverTimestamp(),
         });
-
-        await updateDoc(ticketRef, {
-            lastUpdatedAt: serverTimestamp(),
-            status: 'analisando' // Whenever a user replies, it goes back to 'analisando'
-        });
-
     } catch (error) {
-         console.error("Error adding message to support ticket: ", error);
+        console.error("Error sending support chat message: ", error);
         throw new Error("Não foi possível enviar a mensagem.");
     }
 }
 
-export async function getSupportTicketsByUser(userId: string) {
+export async function getSupportChatHistory(userId: string) {
     if (!userId) {
         throw new Error("ID do usuário é obrigatório.");
     }
     
     try {
-        const ticketsCollection = collection(db, 'support_tickets');
-        const q = query(ticketsCollection, where('userId', '==', userId), orderBy('lastUpdatedAt', 'desc'));
+        const chatCollection = collection(db, 'users', userId, 'supportChat');
+        const q = query(chatCollection, orderBy('createdAt', 'asc'));
         
         const snapshot = await getDocs(q);
         if (snapshot.empty) {
@@ -1182,29 +1122,7 @@ export async function getSupportTicketsByUser(userId: string) {
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
     } catch (error) {
-        console.error("Error fetching support tickets: ", error);
-        return [];
-    }
-}
-
-export async function getSupportTicketMessages(ticketId: string) {
-    if (!ticketId) {
-        throw new Error("ID do ticket é obrigatório.");
-    }
-    
-    try {
-        const messagesCollection = collection(db, 'support_tickets', ticketId, 'messages');
-        const q = query(messagesCollection, orderBy('createdAt', 'asc'));
-        
-        const snapshot = await getDocs(q);
-        if (snapshot.empty) {
-            return [];
-        }
-        
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-    } catch (error) {
-        console.error("Error fetching support ticket messages: ", error);
+        console.error("Error fetching support chat history: ", error);
         return [];
     }
 }

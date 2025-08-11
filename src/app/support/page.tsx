@@ -3,44 +3,26 @@
 
 import { useState, useEffect } from 'react';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import SupportClient from './support-client';
-import { getSupportTicketsByUser, type SupportTicket } from '../actions';
 
 export default function SupportPage() {
     const [user, setUser] = useState<FirebaseUser | null>(null);
-    const [profile, setProfile] = useState<any | null>(null);
-    const [initialTickets, setInitialTickets] = useState<SupportTicket[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const router = useRouter();
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             if (currentUser) {
-                try {
-                    setUser(currentUser);
-                    const userDocRef = doc(db, 'users', currentUser.uid);
-                    const userDoc = await getDoc(userDocRef);
-                    if (userDoc.exists()) {
-                        setProfile(userDoc.data());
-                        const tickets = await getSupportTicketsByUser(currentUser.uid);
-                        setInitialTickets(tickets as SupportTicket[]);
-                    } else {
-                        router.push('/login');
-                    }
-                } catch (error) {
-                    console.error("Error fetching initial data for support page: ", error);
-                } finally {
-                    setIsLoading(false);
-                }
+                setUser(currentUser);
             } else {
                 router.push('/login');
             }
+            setIsLoading(false);
         });
 
         return () => unsubscribe();
@@ -54,7 +36,7 @@ export default function SupportPage() {
         );
     }
     
-    if (!user || !profile) {
+    if (!user) {
         return null;
     }
 
@@ -72,14 +54,10 @@ export default function SupportPage() {
                 <div className="text-center mb-12">
                     <h1 className="text-4xl font-bold font-headline text-primary">Central de Suporte</h1>
                     <p className="mt-2 text-lg text-foreground/70">
-                        Veja seus chamados ou abra um novo ticket para nossa equipe.
+                        Converse com nossa equipe para tirar dúvidas ou resolver problemas.
                     </p>
                 </div>
-                <SupportClient 
-                    userId={user.uid}
-                    userProfile={profile}
-                    initialTickets={initialTickets}
-                />
+                <SupportClient userId={user.uid} />
             </div>
         </div>
     );
