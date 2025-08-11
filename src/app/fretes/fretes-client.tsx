@@ -270,8 +270,12 @@ export default function FretesClient({
                         ? `/fretes/agregamento/${freight.firestoreId}` 
                         : `/fretes/${freight.firestoreId}`;
                     
-                    const requiredVehicleNames = (freight.requiredVehicles || [])
-                        .map((id: string) => allVehicleTypes.find(v => v.id === id)?.name)
+                     const requiredVehicleNames = (freight.requiredVehicles || [])
+                        .map((vehicle: any) => {
+                            // For agregamento, it's an object, for others it's an ID string
+                            const vehicleId = typeof vehicle === 'string' ? vehicle : vehicle.id;
+                            return allVehicleTypes.find(v => v.id === vehicleId)?.name;
+                        })
                         .filter(Boolean);
 
                     const allTags = [...requiredVehicleNames];
