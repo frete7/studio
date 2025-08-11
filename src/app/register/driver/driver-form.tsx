@@ -108,7 +108,14 @@ const formSchema = z.object({
   cnhExpiration: z.date({ required_error: "Data de vencimento é obrigatória."}),
 
   // Step 4
-  vehicles: z.array(vehicleSchema).min(1, "Você deve adicionar pelo menos um veículo."),
+  vehicles: z.array(vehicleSchema)
+    .min(1, "Você deve adicionar pelo menos um veículo.")
+    .refine((vehicles) => {
+        const licensePlates = vehicles.map(v => v.licensePlate);
+        return new Set(licensePlates).size === licensePlates.length;
+    }, {
+        message: "Placas de veículo duplicadas não são permitidas.",
+    }),
   
   // Step 5
   email: z.string().email("Email inválido."),
@@ -316,7 +323,7 @@ export default function DriverRegisterForm() {
 
   const prevStep = () => {
     if (currentStep > 0) {
-      setCurrentStep(step => step + 1);
+      setCurrentStep(step => step - 1);
     }
   };
 
@@ -662,7 +669,7 @@ const Step4 = () => {
                 Adicionar outro veículo
             </Button>
             <FormMessage>
-                {typeof errors.vehicles === 'object' && !Array.isArray(errors.vehicles) && errors.vehicles?.message}
+                {typeof errors.vehicles === 'object' && !Array.isArray(errors.vehicles) && errors.vehicles?.root?.message}
             </FormMessage>
         </div>
     );
@@ -740,3 +747,4 @@ const Step5 = () => {
         </div>
     );
 }
+

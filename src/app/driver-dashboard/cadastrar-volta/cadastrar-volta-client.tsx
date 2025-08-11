@@ -227,10 +227,10 @@ function ReturnCard({ nestIndex, remove }: { nestIndex: number; remove: (index: 
     const destinationCity = watch(`returns.${nestIndex}.destinationCity`);
 
     const getReturnTitle = () => {
-        if (!origin.state || !origin.city) return `Retorno ${nestIndex + 1}`;
+        if (!origin?.state || !origin?.city) return `Retorno ${nestIndex + 1}`;
         let destText = 'Brasil Todo';
-        if (destinationType === 'estado') destText = `Estado de ${destinationState}`;
-        if (destinationType === 'cidade') destText = `${destinationCity}, ${destinationState}`;
+        if (destinationType === 'estado') destText = `Estado de ${destinationState || '...'}`;
+        if (destinationType === 'cidade') destText = `${destinationCity || '...'}, ${destinationState || '...'}`;
 
         return `De ${origin.city}, ${origin.state} para ${destText}`;
     }
@@ -452,3 +452,4 @@ export default function CadastrarVoltaClient({ driverId, profile, vehicles }: { 
         </FormProvider>
     );
 }
+
