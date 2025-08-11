@@ -301,14 +301,14 @@ export default function FretesClient({
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <MapPin className="h-4 w-4 text-muted-foreground"/>
-                                        <p className="font-semibold">{freight.origin.city}, {freight.origin.state}</p>
+                                        <p className="font-semibold text-sm sm:text-base">{freight.origin.city}, {freight.origin.state}</p>
                                     </div>
                                     <div className="pl-6">
                                             <div className="border-l-2 border-dashed h-4"></div>
                                     </div>
                                     <div className="flex items-center gap-2">
                                             <MapPin className="h-4 w-4 text-muted-foreground"/>
-                                            <div className="font-semibold flex items-center gap-2">
+                                            <div className="font-semibold flex items-center gap-2 text-sm sm:text-base">
                                             <span>{freight.destinations[0].city}, {freight.destinations[0].state}</span>
                                             {additionalStops > 0 && <Badge variant="secondary">+{additionalStops}</Badge>}
                                             </div>
