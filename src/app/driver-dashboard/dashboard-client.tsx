@@ -72,7 +72,7 @@ const dashboardCards = [
      {
         title: "Suporte",
         description: "Precisa de ajuda? Entre em contato com nossa equipe de suporte.",
-        href: "#", // Placeholder
+        href: "/support",
         icon: <LifeBuoy className="h-6 w-6 text-primary" />,
     },
 ]
