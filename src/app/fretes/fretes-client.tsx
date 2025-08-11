@@ -220,7 +220,12 @@ export default function FretesClient({
             if (selectedFreightTypes.length > 0 && !selectedFreightTypes.includes(freight.freightType)) {
                 return false;
             }
-            // Vehicle and Body type filters can be added here once we have that data in freights
+            if (selectedVehicles.length > 0 && !freight.requiredVehicles.some((vId: string) => selectedVehicles.includes(vId))) {
+                 return false;
+            }
+            if (selectedBodyTypes.length > 0 && !freight.requiredBodyworks.some((bId: string) => selectedBodyTypes.includes(bId))) {
+                return false;
+            }
             return true;
         });
     }, [freights, originCities, destinationCities, selectedVehicles, selectedBodyTypes, selectedFreightTypes]);
@@ -272,7 +277,6 @@ export default function FretesClient({
                     
                      const requiredVehicleNames = (freight.requiredVehicles || [])
                         .map((vehicle: any) => {
-                            // For agregamento, it's an object, for others it's an ID string
                             const vehicleId = typeof vehicle === 'string' ? vehicle : vehicle.id;
                             return allVehicleTypes.find(v => v.id === vehicleId)?.name;
                         })
@@ -282,39 +286,40 @@ export default function FretesClient({
                     const displayedTags = allTags.slice(0, 3);
                     const hiddenTagsCount = allTags.length - displayedTags.length;
 
-                    // Calculate total number of stops/destinations beyond the first one
                     const additionalStops = (freight.destinations.length - 1) + 
                         (freight.destinations[0]?.stops > 1 ? freight.destinations[0].stops -1 : 0);
 
                     return (
                         <Card key={freight.id} className="p-4 hover:shadow-md transition-shadow">
                             <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-                                <div className="flex-1 space-y-3">
-                                    <p className="text-xs font-mono text-muted-foreground">Pedido: {freight.id}</p>
+                                <div className="flex-1 space-y-3 w-full">
+                                    <div className="flex justify-between items-center">
+                                        <p className="text-xs font-mono text-muted-foreground">Pedido: {freight.id}</p>
+                                        <Badge className={cn(freightTypeVariants({ freightType: freight.freightType }), "text-xs font-semibold uppercase")}>
+                                            {getFreightTypeLabel(freight.freightType)}
+                                        </Badge>
+                                    </div>
                                     <div className="flex items-center gap-2">
                                         <MapPin className="h-4 w-4 text-muted-foreground"/>
                                         <p className="font-semibold">{freight.origin.city}, {freight.origin.state}</p>
                                     </div>
                                     <div className="pl-6">
-                                         <div className="border-l-2 border-dashed h-4"></div>
+                                            <div className="border-l-2 border-dashed h-4"></div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                         <MapPin className="h-4 w-4 text-muted-foreground"/>
-                                         <div className="font-semibold flex items-center gap-2">
+                                            <MapPin className="h-4 w-4 text-muted-foreground"/>
+                                            <div className="font-semibold flex items-center gap-2">
                                             <span>{freight.destinations[0].city}, {freight.destinations[0].state}</span>
                                             {additionalStops > 0 && <Badge variant="secondary">+{additionalStops}</Badge>}
-                                         </div>
+                                            </div>
                                     </div>
                                     <div className="pt-2 flex flex-wrap gap-2">
                                         {displayedTags.map(tag => <Badge key={tag} variant="outline" className="text-xs"><Truck className="mr-1 h-3 w-3"/>{tag}</Badge>)}
                                         {hiddenTagsCount > 0 && <Badge variant="secondary" className="text-xs">+{hiddenTagsCount}</Badge>}
                                     </div>
                                 </div>
-                                <div className="w-full sm:w-auto text-right space-y-2 flex flex-col items-end">
-                                    <Badge className={cn(freightTypeVariants({ freightType: freight.freightType }), "text-base font-semibold uppercase")}>
-                                        {getFreightTypeLabel(freight.freightType)}
-                                    </Badge>
-                                    <Button asChild variant="secondary" size="sm">
+                                <div className="w-full sm:w-auto text-right space-y-2 flex flex-col items-end sm:items-center sm:justify-center flex-shrink-0 pt-4 sm:pt-0">
+                                     <Button asChild variant="secondary" size="sm" className="w-full sm:w-auto">
                                         <Link href={detailLink}>
                                             Ver detalhes
                                         </Link>
