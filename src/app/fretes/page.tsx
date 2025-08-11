@@ -40,7 +40,7 @@ async function getFretesInitialData() {
         const freights = freightsSnap.docs.map(doc => {
             const data = doc.data();
             // Deep serialize any Timestamps inside the data object
-            const serializedData = serializeTimestamps(data);
+            const serializedData = serializeTimestamps(JSON.parse(JSON.stringify(data)));
             
             return { 
                 ...serializedData, 
