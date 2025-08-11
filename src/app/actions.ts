@@ -841,6 +841,23 @@ export async function getMonthlyFreightStats(companyId: string) {
 }
     
 // Driver Actions
+export type ReturnTrip = {
+    id: string;
+    driverId: string;
+    driverName: string;
+    driverPhone: string;
+    origin: { state: string; city: string; };
+    destination: { type: 'brasil' | 'estado' | 'cidade'; state?: string; city?: string; };
+    departureDate: any;
+    status: 'active' | 'inactive';
+    createdAt: any;
+    vehicle: string;
+    availability: 'vazio' | 'parcial';
+    notes?: string;
+    hasCnpj: boolean;
+    issuesInvoice: boolean;
+}
+
 export async function addReturnTrips(driverId: string, data: any) {
     if (!driverId) throw new Error("ID do motorista é obrigatório.");
     if (!data.returns || data.returns.length === 0) {
@@ -880,6 +897,46 @@ export async function addReturnTrips(driverId: string, data: any) {
     });
 
     await batch.commit();
+}
+
+export async function getReturnTripsByDriver(driverId: string): Promise<ReturnTrip[]> {
+    if (!driverId) throw new Error('ID do motorista é obrigatório.');
+    
+    try {
+        const q = query(collection(db, 'return_trips'), where('driverId', '==', driverId));
+        const snapshot = await getDocs(q);
+
+        return snapshot.docs.map(doc => {
+            const data = doc.data();
+            const departureDate = data.departureDate;
+
+            let serializableDepartureDate = null;
+            if (departureDate && typeof departureDate.toDate === 'function') {
+                serializableDepartureDate = departureDate.toDate().toISOString();
+            }
+
+            return {
+                ...data,
+                id: doc.id,
+                departureDate: serializableDepartureDate,
+            } as ReturnTrip;
+        });
+    } catch (error) {
+        console.error("Error fetching return trips: ", error);
+        throw new Error("Falha ao buscar as viagens de retorno.");
+    }
+}
+
+export async function deleteReturnTrip(tripId: string): Promise<void> {
+    if (!tripId) throw new Error('ID da viagem é obrigatório.');
+    
+    try {
+        const tripDocRef = doc(db, 'return_trips', tripId);
+        await deleteDoc(tripDocRef);
+    } catch (error) {
+        console.error("Error deleting return trip: ", error);
+        throw new Error("Falha ao deletar a viagem de retorno.");
+    }
 }
     
 

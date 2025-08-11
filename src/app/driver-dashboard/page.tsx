@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -8,7 +7,7 @@ import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { User, Clock, ShieldCheck, Loader2, Edit, Search, ArrowRight, FileText, Gift, MessageSquareWarning, LifeBuoy, ClipboardList } from "lucide-react";
+import { User, Clock, ShieldCheck, Loader2, Edit, Search, ArrowRight, FileText, Gift, MessageSquareWarning, LifeBuoy, ClipboardList, Map } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
@@ -40,6 +39,12 @@ const dashboardCards = [
         description: "Anuncie sua rota de retorno e encontre cargas para otimizar sua viagem.",
         href: "/driver-dashboard/cadastrar-volta",
         icon: <FileText className="h-6 w-6 text-primary" />,
+    },
+    {
+        title: "Minhas Voltas Cadastradas",
+        description: "Gerencie os anúncios de retorno que você publicou na plataforma.",
+        href: "/driver-dashboard/my-returns",
+        icon: <Map className="h-6 w-6 text-primary" />,
     },
     {
         title: "Meu Currículo",
