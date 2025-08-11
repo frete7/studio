@@ -2,11 +2,11 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useTransition } from 'react';
 import { collection, onSnapshot, query, where, getDocs } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { type Freight, type BodyType, type Vehicle, type VehicleCategory } from '@/app/actions';
+import { type Freight, type BodyType, type Vehicle, type VehicleCategory, getFilteredFreights } from '@/app/actions';
 import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
@@ -170,12 +170,12 @@ export default function FretesClient({
     initialVehicleCategories 
 }: FretesClientProps) {
     const [freights, setFreights] = useState<any[]>(initialFreights);
-    const [allBodyTypes, setAllBodyTypes] = useState<BodyType[]>(initialBodyTypes);
-    const [allVehicleTypes, setAllVehicleTypes] = useState<any[]>(initialVehicleTypes);
-    const [allVehicleCategories, setAllVehicleCategories] = useState<VehicleCategory[]>(initialVehicleCategories);
+    const [allBodyTypes] = useState<BodyType[]>(initialBodyTypes);
+    const [allVehicleTypes] = useState<any[]>(initialVehicleTypes);
+    const [allVehicleCategories] = useState<VehicleCategory[]>(initialVehicleCategories);
     
-    const [isLoading, setIsLoading] = useState(false); // No initial loading
     const [user, setUser] = useState<User | null>(null);
+    const [isPending, startTransition] = useTransition();
 
     // Filter states
     const [originCities, setOriginCities] = useState<string[]>([]);
@@ -183,22 +183,37 @@ export default function FretesClient({
     const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
     const [selectedBodyTypes, setSelectedBodyTypes] = useState<string[]>([]);
     const [selectedFreightTypes, setSelectedFreightTypes] = useState<string[]>([]);
-
+    
     useEffect(() => {
         const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
         });
-        
-        const freightsQuery = query(collection(db, 'freights'), where('status', '==', 'ativo'));
-        const unsubscribeFreights = onSnapshot(freightsQuery, (snapshot) => {
-             setFreights(snapshot.docs.map(doc => ({ ...doc.data(), firestoreId: doc.id })));
-        });
-        
-        return () => {
-            unsubscribeAuth();
-            unsubscribeFreights();
-        };
+        return () => unsubscribeAuth();
     }, []);
+
+    const applyFilters = useCallback(() => {
+        startTransition(async () => {
+            const filters = {
+                originCities: originCities.map(c => c.split(', ')[0]),
+                destinationCities: destinationCities.map(c => c.split(', ')[0]),
+                requiredVehicles: selectedVehicles,
+                requiredBodyworks: selectedBodyTypes,
+                freightTypes: selectedFreightTypes,
+            };
+            const newFreights = await getFilteredFreights(filters);
+            setFreights(newFreights);
+        });
+    }, [originCities, destinationCities, selectedVehicles, selectedBodyTypes, selectedFreightTypes]);
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            applyFilters();
+        }, 500); // Debounce filters by 500ms
+
+        return () => {
+            clearTimeout(handler);
+        };
+    }, [applyFilters]);
     
     const groupedBodyTypes = useMemo(() => groupBy(allBodyTypes, 'group'), [allBodyTypes]);
     const groupedVehicleTypes = useMemo(() => {
@@ -207,28 +222,6 @@ export default function FretesClient({
         return groupBy(typesWithCatName, 'categoryName');
     }, [allVehicleTypes, allVehicleCategories]);
 
-
-    const filteredFreights = useMemo(() => {
-        return freights.filter(freight => {
-             const originString = `${freight.origin?.city}, ${freight.origin?.state}`;
-             if (originCities.length > 0 && !originCities.some(city => originString.includes(city))) {
-                return false;
-            }
-            if (destinationCities.length > 0 && !destinationCities.some(city => freight.destinations.some((d: any) => `${d.city}, ${d.state}`.includes(city)))) {
-                return false;
-            }
-            if (selectedFreightTypes.length > 0 && !selectedFreightTypes.includes(freight.freightType)) {
-                return false;
-            }
-            if (selectedVehicles.length > 0 && !freight.requiredVehicles.some((vId: string) => selectedVehicles.includes(vId))) {
-                 return false;
-            }
-            if (selectedBodyTypes.length > 0 && !freight.requiredBodyworks.some((bId: string) => selectedBodyTypes.includes(bId))) {
-                return false;
-            }
-            return true;
-        });
-    }, [freights, originCities, destinationCities, selectedVehicles, selectedBodyTypes, selectedFreightTypes]);
 
     const handleVehicleSelection = (vehicleId: string) => {
         setSelectedVehicles(prev => 
@@ -256,7 +249,7 @@ export default function FretesClient({
     }
 
     const renderFreightList = () => {
-        if (isLoading) {
+        if (isPending) {
             return (
                 <div className="space-y-4">
                     {[...Array(5)].map((_, i) => (
@@ -265,19 +258,18 @@ export default function FretesClient({
                 </div>
             );
         }
-        if (filteredFreights.length === 0) {
+        if (freights.length === 0) {
             return <Card className="p-8 text-center text-muted-foreground">Nenhum frete encontrado com os filtros selecionados.</Card>;
         }
         return (
             <div className="space-y-4">
-                {filteredFreights.map(freight => {
+                {freights.map(freight => {
                     const detailLink = freight.freightType === 'agregamento' 
                         ? `/fretes/agregamento/${freight.firestoreId}` 
                         : `/fretes/${freight.firestoreId}`;
                     
                      const requiredVehicleNames = (freight.requiredVehicles || [])
-                        .map((vehicle: any) => {
-                            const vehicleId = typeof vehicle === 'string' ? vehicle : vehicle.id;
+                        .map((vehicleId: string) => {
                             return allVehicleTypes.find(v => v.id === vehicleId)?.name;
                         })
                         .filter(Boolean);
@@ -434,7 +426,7 @@ export default function FretesClient({
                         </AlertDescription>
                     </Alert>
                 )}
-                <h2 className="text-lg font-medium">{filteredFreights.length} fretes disponíveis</h2>
+                <h2 className="text-lg font-medium">{isPending ? <Loader2 className="h-5 w-5 animate-spin inline-block mr-2" /> : `${freights.length}`} fretes disponíveis</h2>
                 {renderFreightList()}
             </main>
         </div>

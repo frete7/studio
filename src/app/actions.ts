@@ -590,6 +590,64 @@ export async function getFreightsByCompany(companyId: string): Promise<Freight[]
     }
 }
 
+type FreightFilters = {
+    originCities?: string[];
+    destinationCities?: string[];
+    freightTypes?: string[];
+    requiredVehicles?: string[];
+    requiredBodyworks?: string[];
+}
+
+export async function getFilteredFreights(filters: FreightFilters): Promise<any[]> {
+    try {
+        let q = query(collection(db, 'freights'), where('status', '==', 'ativo'));
+
+        if (filters.originCities && filters.originCities.length > 0) {
+            q = query(q, where('origin.city', 'in', filters.originCities));
+        }
+        if (filters.destinationCities && filters.destinationCities.length > 0) {
+            q = query(q, where('destinations', 'array-contains-any', filters.destinationCities.map(city => ({ city }))));
+        }
+         if (filters.freightTypes && filters.freightTypes.length > 0) {
+            q = query(q, where('freightType', 'in', filters.freightTypes));
+        }
+        if (filters.requiredVehicles && filters.requiredVehicles.length > 0) {
+            q = query(q, where('requiredVehicles', 'array-contains-any', filters.requiredVehicles));
+        }
+        if (filters.requiredBodyworks && filters.requiredBodyworks.length > 0) {
+            q = query(q, where('requiredBodyworks', 'array-contains-any', filters.requiredBodyworks));
+        }
+        
+        const snapshot = await getDocs(q);
+        const freights: any[] = [];
+        
+        snapshot.forEach(doc => {
+             const data = doc.data();
+             const createdAt = data.createdAt;
+             let serializableCreatedAt = null;
+             if (createdAt && typeof createdAt.toDate === 'function') {
+                serializableCreatedAt = createdAt.toDate().toISOString();
+             }
+
+             const freightData = { ...data, firestoreId: doc.id, createdAt: serializableCreatedAt };
+
+             // Client-side filter for destinations if Firestore query is not precise enough
+            if (filters.destinationCities && filters.destinationCities.length > 0) {
+                if(freightData.destinations.some((d: any) => filters.destinationCities?.includes(d.city))) {
+                     freights.push(freightData);
+                }
+            } else {
+                 freights.push(freightData);
+            }
+        });
+        
+        return freights;
+    } catch (error) {
+        console.error("Error fetching filtered freights: ", error);
+        return [];
+    }
+}
+
 
 // Collaborators Actions
 export type Collaborator = {
