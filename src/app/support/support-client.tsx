@@ -41,7 +41,13 @@ export default function SupportClient({ userId }: { userId: string }) {
     const { toast } = useToast();
     const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-    const replyForm = useForm<ReplyFormData>({ resolver: zodResolver(replySchema) });
+    const replyForm = useForm<ReplyFormData>({ 
+        resolver: zodResolver(replySchema),
+        defaultValues: {
+            text: '',
+            file: undefined,
+        }
+    });
     const attachedFile = replyForm.watch('file');
 
     useEffect(() => {
