@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -40,8 +41,11 @@ async function getFretesInitialData() {
         const allBodyTypes = bodyTypesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as BodyType));
         const allVehicleTypes = vehicleTypesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as any));
         const allVehicleCategories = vehicleCategoriesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as VehicleCategory));
+        
+        // Serialize any Timestamps before passing to the client component
+        const serializedFreights = initialFreights.map(freight => serializeTimestamps(freight));
 
-        return { initialFreights, allBodyTypes, allVehicleTypes, allVehicleCategories };
+        return { initialFreights: serializedFreights, allBodyTypes, allVehicleTypes, allVehicleCategories };
     } catch (error) {
         console.error("Error fetching initial fretes data:", error);
         return { initialFreights: [], allBodyTypes: [], allVehicleTypes: [], allVehicleCategories: [] };
