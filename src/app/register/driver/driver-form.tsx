@@ -399,7 +399,7 @@ const Step1 = () => {
         /\w\S*/g,
         (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
       );
-    }
+    };
     
     return (
         <div className="space-y-6">
@@ -433,8 +433,8 @@ const Step1 = () => {
                  )} />
              </div>
         </div>
-    )
-}
+    );
+};
 
 const Step2 = () => {
     const { control, setValue, setFocus } = useFormContext();
