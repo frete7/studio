@@ -293,15 +293,15 @@ export async function updateVehicle(id: string, data: Partial<Omit<Vehicle, 'id'
 }
 
 export async function deleteVehicle(id: string): Promise<void> {
-    if (!id) {
-        throw new Error('O ID do veículo é obrigatório.');
-    }
-    try {
-        await deleteDoc(doc(db, 'vehicles', id));
-    } catch (error: any) {
-        console.error("Error deleting vehicle: ", error);
-        throw new Error(`Falha ao deletar o veículo: ${error.code || error.message}`);
-    }
+  if (!id) {
+    throw new Error('O ID do veículo é obrigatório.');
+  }
+  try {
+    await deleteDoc(doc(db, 'vehicles', id));
+  } catch (error: any) {
+    console.error("Error deleting vehicle: ", error);
+    throw new Error(`Falha ao deletar o veículo: ${error.code || error.message}`);
+  }
 }
 
 // Body Types Actions
@@ -359,6 +359,17 @@ export async function deleteBodyType(id: string): Promise<void> {
   } catch (error: any) {
     console.error("Error deleting body type: ", error);
     throw new Error(`Falha ao deletar o tipo de carroceria: ${error.message}`);
+  }
+}
+
+export async function getVehicleBodyTypes(): Promise<BodyType[]> {
+  try {
+    const bodyTypesCollection = collection(db, 'body_types');
+    const snapshot = await getDocs(bodyTypesCollection);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BodyType));
+  } catch (error) {
+    console.error("Error fetching vehicle body types: ", error);
+    return [];
   }
 }
 
@@ -920,8 +931,3 @@ export async function deleteResumeItem(userId: string, field: 'academicFormation
         }
     }
 }
-
-    
-
-
-

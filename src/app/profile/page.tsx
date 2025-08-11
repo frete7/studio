@@ -12,6 +12,7 @@ import CompanyProfileForm from './company-profile-form';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import DriverProfileForm from './driver-profile-form';
 
 
 type UserProfile = {
@@ -89,7 +90,7 @@ export default function ProfilePage() {
         }
         
         if (profile.role === 'driver') {
-            return <p>Página de perfil para motorista (em construção).</p>
+            return <DriverProfileForm profile={profile} />;
         }
 
         return <p>Página de perfil para {profile.role}.</p>

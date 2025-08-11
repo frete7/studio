@@ -98,6 +98,7 @@ const formSchema = z.object({
   issuesInvoice: z.boolean().default(false),
   issuesCte: z.boolean().default(false),
   hasAntt: z.boolean().default(false),
+  rntrc: z.string().optional(),
 
   // Step 3
   selfie: optionalFileSchema(ACCEPTED_IMG_TYPES),
@@ -130,7 +131,7 @@ type DriverFormData = z.infer<typeof formSchema>;
 
 const steps = [
     { id: 1, name: 'Dados Pessoais', fields: ['fullName', 'birthDate', 'cpf', 'phone', 'confirmPhone'] },
-    { id: 2, name: 'Endereço e Profissional', fields: ['cep', 'logradouro', 'numero', 'complemento', 'bairro', 'cidade', 'uf', 'addressManual', 'hasCnpj', 'cnpj', 'issuesInvoice', 'issuesCte', 'hasAntt'] },
+    { id: 2, name: 'Endereço e Profissional', fields: ['cep', 'logradouro', 'numero', 'complemento', 'bairro', 'cidade', 'uf', 'addressManual', 'hasCnpj', 'cnpj', 'issuesInvoice', 'issuesCte', 'hasAntt', 'rntrc'] },
     { id: 3, name: 'Documentos', fields: ['selfie', 'cnhFile', 'cnhCategory', 'cnhNumber', 'cnhExpiration'] },
     { id: 4, name: 'Veículos', fields: ['vehicles'] },
     { id: 5, name: 'Acesso', fields: ['email', 'password', 'confirmPassword'] },
@@ -410,7 +411,7 @@ const Step1 = () => {
             )} />
             <div className="grid md:grid-cols-2 gap-4">
                  <FormField control={control} name="birthDate" render={({ field }) => (
-                     <FormItem className="flex flex-col"><FormLabel>Data de Nascimento</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><>{field.value ? (format(field.value, "dd/MM/yyyy")) : (<span>Escolha uma data</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar locale={ptBR} mode="single" selected={field.value} onSelect={field.onChange} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
+                     <FormItem className="flex flex-col"><FormLabel>Data de Nascimento</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><>{field.value ? (format(field.value, "dd/MM/yyyy")) : (<span>Escolha uma data</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar locale={ptBR} mode="single" selected={field.value} onSelect={field.onChange} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
                  )} />
                  <FormField control={control} name="cpf" render={({ field }) => (
                      <FormItem><FormLabel>CPF</FormLabel><FormControl><Input placeholder="000.000.000-00" {...field} onChange={(e) => field.onChange(handleMask(e.target.value, 'cpf'))} /></FormControl><FormMessage>{errors.cpf && typeof errors.cpf.message === 'string' && errors.cpf.message}</FormMessage></FormItem>
@@ -435,6 +436,7 @@ const Step2 = () => {
 
     const isManualAddress = useWatch({ control, name: 'addressManual' });
     const hasCnpj = useWatch({ control, name: 'hasCnpj' });
+    const hasAntt = useWatch({ control, name: 'hasAntt' });
 
     const handleCepBlur = async (cep: string) => {
         const cleanCep = cep.replace(/\D/g, '');
@@ -490,6 +492,7 @@ const Step2 = () => {
             <FormField control={control} name="issuesInvoice" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-4"><div className="space-y-0.5"><FormLabel>Emite Nota Fiscal?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
             <FormField control={control} name="issuesCte" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-4"><div className="space-y-0.5"><FormLabel>Emite CT-e (Conhecimento de Transporte Eletrônico)?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
             <FormField control={control} name="hasAntt" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-4"><div className="space-y-0.5"><FormLabel>Possui ANTT (Agência Nacional de Transportes Terrestres)?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+             {hasAntt && <FormField control={control} name="rntrc" render={({ field }) => (<FormItem><FormLabel>RNTRC</FormLabel><FormControl><Input placeholder="Número do RNTRC" {...field} /></FormControl><FormMessage /></FormItem>)} />}
         </div>
     )
 }
@@ -578,7 +581,7 @@ const Step3 = () => {
                     <FormItem><FormLabel>Número de Registro da CNH</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
                  <FormField control={control} name="cnhExpiration" render={({ field }) => (
-                     <FormItem className="flex flex-col"><FormLabel>Data de Vencimento da CNH</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><>{field.value ? (format(field.value, "dd/MM/yyyy")) : (<span>Escolha uma data</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar locale={ptBR} mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => date < new Date()} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
+                     <FormItem className="flex flex-col"><FormLabel>Data de Vencimento da CNH</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><>{field.value ? (format(field.value, "dd/MM/yyyy")) : (<span>Escolha uma data</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar locale={ptBR} mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => date < new Date()} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
                  )} />
             </div>
         </div>
