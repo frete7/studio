@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -19,7 +20,7 @@ const freightTypeVariants = cva(
   {
     variants: {
       freightType: {
-        comum: "border-transparent bg-sky-500 text-white hover:bg-sky-600",
+        comum: "border-transparent bg-purple-500 text-white hover:bg-purple-600",
         agregamento: "border-transparent bg-blue-500 text-white hover:bg-blue-600",
         "frete-completo": "border-transparent bg-green-500 text-white hover:bg-green-600",
         "frete-retorno": "border-transparent bg-orange-500 text-white hover:bg-orange-600",
