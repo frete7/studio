@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useForm, FormProvider, useFormContext, Controller, useFieldArray, useWatch } from 'react-hook-form';
+import { useForm, FormProvider, Controller, useFieldArray, useWatch, Control, useFormContext } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useRouter } from 'next/navigation';
@@ -10,7 +10,7 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db, app } from '@/lib/firebase';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
@@ -147,36 +147,39 @@ const steps = [
 const storage = getStorage(app);
 
 // ==================================
+// Helper Functions
+// ==================================
+const handleMask = (value: string, maskType: 'cpf' | 'phone') => {
+    const unmasked = value.replace(/\D/g, '');
+    if (maskType === 'cpf') {
+        return unmasked
+            .replace(/(\d{3})(\d)/, '$1.$2')
+            .replace(/(\d{3})(\d)/, '$1.$2')
+            .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+            .substring(0, 14);
+    }
+    if (maskType === 'phone') {
+        return unmasked
+            .replace(/(\d{2})(\d)/, '($1) $2')
+            .replace(/(\d{5})(\d)/, '$1-$2')
+            .substring(0, 15);
+    }
+    return value;
+};
+
+const toTitleCase = (str: string) => {
+  return str.replace(
+    /\w\S*/g,
+    (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
+  );
+};
+
+
+// ==================================
 // STEP COMPONENTS
 // ==================================
-const Step1 = () => {
-    const { control, formState: { errors } } = useFormContext<DriverFormData>();
 
-    const handleMask = (value: string, maskType: 'cpf' | 'phone') => {
-        const unmasked = value.replace(/\D/g, '');
-        if (maskType === 'cpf') {
-            return unmasked
-                .replace(/(\d{3})(\d)/, '$1.$2')
-                .replace(/(\d{3})(\d)/, '$1.$2')
-                .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
-                .substring(0, 14);
-        }
-        if (maskType === 'phone') {
-            return unmasked
-                .replace(/(\d{2})(\d)/, '($1) $2')
-                .replace(/(\d{5})(\d)/, '$1-$2')
-                .substring(0, 15);
-        }
-        return value;
-    };
-    
-    const toTitleCase = (str: string) => {
-      return str.replace(
-        /\w\S*/g,
-        (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
-      );
-    };
-
+const Step1 = ({ control }: { control: Control<DriverFormData> }) => {
     return (
         <div className="space-y-6">
             <FormField control={control} name="fullName" render={({ field }) => (
@@ -197,7 +200,7 @@ const Step1 = () => {
                     <FormItem className="flex flex-col"><FormLabel>Data de Nascimento</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><>{field.value ? (format(field.value, "dd/MM/yyyy")) : (<span>Escolha uma data</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar locale={ptBR} mode="single" selected={field.value} onSelect={field.onChange} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
                 )} />
                 <FormField control={control} name="cpf" render={({ field }) => (
-                    <FormItem><FormLabel>CPF</FormLabel><FormControl><Input placeholder="000.000.000-00" {...field} onChange={(e) => field.onChange(handleMask(e.target.value, 'cpf'))} /></FormControl><FormMessage>{errors.cpf && typeof errors.cpf.message === 'string' && errors.cpf.message}</FormMessage></FormItem>
+                    <FormItem><FormLabel>CPF</FormLabel><FormControl><Input placeholder="000.000.000-00" {...field} onChange={(e) => field.onChange(handleMask(e.target.value, 'cpf'))} /></FormControl><FormMessage/></FormItem>
                 )} />
             </div>
             <div className="grid md:grid-cols-2 gap-4">
@@ -212,8 +215,7 @@ const Step1 = () => {
     );
 };
 
-const Step2 = () => {
-    const { control, setValue, setFocus } = useFormContext<DriverFormData>();
+const Step2 = ({ control, setValue, setFocus }: { control: Control<DriverFormData>, setValue: any, setFocus: any }) => {
     const [isCepLoading, setIsCepLoading] = useState(false);
     const { toast } = useToast();
 
@@ -275,14 +277,13 @@ const Step2 = () => {
             <FormField control={control} name="issuesInvoice" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-4"><div className="space-y-0.5"><FormLabel>Emite Nota Fiscal?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
             <FormField control={control} name="issuesCte" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-4"><div className="space-y-0.5"><FormLabel>Emite CT-e (Conhecimento de Transporte Eletrônico)?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
             <FormField control={control} name="hasAntt" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-4"><div className="space-y-0.5"><FormLabel>Possui ANTT (Agência Nacional de Transportes Terrestres)?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
-            {hasAntt && <FormField control={control} name="rntrc" render={({ field }) => (<FormItem><FormLabel>RNTRC</FormLabel><FormControl><Input placeholder="Número do RNTRC" {...field} /></FormControl><FormMessage /></FormItem>)} />}
+            {hasAntt && <FormField control={control} name="rntrc" render={({ field }) => (<FormItem><FormLabel>RNTRC</FormLabel><FormControl><Input placeholder="Número do RNTRC" {...field} /></FormControl><FormMessage /></FormItem>)} />
         </div>
     );
 };
 
-const FileInput = ({ name, label, description, acceptedTypes, captureMode }: { name: any, label: string, description: string, acceptedTypes: string[], captureMode?: 'user' | 'environment' }) => {
-    const { control, watch } = useFormContext<DriverFormData>();
-    const fileList = watch(name);
+const FileInput = ({ name, label, description, acceptedTypes, captureMode, control }: { name: any, label: string, description: string, acceptedTypes: string[], captureMode?: 'user' | 'environment', control: Control<DriverFormData> }) => {
+    const fileList = useWatch({ control, name });
     const [preview, setPreview] = useState<string | null>(null);
 
     useEffect(() => {
@@ -293,7 +294,7 @@ const FileInput = ({ name, label, description, acceptedTypes, captureMode }: { n
                 setPreview(objectUrl);
                 return () => URL.revokeObjectURL(objectUrl);
             } else {
-                setPreview(null);
+                 setPreview(null);
             }
         } else {
              setPreview(null);
@@ -348,14 +349,13 @@ const FileInput = ({ name, label, description, acceptedTypes, captureMode }: { n
     );
 };
 
-const Step3 = () => {
-    const { control } = useFormContext<DriverFormData>();
+const Step3 = ({ control }: { control: Control<DriverFormData> }) => {
     const cnhCategories = ['A', 'B', 'C', 'D', 'E', 'AB', 'AC', 'AD', 'AE'];
 
     return (
         <div className="space-y-6">
-            <FileInput name="selfie" label="Selfie do Rosto" description="PNG, JPG, WEBP (MAX 5MB)" acceptedTypes={ACCEPTED_IMG_TYPES} captureMode="user" />
-            <FileInput name="cnhFile" label="Foto da CNH (Frente e Verso) ou PDF" description="PNG, JPG, PDF (MAX 5MB)" acceptedTypes={ACCEPTED_DOC_TYPES} />
+            <FileInput name="selfie" label="Selfie do Rosto" description="PNG, JPG, WEBP (MAX 5MB)" acceptedTypes={ACCEPTED_IMG_TYPES} captureMode="user" control={control} />
+            <FileInput name="cnhFile" label="Foto da CNH (Frente e Verso) ou PDF" description="PNG, JPG, PDF (MAX 5MB)" acceptedTypes={ACCEPTED_DOC_TYPES} control={control} />
             <FormField control={control} name="cnhCategory" render={({ field }) => (
                 <FormItem><FormLabel>Categoria da CNH</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione a categoria" /></SelectTrigger></FormControl><SelectContent>{cnhCategories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
             )} />
@@ -371,8 +371,7 @@ const Step3 = () => {
     );
 };
 
-const Step4 = ({ allVehicleTypes, allBodyTypes }: { allVehicleTypes: VehicleType[], allBodyTypes: BodyType[] }) => {
-    const { control, formState: { errors } } = useFormContext<DriverFormData>();
+const Step4 = ({ allVehicleTypes, allBodyTypes, control, formState: { errors } }: { allVehicleTypes: VehicleType[], allBodyTypes: BodyType[], control: Control<DriverFormData>, formState: any }) => {
     const { fields, append, remove } = useFieldArray({
         control,
         name: "vehicles",
@@ -406,9 +405,9 @@ const Step4 = ({ allVehicleTypes, allBodyTypes }: { allVehicleTypes: VehicleType
                              <FormField control={control} name={`vehicles.${index}.bodyTypeId`} render={({ field }) => (<FormItem><FormLabel>Tipo de Carroceria</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl><SelectContent>{allBodyTypes.map(bt => <SelectItem key={bt.id} value={bt.id}>{bt.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                         </div>
                         <div className="mt-4 space-y-4">
-                             <FileInput name={`vehicles.${index}.crlvFile`} label="CRLV" description="Imagem ou PDF" acceptedTypes={ACCEPTED_DOC_TYPES} />
-                             <FileInput name={`vehicles.${index}.frontPhoto`} label="Foto Frontal" description="Imagem do veículo" acceptedTypes={ACCEPTED_IMG_TYPES} captureMode="environment" />
-                             <FileInput name={`vehicles.${index}.sidePhoto`} label="Foto Lateral" description="Imagem do veículo" acceptedTypes={ACCEPTED_IMG_TYPES} captureMode="environment" />
+                             <FileInput name={`vehicles.${index}.crlvFile`} label="CRLV" description="Imagem ou PDF" acceptedTypes={ACCEPTED_DOC_TYPES} control={control} />
+                             <FileInput name={`vehicles.${index}.frontPhoto`} label="Foto Frontal" description="Imagem do veículo" acceptedTypes={ACCEPTED_IMG_TYPES} captureMode="environment" control={control} />
+                             <FileInput name={`vehicles.${index}.sidePhoto`} label="Foto Lateral" description="Imagem do veículo" acceptedTypes={ACCEPTED_IMG_TYPES} captureMode="environment" control={control} />
                         </div>
                     </Card>
                 ))}
@@ -424,10 +423,7 @@ const Step4 = ({ allVehicleTypes, allBodyTypes }: { allVehicleTypes: VehicleType
     );
 };
 
-const Step5 = () => {
-    const { control, getValues } = useFormContext<DriverFormData>();
-    const { toast } = useToast();
-
+const Step5 = ({ control, getValues, toast }: { control: Control<DriverFormData>, getValues: any, toast: any }) => {
     const handleCheckEmail = async () => {
         const email = getValues('email');
         if (!email || !z.string().email().safeParse(email).success) {
@@ -540,7 +536,7 @@ export default function DriverRegisterForm({ allVehicleTypes, allBodyTypes }: { 
     }
   });
 
-  const { handleSubmit, trigger, getValues, setError } = methods;
+  const { handleSubmit, trigger, getValues, setError, control, formState, setValue, setFocus } = methods;
 
   const uploadFile = async (file: File, path: string): Promise<{url: string, status: 'pending'}> => {
     const fileRef = ref(storage, path);
@@ -672,7 +668,7 @@ export default function DriverRegisterForm({ allVehicleTypes, allBodyTypes }: { 
 
   const prevStep = () => {
     if (currentStep > 0) {
-      setCurrentStep(step => step - 1);
+      setCurrentStep(step => step + 1);
     }
   };
 
@@ -696,11 +692,11 @@ export default function DriverRegisterForm({ allVehicleTypes, allBodyTypes }: { 
         <CardContent>
           <FormProvider {...methods}>
             <form onSubmit={handleSubmit(processForm)} className="space-y-6">
-              {currentStep === 0 && <Step1 />}
-              {currentStep === 1 && <Step2 />}
-              {currentStep === 2 && <Step3 />}
-              {currentStep === 3 && <Step4 allVehicleTypes={allVehicleTypes} allBodyTypes={allBodyTypes} />}
-              {currentStep === 4 && <Step5 />}
+              {currentStep === 0 && <Step1 control={control} />}
+              {currentStep === 1 && <Step2 control={control} setValue={setValue} setFocus={setFocus} />}
+              {currentStep === 2 && <Step3 control={control} />}
+              {currentStep === 3 && <Step4 allVehicleTypes={allVehicleTypes} allBodyTypes={allBodyTypes} control={control} formState={formState} />}
+              {currentStep === 4 && <Step5 control={control} getValues={getValues} toast={toast} />}
             </form>
           </FormProvider>
           <div className="mt-8 flex justify-between">
@@ -717,3 +713,5 @@ export default function DriverRegisterForm({ allVehicleTypes, allBodyTypes }: { 
     </div>
   );
 }
+
+    
