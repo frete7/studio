@@ -2,8 +2,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
-import { db, getDocs, limit, orderBy, startAfter } from '@/lib/firebase';
+import { collection, onSnapshot, query, where, getDocs, limit, orderBy, startAfter } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -96,7 +96,7 @@ export default function UsersClient({ initialData }: { initialData: User[] }) {
             console.error("Error fetching users page:", error);
             return [];
         }
-    }, [usersPerPage]);
+    }, [usersPerPage, initialData]);
     
     // Initial fetch (can be removed if initialData is always sufficient)
     useEffect(() => {
