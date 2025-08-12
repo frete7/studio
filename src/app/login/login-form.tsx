@@ -24,25 +24,10 @@ export default function LoginForm() {
   const { toast } = useToast();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        // User is logged in, redirect them
-        const userDocRef = doc(db, 'users', user.uid);
-        const userDoc = await getDoc(userDocRef);
-
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          if (userData.role === 'admin') {
-            router.push('/admin');
-          } else if (userData.role === 'company') {
-            router.push('/company-dashboard');
-          } else {
-            router.push('/driver-dashboard');
-          }
-        } else {
-            // Failsafe, redirect to a generic page if role not found
-            router.push('/');
-        }
+        // User is already logged in, redirect immediately
+ router.push('/'); // Redirect to a default page, onAuthStateChanged in layout will handle role-based redirection
       } else {
         // User is not logged in, show the form
         setIsCheckingAuth(false);

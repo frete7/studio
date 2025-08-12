@@ -523,7 +523,7 @@ export async function addCompleteFreight(companyId: string | null, companyName: 
         
         return generatedId;
     } catch(error) {
-        console.error("ERROR: Failed to add complete freight to Firestore:", error);
+ console.error("ERROR: Failed to add complete freight to Firestore:", error);
         throw new Error("Falha ao criar la solicitação de frete no banco de dados.");
     }
 }
