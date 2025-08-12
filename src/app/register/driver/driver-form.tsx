@@ -1,7 +1,8 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useForm, FormProvider, useFormContext, Controller, useFieldArray, useWatch } from 'react-hook-form';
+import { useForm, FormProvider, useFormContext, Controller, useFieldArray, useWatch, Control } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useRouter } from 'next/navigation';
@@ -9,7 +10,7 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db, app } from '@/lib/firebase';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
@@ -46,11 +47,10 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_DOC_TYPES = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
 const ACCEPTED_IMG_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
  
-const fileSchema = (types: string[]) => z.union([
- z.instanceof(FileList).refine(files => files.length > 0, "Arquivo é obrigatório."),
-  .refine((files) => files?.[0], "Arquivo é obrigatório.")
-  .refine((files: FileList | undefined) => files?.[0]?.size <= MAX_FILE_SIZE, `Tamanho máximo é 5MB.`)
-  .refine((files: FileList | undefined) => files?.[0] && types.includes(files[0].type), `Formato inválido. Tipos aceitos: ${types.join(', ')}.`);
+const fileSchema = (types: string[]) => z.instanceof(FileList)
+  .refine(files => files?.length > 0, "Arquivo é obrigatório.")
+  .refine(files => files?.[0]?.size <= MAX_FILE_SIZE, `Tamanho máximo é 5MB.`)
+  .refine(files => files?.[0] && types.includes(files[0].type), `Formato inválido. Tipos aceitos: ${types.join(', ')}.`);
   
 const optionalFileSchema = (types: string[]) => z.any()
     .optional()
@@ -66,8 +66,8 @@ const vehicleSchema = z.object({
     vehicleTypeId: z.string({ required_error: "Selecione o tipo de veículo." }),
     bodyTypeId: z.string({ required_error: "Selecione o tipo de carroceria." }),
     crlvFile: optionalFileSchema(ACCEPTED_DOC_TYPES),
- frontPhoto: optionalFileSchema(ACCEPTED_IMG_TYPES),
- sidePhoto: optionalFileSchema(ACCEPTED_IMG_TYPES),
+    frontPhoto: optionalFileSchema(ACCEPTED_IMG_TYPES),
+    sidePhoto: optionalFileSchema(ACCEPTED_IMG_TYPES),
 });
 
 const formSchema = z.object({
@@ -100,8 +100,8 @@ const formSchema = z.object({
   rntrc: z.string().optional(),
 
   // Step 3
- selfie: fileSchema(ACCEPTED_IMG_TYPES),
- cnhFile: fileSchema(ACCEPTED_DOC_TYPES),
+  selfie: fileSchema(ACCEPTED_IMG_TYPES),
+  cnhFile: fileSchema(ACCEPTED_DOC_TYPES),
   cnhCategory: z.string({ required_error: "Categoria da CNH é obrigatória." }),
   cnhNumber: z.string().min(5, "Número da CNH inválido."),
   cnhExpiration: z.date({ required_error: "Data de vencimento é obrigatória."}),
@@ -110,6 +110,7 @@ const formSchema = z.object({
   vehicles: z.array(vehicleSchema).optional() // Make vehicles optional initially
 // .min(1, "Você deve adicionar pelo menos um veículo.") // Add validation later
     .refine((vehicles) => {
+        if (!vehicles) return true;
         const licensePlates = vehicles.map(v => v.licensePlate);
         return new Set(licensePlates).size === licensePlates.length;
     }, {
@@ -178,7 +179,7 @@ export default function DriverRegisterForm({ allVehicleTypes, allBodyTypes }: { 
       cnhNumber: '',
       birthDate: undefined,
       cnhExpiration: undefined,
- selfie: undefined as unknown as FileList, // Initialize with undefined but cast to FileList
+      selfie: undefined as unknown as FileList, // Initialize with undefined but cast to FileList
       cnhFile: undefined,
       vehicles: [],
       email: '',
@@ -207,7 +208,7 @@ export default function DriverRegisterForm({ allVehicleTypes, allBodyTypes }: { 
  const selfieUrl = data.selfie && data.selfie[0] ? await uploadFile(data.selfie[0], `users/${user.uid}/selfie`) : null;
  const cnhFileUrl = data.cnhFile && data.cnhFile[0] ? await uploadFile(data.cnhFile[0], `users/${user.uid}/cnh`) : null;
 
-        const vehicleUploadPromises = data.vehicles.map(async (vehicle, index) => {
+        const vehicleUploadPromises = data.vehicles?.map(async (vehicle, index) => {
             const plate = vehicle.licensePlate.replace(/[^A-Z0-9]/g, '');
  const crlvUrl = vehicle.crlvFile && vehicle.crlvFile[0] ? await uploadFile(vehicle.crlvFile[0], `users/${user.uid}/vehicles/${plate}/crlv`) : null;
  const frontPhotoUrl = vehicle.frontPhoto && vehicle.frontPhoto[0] ? await uploadFile(vehicle.frontPhoto[0], `users/${user.uid}/vehicles/${plate}/front`) : null;
@@ -221,7 +222,7 @@ export default function DriverRegisterForm({ allVehicleTypes, allBodyTypes }: { 
             };
         });
 
-        const uploadedVehicles = await Promise.all(vehicleUploadPromises);
+        const uploadedVehicles = await Promise.all(vehicleUploadPromises || []);
 
         // 3. Prepare data for Firestore
         const { confirmPassword, password, confirmPhone, ...formData } = data;
@@ -293,7 +294,7 @@ export default function DriverRegisterForm({ allVehicleTypes, allBodyTypes }: { 
     if (currentStep === 3) {
         const vehicles = getValues('vehicles');
         let hasError = false;
- vehicles?.forEach((vehicle, index) => { // Add optional chaining
+        vehicles?.forEach((vehicle, index) => { // Add optional chaining
  if (!vehicle.crlvFile || vehicle.crlvFile.length === 0 || vehicle.crlvFile[0] === undefined) { // Add undefined check
                 setError(`vehicles.${index}.crlvFile`, {type: 'manual', message: 'CRLV é obrigatório.'});
                 hasError = true;
@@ -302,7 +303,7 @@ export default function DriverRegisterForm({ allVehicleTypes, allBodyTypes }: { 
                 setError(`vehicles.${index}.frontPhoto`, {type: 'manual', message: 'Foto frontal é obrigatória.'});
                 hasError = true;
             }
- if (!vehicle.sidePhoto || vehicle.sidePhoto.length === 0) {
+ if (!vehicle.sidePhoto || vehicle.sidePhoto.length === 0 || vehicle.sidePhoto[0] === undefined) {
                 setError(`vehicles.${index}.sidePhoto`, {type: 'manual', message: 'Foto lateral é obrigatória.'});
                 hasError = true;
             }
@@ -369,7 +370,7 @@ export default function DriverRegisterForm({ allVehicleTypes, allBodyTypes }: { 
 // STEP COMPONENTS
 // ==================================
 const Step1 = () => {
-    const { control, formState: { errors } } = useFormContext();
+    const { control, formState: { errors } } = useFormContext<DriverFormData>();
 
     const handleMask = (value: string, maskType: 'cpf' | 'phone'): string => {
         const unmasked = value.replace(/\D/g, '');
@@ -397,10 +398,10 @@ const Step1 = () => {
     };
     
     return (
-        <>
+        <div className="space-y-6">
             <FormField control={control} name="fullName" render={({ field }) => (
- <FormItem>
- <FormLabel>Nome Completo</FormLabel>
+                <FormItem>
+                    <FormLabel>Nome Completo</FormLabel>
                         <FormControl>
                             <Input
                                 placeholder="Seu nome completo"
@@ -409,63 +410,62 @@ const Step1 = () => {
                             />
                         </FormControl>
                         <FormMessage />
- </FormItem>
-                )} />
+                </FormItem>
+            )} />
                 <div className="grid md:grid-cols-2 gap-4">
- <FormField control={control} name="birthDate" render={({ field }) => (
- <FormItem className="flex flex-col">
- <FormLabel>Data de Nascimento</FormLabel>
- <Popover>
- <PopoverTrigger asChild>
- <FormControl>
- <Button
- variant={"outline"}
- className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}
- value={field.value ? format(field.value, "dd/MM/yyyy", { locale: ptBR }) : ''}
- >
- {field.value ? (
- format(field.value, "dd/MM/yyyy", { locale: ptBR })
- ) : (
- <span>Escolha uma data</span>
- )}
- <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
- </Button>
- </FormControl>
- </PopoverTrigger>
- <PopoverContent className="w-auto p-0" align="start">
- <Calendar
- locale={ptBR}
- mode="single"
- selected={field.value}
- onSelect={field.onChange}
- captionLayout="dropdown-buttons"
- fromYear={1950}
- toYear={new Date().getFullYear() - 18}
- disabled={(date) =>
- date > new Date() || date < new Date("1900-01-01")
- }
- initialFocus
- />
- </PopoverContent>
- </Popover>
- <FormMessage />
- </FormItem>
- )} />
-                 <FormField control={control} name="cpf" render={({ field }) => (
- <FormItem>
- <FormLabel>CPF</FormLabel>
-                        <FormControl>
-                            <Input
-                                placeholder="000.000.000-00"
-                                {...field}
-                                onChange={(e) => field.onChange(handleMask(e.target.value, 'cpf'))}
-                            />
-                        </FormControl>
-                        <FormMessage>
-                            {/* Ensure error message is a string before displaying */}
- {errors.cpf && typeof errors.cpf.message === 'string' && errors.cpf.message}
-                        </FormMessage>
-                 )} />
+                    <FormField control={control} name="birthDate" render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                            <FormLabel>Data de Nascimento</FormLabel>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <FormControl>
+                                        <Button
+                                            variant={"outline"}
+                                            className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}
+                                        >
+                                            {field.value ? (
+                                                format(field.value, "dd/MM/yyyy", { locale: ptBR })
+                                            ) : (
+                                                <span>Escolha uma data</span>
+                                            )}
+                                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                        </Button>
+                                    </FormControl>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                        locale={ptBR}
+                                        mode="single"
+                                        selected={field.value}
+                                        onSelect={field.onChange}
+                                        captionLayout="dropdown-buttons"
+                                        fromYear={1950}
+                                        toYear={new Date().getFullYear() - 18}
+                                        disabled={(date) =>
+                                            date > new Date() || date < new Date("1900-01-01")
+                                        }
+                                        initialFocus
+                                    />
+                                </PopoverContent>
+                            </Popover>
+                            <FormMessage />
+                        </FormItem>
+                    )} />
+                    <FormField control={control} name="cpf" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>CPF</FormLabel>
+                            <FormControl>
+                                <Input
+                                    placeholder="000.000.000-00"
+                                    {...field}
+                                    onChange={(e) => field.onChange(handleMask(e.target.value, 'cpf'))}
+                                />
+                            </FormControl>
+                            <FormMessage>
+                                {errors.cpf && typeof errors.cpf.message === 'string' ? errors.cpf.message : null}
+                            </FormMessage>
+                        </FormItem>
+                    )} />
             </div>
              <div className="grid md:grid-cols-2 gap-4">
                  <FormField control={control} name="phone" render={({ field }) => (
@@ -475,13 +475,12 @@ const Step1 = () => {
                      <FormItem><FormLabel>Confirmar Telefone</FormLabel><FormControl><Input placeholder="(00) 00000-0000" {...field} onChange={(e) => field.onChange(handleMask(e.target.value, 'phone'))} /></FormControl><FormMessage /></FormItem>
                  )} />
              </div>
-        </>
+        </div>
     );
 };
 
-// CORREÇÃO PRINCIPAL: O componente Step2 estava sendo fechado incorretamente
 const Step2 = () => {
-    const { control, setValue, setFocus } = useFormContext();
+    const { control, setValue, setFocus } = useFormContext<DriverFormData>();
     const [isCepLoading, setIsCepLoading] = useState(false);
     const { toast } = useToast();
 
@@ -516,7 +515,7 @@ const Step2 = () => {
     return (
         <div className="space-y-6">
              <div className="grid md:grid-cols-3 gap-4">
-                <FormField control={control} name="cep" render={({ field }) => ( // Added Fragment for clarity
+                <FormField control={control} name="cep" render={({ field }) => (
                     <FormItem><FormLabel>CEP</FormLabel><FormControl><div className="relative"><Input placeholder="00000-000" {...field} onBlur={() => handleCepBlur(field.value)} disabled={isManualAddress} />{isCepLoading && <Loader2 className="absolute right-2 top-2.5 h-4 w-4 animate-spin" />}</div></FormControl><FormMessage /></FormItem>
                 )} />
                 <FormField control={control} name="uf" render={({ field }) => (<FormItem><FormLabel>UF</FormLabel><FormControl><Input {...field} readOnly={!isManualAddress} /></FormControl><FormMessage /></FormItem>)} />
@@ -546,17 +545,19 @@ const Step2 = () => {
              {hasAntt && <FormField control={control} name="rntrc" render={({ field }) => (<FormItem><FormLabel>RNTRC</FormLabel><FormControl><Input placeholder="Número do RNTRC" {...field} /></FormControl><FormMessage /></FormItem>)} />}
         </div>
     );
-}; // ✅ CORREÇÃO: Fechamento correto do componente Step2 (antes estava apenas com ")")
+};
+
+type VehicleFormDataWithoutFiles = Omit<z.infer<typeof vehicleSchema>, 'crlvFile' | 'frontPhoto' | 'sidePhoto'>;
 
 const FileInput = ({ name, label, description, acceptedTypes, captureMode }: { name: keyof DriverFormData | `vehicles.${number}.${keyof VehicleFormDataWithoutFiles}` , label: string, description: string, acceptedTypes: string[], captureMode?: 'user' | 'environment' }) => {
-    const { control, watch, setValue } = useFormContext();
+    const { control, watch } = useFormContext();
     const fileList: FileList | undefined = watch(name as any); // Cast to any for watch
     const [preview, setPreview] = useState<string | null>(null);
 
     useEffect(() => {
         if (fileList && fileList.length > 0 && fileList[0] instanceof File) { // Check if it's a File object
             const file: File = fileList[0];
- if (ACCEPTED_IMG_TYPES.includes(file.type)) {
+            if (ACCEPTED_IMG_TYPES.includes(file.type)) {
                 const objectUrl = URL.createObjectURL(file);
                 setPreview(objectUrl);
                 return () => URL.revokeObjectURL(objectUrl);
@@ -565,15 +566,15 @@ const FileInput = ({ name, label, description, acceptedTypes, captureMode }: { n
             }
         } else {
              setPreview(null);
- }
- }, [fileList]);
+        }
+    }, [fileList]);
     
     const fileName = fileList?.[0]?.name;
 
     return (
         <FormField
             control={control}
-            name={name}
+            name={name as any}
             render={({ field }) => (
                 <FormItem>
                     <FormLabel>{label}</FormLabel>
@@ -620,14 +621,12 @@ const FileInput = ({ name, label, description, acceptedTypes, captureMode }: { n
     );
 };
 
-type VehicleFormDataWithoutFiles = Omit<z.infer<typeof vehicleSchema>, 'crlvFile' | 'frontPhoto' | 'sidePhoto'>;
-
 const Step3 = () => {
-    const { control } = useFormContext();
+    const { control } = useFormContext<DriverFormData>();
     const cnhCategories = ['A', 'B', 'C', 'D', 'E', 'AB', 'AC', 'AD', 'AE'];
     
     return (
-        <>
+        <div className="space-y-6">
             <FileInput name="selfie" label="Selfie do Rosto" description="PNG, JPG, WEBP (MAX 5MB)" acceptedTypes={ACCEPTED_IMG_TYPES} captureMode="user" />
             <FileInput name="cnhFile" label="Foto da CNH (Frente e Verso) ou PDF" description="PNG, JPG, PDF (MAX 5MB)" acceptedTypes={ACCEPTED_DOC_TYPES} />
             <FormField control={control} name="cnhCategory" render={({ field }) => (
@@ -645,15 +644,15 @@ const Step3 = () => {
                     <FormItem><FormLabel>Número de Registro da CNH</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)}
                 />
                 <FormField control={control} name="cnhExpiration" render={({ field }) => (
-                    <FormItem className="flex flex-col"><FormLabel>Data de Vencimento da CNH</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><>{field.value ? (format(field.value, "dd/MM/yyyy")) : (<span>Escolha uma data</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar locale={ptBR} mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => date < new Date()} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)}
+                    <FormItem className="flex flex-col"><FormLabel>Data de Vencimento da CNH</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><>{field.value ? (format(field.value, "dd/MM/yyyy")) : (<span>Escolha uma data</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar locale={ptBR} mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => date < new Date()} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>)}
                 />
             </div>
-        </>
+        </div>
     );
 };
 
 const Step4 = ({ allVehicleTypes, allBodyTypes }: { allVehicleTypes: VehicleType[], allBodyTypes: BodyType[] }) => {
-    const { control, formState: { errors } } = useFormContext();
+    const { control, formState: { errors } } = useFormContext<DriverFormData>();
     const { fields, append, remove } = useFieldArray({
         control,
         name: "vehicles",
@@ -699,14 +698,14 @@ const Step4 = ({ allVehicleTypes, allBodyTypes }: { allVehicleTypes: VehicleType
                 Adicionar outro veículo
             </Button>
             <FormMessage>
-                {typeof errors.vehicles === 'object' && !Array.isArray(errors.vehicles) && errors.vehicles?.root?.message}
+                {errors.vehicles && typeof errors.vehicles === 'object' && !Array.isArray(errors.vehicles) && errors.vehicles?.root?.message}
             </FormMessage>
         </div>
     );
 };
 
 const Step5 = () => {
-    const { control, getValues } = useFormContext();
+    const { control, getValues } = useFormContext<DriverFormData>();
      const { toast } = useToast();
 
      const handleCheckEmail = async () => {
