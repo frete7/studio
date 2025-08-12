@@ -45,8 +45,9 @@ function validateCPF(cpf: string) {
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_DOC_TYPES = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
 const ACCEPTED_IMG_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
-
-const fileSchema = (types: string[]) => z.any()
+ 
+const fileSchema = (types: string[]) => z.union([
+ z.instanceof(FileList).refine(files => files.length > 0, "Arquivo é obrigatório."),
   .refine((files) => files?.[0], "Arquivo é obrigatório.")
   .refine((files: FileList | undefined) => files?.[0]?.size <= MAX_FILE_SIZE, `Tamanho máximo é 5MB.`)
   .refine((files: FileList | undefined) => files?.[0] && types.includes(files[0].type), `Formato inválido. Tipos aceitos: ${types.join(', ')}.`);
@@ -420,7 +421,6 @@ const Step1 = () => {
  <Button
  variant={"outline"}
  className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}
- {...field}
  value={field.value ? format(field.value, "dd/MM/yyyy", { locale: ptBR }) : ''}
  >
  {field.value ? (
@@ -549,7 +549,7 @@ const Step2 = () => {
 }; // ✅ CORREÇÃO: Fechamento correto do componente Step2 (antes estava apenas com ")")
 
 const FileInput = ({ name, label, description, acceptedTypes, captureMode }: { name: keyof DriverFormData | `vehicles.${number}.${keyof VehicleFormDataWithoutFiles}` , label: string, description: string, acceptedTypes: string[], captureMode?: 'user' | 'environment' }) => {
-    const { control, watch } = useFormContext();
+    const { control, watch, setValue } = useFormContext();
     const fileList: FileList | undefined = watch(name as any); // Cast to any for watch
     const [preview, setPreview] = useState<string | null>(null);
 
@@ -597,7 +597,11 @@ const FileInput = ({ name, label, description, acceptedTypes, captureMode }: { n
                                     capture={captureMode}
                                     onBlur={field.onBlur} 
                                     name={field.name} 
- onChange={(e) => { field.onChange(e.target.files); setPreview(null); }} // Reset preview on new file selection
+                                    onChange={(e) => {
+                                        field.onChange(e.target.files);
+                                        // Reset preview only if a new file is selected
+                                        if (e.target.files && e.target.files.length > 0) setPreview(null);
+                                     }}
                                 />
                             </label>
                         </div>
