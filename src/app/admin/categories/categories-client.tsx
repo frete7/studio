@@ -50,34 +50,11 @@ type FormData = z.infer<typeof formSchema>;
 
 export default function CategoriesClient({ initialCategories }: { initialCategories: VehicleCategory[] }) {
   const [categories, setCategories] = useState<VehicleCategory[]>(initialCategories);
-  const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<VehicleCategory | null>(null);
 
   const { toast } = useToast();
-
-
-  useEffect(() => {
-    const q = query(collection(db, 'vehicle_categories'));
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        const categoriesData: VehicleCategory[] = [];
-        querySnapshot.forEach((doc) => {
-            categoriesData.push({ ...doc.data(), id: doc.id } as VehicleCategory);
-        });
-        setCategories(categoriesData);
-    }, (error) => {
-        console.error("Error fetching categories: ", error);
-        toast({
-            variant: "destructive",
-            title: "Erro ao buscar categorias",
-            description: "Não foi possível sincronizar os dados em tempo real."
-        });
-    });
-
-    return () => unsubscribe();
-  }, [toast]);
-
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -136,14 +113,6 @@ export default function CategoriesClient({ initialCategories }: { initialCategor
   }
 
   const renderContent = () => {
-    if (isLoading) {
-       return (
-          <div className="flex justify-center items-center h-64">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-       )
-    }
-
     if (categories.length === 0) {
         return <p className="text-center text-muted-foreground py-8">Nenhuma categoria de veículo cadastrada.</p>;
     }

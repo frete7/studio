@@ -65,26 +65,6 @@ export default function BodyTypesClient({ initialData }: { initialData: BodyType
 
   const { toast } = useToast();
 
-  useEffect(() => {
-    const q = query(collection(db, 'body_types'));
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        const data: BodyType[] = [];
-        querySnapshot.forEach((doc) => {
-            data.push({ ...doc.data(), id: doc.id } as BodyType);
-        });
-        setBodyTypes(data);
-    }, (error) => {
-        console.error("Error fetching body types: ", error);
-        toast({
-            variant: "destructive",
-            title: "Erro ao buscar dados",
-            description: "Não foi possível sincronizar os dados em tempo real."
-        });
-    });
-
-    return () => unsubscribe();
-  }, [toast]);
-
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {

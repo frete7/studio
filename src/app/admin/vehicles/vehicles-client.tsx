@@ -33,42 +33,14 @@ export default function VehiclesClient({ initialVehicles, initialVehicleTypes, i
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>(initialVehicleTypes);
   const [vehicleCategories, setVehicleCategories] = useState<VehicleCategory[]>(initialVehicleCategories);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
-
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
   const typeMap = new Map(vehicleTypes.map(t => [t.id, t.name]));
   const categoryMap = new Map(vehicleCategories.map(c => [c.id, c.name]));
-  const typeToCategoryMap = new Map(vehicleTypes.map(t => [t.id, t.categoryId]));
-
-  useEffect(() => {
-    const vehiclesQuery = query(collection(db, 'vehicles'));
-    const typesQuery = query(collection(db, 'vehicle_types'));
-    const categoriesQuery = query(collection(db, 'vehicle_categories'));
-
-    const unsubscribeVehicles = onSnapshot(vehiclesQuery, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Vehicle));
-      setVehicles(data);
-    });
-
-    const unsubscribeTypes = onSnapshot(typesQuery, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as VehicleType));
-      setVehicleTypes(data);
-    });
-
-    const unsubscribeCategories = onSnapshot(categoriesQuery, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as VehicleCategory));
-      setVehicleCategories(data);
-    });
-
-    return () => {
-      unsubscribeVehicles();
-      unsubscribeTypes();
-      unsubscribeCategories();
-    };
-  }, []);
+  const typeToCategoryMap = new Map(initialVehicleTypes.map(t => [t.id, t.categoryId]));
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -100,7 +72,6 @@ export default function VehiclesClient({ initialVehicles, initialVehicleTypes, i
   }
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
-    setIsSubmitting(true);
 
     const categoryId = typeToCategoryMap.get(data.typeId);
     if (!categoryId) {
@@ -109,7 +80,6 @@ export default function VehiclesClient({ initialVehicles, initialVehicleTypes, i
             title: 'Erro',
             description: 'O tipo de veículo selecionado não possui uma categoria associada.',
         });
-        setIsSubmitting(false);
         return;
     }
 
@@ -135,8 +105,6 @@ export default function VehiclesClient({ initialVehicles, initialVehicleTypes, i
         title: 'Erro',
         description: error instanceof Error ? error.message : 'Ocorreu um erro.',
       });
-    } finally {
-      setIsSubmitting(false);
     }
   };
 

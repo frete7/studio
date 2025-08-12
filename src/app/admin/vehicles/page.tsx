@@ -1,7 +1,7 @@
 
 import type { Metadata } from 'next';
-import { collection, getDocs, query } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { collection, getDocs, query, limit, orderBy, startAfter, doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase'; // Assuming '@/lib/firebase' is the correct path
 import { type Vehicle, type VehicleType, type VehicleCategory } from '@/app/actions';
 import VehiclesClient from './vehicles-client';
 
@@ -10,19 +10,32 @@ export const metadata: Metadata = {
     description: 'Visualize e gerencie todos os veículos da plataforma.',
 };
 
-async function getVehiclesData(): Promise<{ vehicles: Vehicle[], vehicleTypes: VehicleType[], vehicleCategories: VehicleCategory[] }> {
+interface GetVehiclesDataParams {
+    limit: number;
+    startAfterDocId?: string;
+}
+
+async function getVehiclesData({ limit: fetchLimit, startAfterDocId }: GetVehiclesDataParams): Promise<{ vehicles: Vehicle[], vehicleTypes: VehicleType[], vehicleCategories: VehicleCategory[] }> {
     try {
-        const vehiclesQuery = query(collection(db, 'vehicles'));
+        let vehiclesQuery = query(collection(db, 'vehicles'), orderBy('model'), limit(fetchLimit)); // Ordering by 'model' or 'licensePlate' is crucial for pagination
+
+        if (startAfterDocId) {
+            const startAfterDocSnap = await getDoc(doc(db, 'vehicles', startAfterDocId));
+            if (startAfterDocSnap.exists()) {
+                vehiclesQuery = query(collection(db, 'vehicles'), orderBy('model'), startAfter(startAfterDocSnap), limit(fetchLimit));
+            }
+        }
+
         const typesQuery = query(collection(db, 'vehicle_types'));
         const categoriesQuery = query(collection(db, 'vehicle_categories'));
 
         const [vehiclesSnap, typesSnap, categoriesSnap] = await Promise.all([
             getDocs(vehiclesQuery),
-            getDocs(typesQuery),
-            getDocs(categoriesQuery)
+            getDocs(typesQuery), // Fetch all types
+            getDocs(categoriesQuery) // Fetch all categories
         ]);
 
-        const vehicles = vehiclesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Vehicle));
+        const vehicles = vehiclesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Vehicle)); // These are the paginated vehicles
         const vehicleTypes = typesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as VehicleType));
         const vehicleCategories = categoriesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as VehicleCategory));
 
@@ -34,8 +47,10 @@ async function getVehiclesData(): Promise<{ vehicles: Vehicle[], vehicleTypes: V
 }
 
 
+const VEHICLES_PER_PAGE = 20; // Define a default limit for the page
+
 export default async function AdminVehiclesPage() {
-    const { vehicles, vehicleTypes, vehicleCategories } = await getVehiclesData();
+    const { vehicles, vehicleTypes, vehicleCategories } = await getVehiclesData({ limit: VEHICLES_PER_PAGE });
 
     return (
         <div>

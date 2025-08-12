@@ -70,29 +70,17 @@ const getStatusLabel = (status: Freight['status']): string => {
 }
 
 
-export default function FreightsClient({ initialFreights }: { initialFreights: Freight[] }) {
-    const [freights, setFreights] = useState<Freight[]>(initialFreights);
-    const [isLoading, setIsLoading] = useState(false);
+export default function FreightsClient({ initialActiveFreights, initialPendingFreights, initialConcludedFreights, initialCanceledFreights }: {
+  initialActiveFreights: Freight[];
+  initialPendingFreights: Freight[];
+  initialConcludedFreights: Freight[];
+  initialCanceledFreights: Freight[];
+}) {
+    const [activeFreights, setActiveFreights] = useState<Freight[]>(initialActiveFreights);
+    const [pendingFreights, setPendingFreights] = useState<Freight[]>(initialPendingFreights);
+    const [concludedFreights, setConcludedFreights] = useState<Freight[]>(initialConcludedFreights);
+    const [canceledFreights, setCanceledFreights] = useState<Freight[]>(initialCanceledFreights);
     const router = useRouter();
-
-    useEffect(() => {
-        const q = query(collection(db, 'freights'));
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
-            const data: Freight[] = [];
-            querySnapshot.forEach((doc) => {
-                const freightData = doc.data() as any;
-                 // Ensure destinations is always an array
-                if (!Array.isArray(freightData.destinations)) {
-                    freightData.destinations = [];
-                }
-                const createdAt = freightData.createdAt?.toDate ? freightData.createdAt.toDate().toISOString() : null;
-                data.push({ ...freightData, id: doc.id, createdAt });
-            });
-            setFreights(data);
-        });
-
-        return () => unsubscribe();
-    }, []);
 
     const handleRowClick = (freightId: string) => {
         // router.push(`/admin/freight/${freightId}`);
@@ -180,10 +168,6 @@ export default function FreightsClient({ initialFreights }: { initialFreights: F
         );
     }
     
-    const activeFreights = freights.filter(f => f.status === 'ativo');
-    const pendingFreights = freights.filter(f => f.status === 'pendente');
-    const concludedFreights = freights.filter(f => f.status === 'concluido');
-    const canceledFreights = freights.filter(f => f.status === 'cancelado');
 
 
     return (

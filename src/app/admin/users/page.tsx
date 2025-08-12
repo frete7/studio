@@ -1,7 +1,7 @@
 
 import type { Metadata } from 'next';
-import { collection, getDocs, query } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { collection, getDocs, query, limit, startAfter, DocumentSnapshot, doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase'; // Assuming db is initialized here
 import UsersClient from './users-client';
 
 export const metadata: Metadata = {
@@ -10,10 +10,23 @@ export const metadata: Metadata = {
 };
 
 async function getUsers() {
+    // Default limit for the first page
+    const DEFAULT_LIMIT = 20;
+
     try {
-        const q = query(collection(db, 'users'));
+        let q = query(collection(db, 'users'), limit(DEFAULT_LIMIT));
+
+        // If implementing proper pagination with startAfter in the server component
+        // you would need to pass startAfterDocId from the client.
+        // For simplicity in the initial server fetch, we just apply the limit.
+        // Full pagination logic will be handled in the client component.
+
         const querySnapshot = await getDocs(q);
-        const usersData: any[] = [];
+
+        // To get the last document for client-side pagination
+        const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1];
+
+        const usersData = [];
         querySnapshot.forEach((doc) => {
             usersData.push({ ...doc.data(), uid: doc.id } as any);
         });
@@ -26,7 +39,11 @@ async function getUsers() {
 
 
 export default async function AdminUsersPage() {
+    // Fetch the first page of users with a limit
     const initialUsers = await getUsers();
+
+    // Note: Getting the total count efficiently requires aggregation or a separate counter.
+    // getCountFromServer could be used, but adds latency.
 
     return (
         <div>

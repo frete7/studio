@@ -6,9 +6,11 @@ import { notFound } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { Mail, Phone, Calendar, User, ShieldCheck, Truck, FileText, ArrowLeft, Loader2, MoreVertical, Building, Landmark, CaseSensitive, Package, PackageSearch, PackageCheck, CreditCard, Pencil, ExternalLink, ThumbsUp, ThumbsDown, CircleHelp } from 'lucide-react';
-import Link from 'next/link';
+import { Separator } from '@/components/ui/separator'; 
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog'; // Ensure these are imported
+import { AlertDialog, AlertDialogTrigger, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'; // Import AlertDialog components
+import { Mail, Phone, Calendar, User, ShieldCheck, Truck, FileText, ArrowLeft, Loader2, MoreVertical, Building, Landmark, CaseSensitive, Package, PackageSearch, PackageCheck, CreditCard, Pencil, ExternalLink, ThumbsUp, ThumbsDown, CircleHelp, GraduationCap, Briefcase, Sparkles, Edit, Trash2 } from 'lucide-react'; // Added icons
+import Link from 'next/link'; 
 import { Button, buttonVariants } from '@/components/ui/button';
 import { useEffect, useState, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
@@ -22,7 +24,10 @@ import { z } from 'zod';
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
+ import DropdownMenuItem from '@radix-ui/react-dropdown-menu'; // Corrected import path for DropdownMenuItem
+
+ // Adjusted imports for DropdownMenu items
+ // Removed duplicate import for DropdownMenuItem
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuSub,
@@ -30,8 +35,13 @@ import {
   DropdownMenuSubTrigger
 } from "@/components/ui/dropdown-menu"
 import { updateUserStatus, assignPlanToUser, getPlans, type Plan, updateDocumentStatus, updateUserByAdmin } from '@/app/actions';
+import { addResumeItem, updateResumeItem, deleteResumeItem } from '@/app/actions'; // Import resume actions
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { format, parseISO } from 'date-fns'; // Import date-fns
+import AcademicForm from '@/app/driver-dashboard/curriculo/components/academic-form'; // Import resume forms
+import ExperienceForm from '@/app/driver-dashboard/curriculo/components/experience-form'; // Import resume forms
+import QualificationForm from '@/app/driver-dashboard/curriculo/components/qualification-form'; // Import resume forms
 
 
 type DocumentData = {
@@ -51,6 +61,26 @@ type UserProfile = {
     birthDate?: string;
     cnh?: string;
     cnhCategory?: string;
+    academicFormation?: Array<{ // Added driver resume fields
+        id?: string; // ID is generated on save
+        course: string;
+        institution: string;
+        startDate: string;
+        endDate?: string;
+        present?: boolean;
+        createdAt?: any; // Timestamps
+        updatedAt?: any;
+    }>;
+    professionalExperience?: Array<{ // Added driver resume fields
+        id?: string; // ID is generated on save
+        position: string;
+        company: string;
+        startDate: string;
+        endDate?: string;
+        present?: boolean;
+        createdAt?: any; // Timestamps
+        updatedAt?: any;
+    }>;
     // Company fields
     cnpj?: string;
     foundationDate?: string;
@@ -61,7 +91,13 @@ type UserProfile = {
     responsible?: {
         name: string;
         cpf: string;
-        document?: DocumentData | string; // Can be old format
+        document?: DocumentData | string; // Can be old format 
+    };
+    qualifications?: Array<{ // Added driver resume fields // Fixed typo
+ // qualifications?: Array<{ // Corrected field name
+
+        id: string;
+        name: string;
     };
     cnpjCard?: DocumentData | string; // Can be old format
 };
@@ -154,6 +190,11 @@ export default function UserDetailsClient({ initialUser, initialPlans, initialCo
   const [isPlanDialogOpen, setIsPlanDialogOpen] = useState(false);
   const [isEditUserDialogOpen, setIsEditUserDialogOpen] = useState(false);
   const [isSubmittingEditUser, setIsSubmittingEditUser] = useState(false);
+
+  // State for resume item dialogs and deletion
+  const [isResumeDialogOpen, setIsResumeDialogOpen] = useState(false);
+  const [dialogContent, setDialogContent] = useState<'academic' | 'experience' | 'qualification' | null>(null);
+  const [editingItem, setEditingItem] = useState<any>(null); // Store item being edited
   const { toast } = useToast();
 
   const form = useForm<EditFormData>({
@@ -177,6 +218,7 @@ export default function UserDetailsClient({ initialUser, initialPlans, initialCo
         if (doc.exists()) {
             const userData = { ...doc.data(), uid: doc.id } as UserProfile;
             setUser(userData);
+            // console.log("Fetched User Data with Resume:", userData); // Debugging
         }
     });
 
@@ -262,6 +304,69 @@ export default function UserDetailsClient({ initialUser, initialPlans, initialCo
         setIsSubmittingEditUser(false);
     }
   }
+
+    // Resume Management Functions
+    const openResumeDialog = (type: 'academic' | 'experience' | 'qualification', item?: any) => {
+        setDialogContent(type);
+        setEditingItem(item);
+        setIsResumeDialogOpen(true);
+    };
+
+    const closeResumeDialog = () => {
+        setIsResumeDialogOpen(false);
+        setDialogContent(null);
+        setEditingItem(null);
+    };
+
+    const handleResumeSubmit = async (data: any) => {
+        try {
+            if (!userId) {
+                toast({ variant: 'destructive', title: 'Erro', description: 'ID do usuário não encontrado.' });
+                return;
+            }
+
+            if (editingItem) {
+                 // Update existing item
+                if (dialogContent === 'academic') {
+                    await updateResumeItem(userId, 'academicFormation', editingItem.id, data);
+                } else if (dialogContent === 'experience') {
+                    await updateResumeItem(userId, 'professionalExperience', editingItem.id, data);
+                } else if (dialogContent === 'qualification') {
+                    await updateResumeItem(userId, 'qualifications', editingItem.id, data);
+                }
+                toast({ title: 'Sucesso!', description: 'Item atualizado no currículo.' });
+            } else {
+                 // Add new item
+                 if (dialogContent === 'academic') {
+                    await addResumeItem(userId, 'academicFormation', data);
+                 } else if (dialogContent === 'experience') {
+                    await addResumeItem(userId, 'professionalExperience', data);
+                 } else if (dialogContent === 'qualification') {
+                    await addResumeItem(userId, 'qualifications', data);
+                 }
+                 toast({ title: 'Sucesso!', description: 'Item adicionado ao currículo.' });
+            }
+
+            closeResumeDialog();
+        } catch (error) {
+            toast({
+                variant: 'destructive',
+                title: 'Erro ao salvar',
+                description: error instanceof Error ? error.message : 'Ocorreu um erro ao salvar o item do currículo.',
+            });
+            console.error("Failed to save resume item:", error);
+        }
+    };
+
+    const handleDeleteResumeItem = async (type: 'academicFormation' | 'professionalExperience' | 'qualifications', itemId: string) => {
+        try {
+            await deleteResumeItem(userId, type, itemId);
+            toast({ title: 'Sucesso!', description: 'Item removido do currículo.' });
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Erro ao excluir', description: 'Não foi possível excluir o item.' });
+            console.error("Failed to delete resume item:", error);
+        }
+    };
 
   const isCompany = user.role === 'company';
   
@@ -594,6 +699,130 @@ export default function UserDetailsClient({ initialUser, initialPlans, initialCo
                     </div>
                   </>
                 )}
+
+                 {!isCompany && ( // Resume sections for driver users
+                  <>
+                    <Separator />
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between">
+                            <CardTitle>Formação Acadêmica</CardTitle>
+                            <Button variant="outline" size="sm">Adicionar</Button> {/* Placeholder button */}
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            {(user.academicFormation && user.academicFormation.length > 0) ? (
+                                user.academicFormation.map((item, index) => (
+                                    <div key={item.id || index} className="border rounded-md p-4 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                             <p className="font-semibold flex items-center gap-2"><GraduationCap className="h-4 w-4 text-primary"/> {item.course}</p>
+                                             <div className="flex items-center gap-1">
+                                                 <Button variant="ghost" size="icon" onClick={() => openResumeDialog('academic', item)}><Edit className="h-4 w-4"/></Button>
+                                                 <AlertDialog>
+                                                     <AlertDialogTrigger asChild>
+                                                        <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive"/></Button>
+                                                     </AlertDialogTrigger>
+                                                      <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+                                                            <AlertDialogDescription>Tem certeza que deseja excluir este item de formação acadêmica?</AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleDeleteResumeItem('academicFormation', item.id!)}>Excluir</AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                 </AlertDialog>
+                                             </div>
+                                        </div>
+                                        <p className="text-sm text-muted-foreground">{item.institution}</p>
+                                        <p className="text-xs text-muted-foreground">{format(parseISO(item.startDate), 'MM/yyyy')} - {item.present ? 'Presente' : item.endDate ? format(parseISO(item.endDate), 'MM/yyyy') : ''}</p>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-muted-foreground text-sm">Nenhuma formação acadêmica cadastrada.</p>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between">
+                            <CardTitle>Experiência Profissional</CardTitle>
+                             <Button variant="outline" size="sm" onClick={() => openResumeDialog('experience')}>Adicionar</Button>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                           {(user.professionalExperience && user.professionalExperience.length > 0) ? (
+                                user.professionalExperience.map((item, index) => (
+                                    <div key={item.id || index} className="border rounded-md p-4 space-y-2">
+                                         <div className="flex items-center justify-between">
+                                            <p className="font-semibold flex items-center gap-2"><Briefcase className="h-4 w-4 text-primary"/> {item.position}</p>
+                                             <div className="flex items-center gap-1">
+                                                 <Button variant="ghost" size="icon" onClick={() => openResumeDialog('experience', item)}><Edit className="h-4 w-4"/></Button>
+                                                  <AlertDialog>
+                                                     <AlertDialogTrigger asChild>
+                                                        <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive"/></Button>
+                                                     </AlertDialogTrigger>
+                                                      <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+                                                            <AlertDialogDescription>Tem certeza que deseja excluir este item de experiência profissional?</AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleDeleteResumeItem('professionalExperience', item.id!)}>Excluir</AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                 </AlertDialog>
+                                             </div>
+                                        </div>
+                                        <p className="text-sm text-muted-foreground">{item.company}</p>
+                                        <p className="text-xs text-muted-foreground">{format(parseISO(item.startDate), 'MM/yyyy')} - {item.present ? 'Presente' : item.endDate ? format(parseISO(item.endDate), 'MM/yyyy') : ''}</p>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-muted-foreground text-sm">Nenhuma experiência profissional cadastrada.</p>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                     <Card>
+                        <CardHeader className="flex flex-row items-center justify-between">
+                            <CardTitle>Cursos e Qualificações</CardTitle>
+                             <Button variant="outline" size="sm" onClick={() => openResumeDialog('qualification')}>Adicionar</Button>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                           {(user.qualifications && user.qualifications.length > 0) ? (
+                                user.qualifications.map((item, index) => (
+                                    <div key={item.id || index} className="border rounded-md p-4 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <p className="font-semibold flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary"/> {item.name}</p>
+                                             <div className="flex items-center gap-1">
+                                                 <Button variant="ghost" size="icon" onClick={() => openResumeDialog('qualification', item)}><Edit className="h-4 w-4"/></Button>
+                                                  <AlertDialog>
+                                                     <AlertDialogTrigger asChild>
+                                                        <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive"/></Button>
+                                                     </AlertDialogTrigger>
+                                                      <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+                                                            <AlertDialogDescription>Tem certeza que deseja excluir esta qualificação?</AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleDeleteResumeItem('qualifications', item.id!)}>Excluir</AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                 </AlertDialog>
+                                             </div>
+                                        </div>
+                                    </div>
+                                ))
+                           ) : (
+                                <p className="text-muted-foreground text-sm">Nenhum curso ou qualificação cadastrado.</p>
+                            )}
+                        </CardContent>
+                    </Card>
+                  </>
+                )}
+
                 <Separator />
                  <div className="space-y-4">
                     <h3 className="text-lg font-semibold flex items-center gap-2">
@@ -657,6 +886,22 @@ export default function UserDetailsClient({ initialUser, initialPlans, initialCo
                 </div>
             </CardContent>
         </Card>
+
+        {/* Resume Item Dialog */}
+        <Dialog open={isResumeDialogOpen} onOpenChange={setIsResumeDialogOpen}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>{editingItem ? 'Editar' : 'Adicionar'} {dialogContent === 'academic' ? 'Formação' : dialogContent === 'experience' ? 'Experiência' : 'Qualificação'}</DialogTitle>
+                </DialogHeader>
+                {dialogContent === 'academic' && <AcademicForm onSubmit={handleResumeSubmit} initialData={editingItem} isSubmitting={false} adminMode userId={userId} />}
+                {dialogContent === 'experience' && <ExperienceForm onSubmit={handleResumeSubmit} initialData={editingItem} isSubmitting={false} adminMode userId={userId} />}
+                {dialogContent === 'qualification' && <QualificationForm onSubmit={handleResumeSubmit} initialData={editingItem} isSubmitting={false} adminMode userId={userId} />}
+                 <DialogFooter>
+                    <DialogClose asChild><Button type="button" variant="secondary">Cancelar</Button></DialogClose>
+                    {/* Submit button is inside the specific forms */}
+                 </DialogFooter>
+            </DialogContent>
+        </Dialog>
 
     </div>
   );

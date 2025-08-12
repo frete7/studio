@@ -1,12 +1,12 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, getDocs, limit, orderBy, startAfter } from '@/lib/firebase';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from "@/components/ui/badge";
 import { Button } from '@/components/ui/button';
 import { Eye, Loader2, UserCheck, ShieldAlert, Users } from 'lucide-react';
@@ -51,30 +51,65 @@ const getStatusLabel = (status?: string): string => {
 export default function UsersClient({ initialData }: { initialData: User[] }) {
     const [users, setUsers] = useState<User[]>(initialData);
     const [isLoading, setIsLoading] = useState(false); // Start with false as initial data is present
+    const [isFetching, setIsFetching] = useState(false); // State for fetching
+    const [currentPage, setCurrentPage] = useState(1);
+    const [usersPerPage] = useState(20); // Match this with the limit in page.tsx
+    const [pageHistory, setPageHistory] = useState<any[]>([]); // To store last visible docs for back navigation
+    const [lastVisible, setLastVisible] = useState<any>(null); // To store the last document snapshot
+    const [hasNextPage, setHasNextPage] = useState(initialData.length === usersPerPage); // Assume next page exists if initial data is full
 
-    useEffect(() => {
-        // We already have initial data, so no need to set loading to true here.
-        // The onSnapshot will update the list in real-time without a loading spinner.
-        const q = query(collection(db, 'users'));
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    const fetchUsersPage = useCallback(async (startAfterDoc?: any) => {
+        try {
+            let q = query(
+                collection(db, 'users'),
+                // You might need to create an index for 'createdAt'
+                // https://firebase.google.com/docs/firestore/query-data/indexing
+                // Replace 'createdAt' with a field suitable for stable ordering if needed
+                orderBy('createdAt'), 
+                limit(usersPerPage)
+            );
+
+            if (startAfterDoc) {
+                q = query(q, startAfter(startAfterDoc));
+            }
+
+            const querySnapshot = await getDocs(q);
             const usersData: User[] = [];
             querySnapshot.forEach((doc) => {
                 usersData.push({ ...doc.data(), uid: doc.id } as User);
             });
-            setUsers(usersData);
-        }, (error) => {
-            console.error("Real-time user fetching failed:", error);
-        });
 
-        return () => unsubscribe();
-    }, []);
+            // We only update users state here if the initial data wasn't enough or we are fetching a new page
+            // For initial load, initialData is used.
+            if (!startAfterDoc && initialData.length > 0) {
+                setUsers(initialData);
+            } else {
+                setUsers(usersData);
+            }
+            if (querySnapshot.docs.length > 0) {
+                setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1]);
+            }
+            setHasNextPage(querySnapshot.docs.length === usersPerPage); // Assume more if we got a full page
+            return usersData;
 
-    const drivers = users.filter(u => u.role === 'driver');
-    const companies = users.filter(u => u.role === 'company');
+        } catch (error) {
+            console.error("Error fetching users page:", error);
+            return [];
+        }
+    }, [usersPerPage]);
+    
+    // Initial fetch (can be removed if initialData is always sufficient)
+    useEffect(() => {
+        fetchUsersPage();
+    }, [fetchUsersPage]); // Dependency includes fetchUsersPage
+
+    // NOTE: Filtering is now applied to the currently fetched page of users
+    const drivers = users.filter(u => u.role === 'driver'); 
+    const companies = users.filter(u => u.role === 'company'); 
     const pendingUsers = users.filter(u => u.status === 'pending');
 
     const renderUserTable = (userList: User[], emptyMessage: string) => {
-        if (isLoading) {
+        if (isFetching) { // Use isFetching for table loading indicator
             return (
                 <div className="flex justify-center items-center h-64">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -134,6 +169,37 @@ export default function UsersClient({ initialData }: { initialData: User[] }) {
         );
     }
 
+    const handleNextPage = async () => {
+        if (lastVisible && !isFetching) {
+            setIsFetching(true);
+            // Store the current lastVisible before fetching the next page
+            setPageHistory(prevHistory => [...prevHistory, lastVisible]);
+            setCurrentPage(prev => prev + 1);
+            const nextUsers = await fetchUsersPage(lastVisible);
+            // The fetchUsersPage updates the users state internally
+            setIsFetching(false);
+        }
+    }
+
+    const handlePreviousPage = async () => {
+        if (currentPage > 1 && !isFetching) {
+            setIsFetching(true);
+            // Get the last visible document of the previous page
+            const prevLastVisible = pageHistory[pageHistory.length - 1];
+            // Remove the last document from history as we are going back
+            setPageHistory(prevHistory => prevHistory.slice(0, -1));
+            setCurrentPage(prev => prev - 1);
+
+            // Fetch the previous page. If going back to page 1, startAfter is undefined.
+            const prevUsers = await fetchUsersPage(currentPage === 2 ? undefined : prevLastVisible);
+            // The fetchUsersPage updates the users state internally
+
+            // Need to manually set lastVisible for the *new* current page after going back
+            // This is tricky with startAfter/endBefore. A simpler approach might store arrays of docs.
+            // For this implementation, let's rely on fetchUsersPage setting lastVisible based on the fetched page.
+        }
+    }
+
     return (
         <Tabs defaultValue="pending">
             <TabsList className="grid w-full grid-cols-2 md:w-[600px] md:grid-cols-4">
@@ -172,6 +238,17 @@ export default function UsersClient({ initialData }: { initialData: User[] }) {
                     </TabsContent>
                  </CardContent>
             </Card>
+             <div className="flex justify-between items-center mt-4">\
+                <Button onClick={handlePreviousPage} disabled={currentPage === 1 || isFetching} variant="outline">
+                    {isFetching && currentPage > 1 ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Anterior
+                </Button>
+                <div className="text-sm text-muted-foreground">Página {currentPage}</div>
+                <Button onClick={handleNextPage} disabled={!hasNextPage || isFetching}>
+                    {isFetching && hasNextPage ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Próximo
+                </Button>
+            </div>\
         </Tabs>
     );
 }
