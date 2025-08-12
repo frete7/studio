@@ -1,8 +1,7 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useForm, FormProvider, Controller, useFieldArray, useWatch, Control, useFormContext } from 'react-hook-form';
+import { useForm, FormProvider, useFormContext, Controller, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useRouter } from 'next/navigation';
@@ -10,7 +9,7 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db, app } from '@/lib/firebase';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
@@ -56,7 +55,6 @@ const optionalFileSchema = (types: string[]) => z.any()
     .optional()
     .refine((files) => !files || files.length === 0 || files[0].size <= MAX_FILE_SIZE, `Tamanho máximo é 5MB.`)
     .refine((files) => !files || files.length === 0 || types.includes(files[0].type), `Formato inválido. Tipos aceitos: ${types.join(", ")}`);
-
 
 const vehicleSchema = z.object({
     brand: z.string().min(2, "Marca é obrigatória."),
@@ -133,7 +131,6 @@ const formSchema = z.object({
     path: ["confirmPassword"],
 });
 
-
 type DriverFormData = z.infer<typeof formSchema>;
 
 const steps = [
@@ -147,39 +144,258 @@ const steps = [
 const storage = getStorage(app);
 
 // ==================================
-// Helper Functions
+// FORM COMPONENT
 // ==================================
-const handleMask = (value: string, maskType: 'cpf' | 'phone') => {
-    const unmasked = value.replace(/\D/g, '');
-    if (maskType === 'cpf') {
-        return unmasked
-            .replace(/(\d{3})(\d)/, '$1.$2')
-            .replace(/(\d{3})(\d)/, '$1.$2')
-            .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
-            .substring(0, 14);
-    }
-    if (maskType === 'phone') {
-        return unmasked
-            .replace(/(\d{2})(\d)/, '($1) $2')
-            .replace(/(\d{5})(\d)/, '$1-$2')
-            .substring(0, 15);
-    }
-    return value;
-};
+export default function DriverRegisterForm({ allVehicleTypes, allBodyTypes }: { allVehicleTypes: VehicleType[], allBodyTypes: BodyType[] }) {
+  const [currentStep, setCurrentStep] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
+  const { toast } = useToast();
 
-const toTitleCase = (str: string) => {
-  return str.replace(
-    /\w\S*/g,
-    (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
+  const methods = useForm<DriverFormData>({
+    resolver: zodResolver(formSchema),
+    mode: 'onBlur',
+    defaultValues: {
+      fullName: '',
+      cpf: '',
+      phone: '',
+      confirmPhone: '',
+      cep: '',
+      logradouro: '',
+      numero: '',
+      complemento: '',
+      bairro: '',
+      cidade: '',
+      uf: '',
+      addressManual: false,
+      hasCnpj: false,
+      cnpj: '',
+      issuesInvoice: false,
+      issuesCte: false,
+      hasAntt: false,
+      cnhCategory: undefined,
+      cnhNumber: '',
+      birthDate: undefined,
+      cnhExpiration: undefined,
+      selfie: undefined,
+      cnhFile: undefined,
+      vehicles: [],
+      email: '',
+      password: '',
+      confirmPassword: '',
+    }
+  });
+
+  const { handleSubmit, trigger, getValues, setError } = methods;
+
+  const uploadFile = async (file: File, path: string): Promise<{url: string, status: 'pending'}> => {
+    const fileRef = ref(storage, path);
+    await uploadBytes(fileRef, file);
+    const url = await getDownloadURL(fileRef);
+    return { url, status: 'pending' };
+  };
+
+  const processForm = async (data: DriverFormData) => {
+    setIsLoading(true);
+    try {
+        // 1. Create user in Auth
+        const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+        const user = userCredential.user;
+
+        // 2. Upload files and create data structure with status
+        const selfieUrl = data.selfie?.[0] ? await uploadFile(data.selfie[0], `users/${user.uid}/selfie`) : null;
+        const cnhFileUrl = data.cnhFile?.[0] ? await uploadFile(data.cnhFile[0], `users/${user.uid}/cnh`) : null;
+
+        const vehicleUploadPromises = data.vehicles.map(async (vehicle, index) => {
+            const plate = vehicle.licensePlate.replace(/[^A-Z0-9]/g, '');
+            const crlvUrl = vehicle.crlvFile?.[0] ? await uploadFile(vehicle.crlvFile[0], `users/${user.uid}/vehicles/${plate}/crlv`) : null;
+            const frontPhotoUrl = vehicle.frontPhoto?.[0] ? await uploadFile(vehicle.frontPhoto[0], `users/${user.uid}/vehicles/${plate}/front`) : null;
+            const sidePhotoUrl = vehicle.sidePhoto?.[0] ? await uploadFile(vehicle.sidePhoto[0], `users/${user.uid}/vehicles/${plate}/side`) : null;
+            
+            return {
+                ...vehicle,
+                crlvFile: crlvUrl,
+                frontPhoto: frontPhotoUrl,
+                sidePhoto: sidePhotoUrl,
+            };
+        });
+        
+        const uploadedVehicles = await Promise.all(vehicleUploadPromises);
+
+        // 3. Prepare data for Firestore
+        const { confirmPassword, password, confirmPhone, ...formData } = data;
+        
+        const firestoreData = {
+            ...formData,
+            uid: user.uid,
+            email: user.email,
+            selfie: selfieUrl,
+            cnhFile: cnhFileUrl,
+            vehicles: uploadedVehicles,
+            role: 'driver',
+            status: 'pending',
+            createdAt: serverTimestamp(),
+        };
+
+        // 4. Save to Firestore
+        await setDoc(doc(db, 'users', user.uid), firestoreData);
+        
+        toast({
+            title: "Cadastro Finalizado!",
+            description: "Seu perfil foi enviado para análise. Você será notificado em breve.",
+        });
+        
+        router.push('/driver-dashboard');
+    } catch (error: any) {
+        toast({
+            variant: "destructive",
+            title: "Erro no Cadastro",
+            description: error.code === 'auth/email-already-in-use' ? 'Este e-mail já está em uso.' : error.message,
+        });
+    } finally {
+        setIsLoading(false);
+    }
+  };
+  
+  type FieldName = keyof DriverFormData;
+
+  const nextStep = async () => {
+    const fields = steps[currentStep].fields as FieldName[];
+    const output = await trigger(fields, { shouldFocus: true });
+    
+    if (!output) return;
+
+    if (currentStep === 0) {
+        setIsLoading(true);
+        const cpf = getValues('cpf');
+        const q = query(collection(db, "users"), where("cpf", "==", cpf));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+            setError('cpf', { type: 'manual', message: 'Este CPF já está cadastrado.' });
+            setIsLoading(false);
+            return;
+        }
+        setIsLoading(false);
+    }
+    
+    if (currentStep === 2) {
+        if (!getValues('selfie') || getValues('selfie').length === 0) {
+            setError('selfie', { type: 'manual', message: 'A selfie é obrigatória.'});
+            return;
+        }
+        if (!getValues('cnhFile') || getValues('cnhFile').length === 0) {
+            setError('cnhFile', { type: 'manual', message: 'O arquivo da CNH é obrigatório.'});
+            return;
+        }
+    }
+    
+    if (currentStep === 3) {
+        const vehicles = getValues('vehicles');
+        let hasError = false;
+        vehicles.forEach((vehicle, index) => {
+            if (!vehicle.crlvFile || vehicle.crlvFile.length === 0) {
+                setError(`vehicles.${index}.crlvFile`, {type: 'manual', message: 'CRLV é obrigatório.'});
+                hasError = true;
+            }
+            if (!vehicle.frontPhoto || vehicle.frontPhoto.length === 0) {
+                setError(`vehicles.${index}.frontPhoto`, {type: 'manual', message: 'Foto frontal é obrigatória.'});
+                hasError = true;
+            }
+            if (!vehicle.sidePhoto || vehicle.sidePhoto.length === 0) {
+                setError(`vehicles.${index}.sidePhoto`, {type: 'manual', message: 'Foto lateral é obrigatória.'});
+                hasError = true;
+            }
+        });
+        if(hasError) return;
+    }
+
+    if (currentStep < steps.length - 1) {
+      setCurrentStep(step => step + 1);
+    } else {
+      await handleSubmit(processForm)();
+    }
+  };
+
+  const prevStep = () => {
+    if (currentStep > 0) {
+      setCurrentStep(step => step - 1);
+    }
+  };
+
+  const progress = ((currentStep + 1) / steps.length) * 100;
+
+  return (
+    <div className="flex min-h-[calc(100vh-128px)] items-center justify-center bg-muted/40 px-4 py-12">
+      <Card className="w-full max-w-2xl shadow-lg">
+        <CardHeader>
+          <div className="flex items-center gap-2 mb-2">
+            <Truck className="h-6 w-6 text-primary" />
+            <CardTitle className="text-2xl">Cadastro de Motorista</CardTitle>
+          </div>
+          <CardDescription>Siga as etapas para criar seu perfil de motorista.</CardDescription>
+          <Separator />
+          <div className="pt-4">
+            <p className="text-sm text-muted-foreground">Etapa {currentStep + 1} de {steps.length}: {steps[currentStep].name}</p>
+            <Progress value={progress} className="mt-2" />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <FormProvider {...methods}>
+            <form onSubmit={handleSubmit(processForm)} className="space-y-6">
+              {currentStep === 0 && <Step1 />}
+              {currentStep === 1 && <Step2 />}
+              {currentStep === 2 && <Step3 />}
+              {currentStep === 3 && <Step4 allVehicleTypes={allVehicleTypes} allBodyTypes={allBodyTypes} />}
+              {currentStep === 4 && <Step5 />}
+            </form>
+          </FormProvider>
+          <div className="mt-8 flex justify-between">
+            <Button onClick={prevStep} variant="outline" disabled={currentStep === 0 || isLoading}>
+              Voltar
+            </Button>
+            <Button onClick={nextStep} disabled={isLoading}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {currentStep === steps.length - 1 ? 'Finalizar Cadastro' : 'Próximo'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
-};
-
+}
 
 // ==================================
 // STEP COMPONENTS
 // ==================================
 
-const Step1 = ({ control }: { control: Control<DriverFormData> }) => {
+const Step1 = () => {
+    const { control, formState: { errors } } = useFormContext();
+
+    const handleMask = (value: string, maskType: 'cpf' | 'phone') => {
+        const unmasked = value.replace(/\D/g, '');
+        if (maskType === 'cpf') {
+        return unmasked
+            .replace(/(\d{3})(\d)/, '$1.$2')
+            .replace(/(\d{3})(\d)/, '$1.$2')
+            .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+            .substring(0, 14);
+        }
+        if (maskType === 'phone') {
+            return unmasked
+            .replace(/(\d{2})(\d)/, '($1) $2')
+            .replace(/(\d{5})(\d)/, '$1-$2')
+            .substring(0, 15);
+        }
+        return value;
+    };
+    
+    const toTitleCase = (str: string) => {
+      return str.replace(
+        /\w\S*/g,
+        (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
+      );
+    };
+    
     return (
         <div className="space-y-6">
             <FormField control={control} name="fullName" render={({ field }) => (
@@ -196,26 +412,28 @@ const Step1 = ({ control }: { control: Control<DriverFormData> }) => {
                 </FormItem>
             )} />
             <div className="grid md:grid-cols-2 gap-4">
-                <FormField control={control} name="birthDate" render={({ field }) => (
-                    <FormItem className="flex flex-col"><FormLabel>Data de Nascimento</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><>{field.value ? (format(field.value, "dd/MM/yyyy")) : (<span>Escolha uma data</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar locale={ptBR} mode="single" selected={field.value} onSelect={field.onChange} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
-                )} />
-                <FormField control={control} name="cpf" render={({ field }) => (
-                    <FormItem><FormLabel>CPF</FormLabel><FormControl><Input placeholder="000.000.000-00" {...field} onChange={(e) => field.onChange(handleMask(e.target.value, 'cpf'))} /></FormControl><FormMessage/></FormItem>
-                )} />
+                 <FormField control={control} name="birthDate" render={({ field }) => (
+                     <FormItem className="flex flex-col"><FormLabel>Data de Nascimento</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}><>{field.value ? (format(field.value, "dd/MM/yyyy")) : (<span>Escolha uma data</span>)}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar locale={ptBR} mode="single" selected={field.value} onSelect={field.onChange} captionLayout="dropdown-buttons" fromYear={1950} toYear={new Date().getFullYear() - 18} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
+                 )} />
+                 <FormField control={control} name="cpf" render={({ field }) => (
+                     <FormItem><FormLabel>CPF</FormLabel><FormControl><Input placeholder="000.000.000-00" {...field} onChange={(e) => field.onChange(handleMask(e.target.value, 'cpf'))} /></FormControl><FormMessage>{errors.cpf && typeof errors.cpf.message === 'string' && errors.cpf.message}</FormMessage></FormItem>
+                 )} />
             </div>
-            <div className="grid md:grid-cols-2 gap-4">
-                <FormField control={control} name="phone" render={({ field }) => (
-                    <FormItem><FormLabel>Telefone (com DDD)</FormLabel><FormControl><Input placeholder="(00) 00000-0000" {...field} onChange={(e) => field.onChange(handleMask(e.target.value, 'phone'))} /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={control} name="confirmPhone" render={({ field }) => (
-                    <FormItem><FormLabel>Confirmar Telefone</FormLabel><FormControl><Input placeholder="(00) 00000-0000" {...field} onChange={(e) => field.onChange(handleMask(e.target.value, 'phone'))} /></FormControl><FormMessage /></FormItem>
-                )} />
-            </div>
+             <div className="grid md:grid-cols-2 gap-4">
+                 <FormField control={control} name="phone" render={({ field }) => (
+                     <FormItem><FormLabel>Telefone (com DDD)</FormLabel><FormControl><Input placeholder="(00) 00000-0000" {...field} onChange={(e) => field.onChange(handleMask(e.target.value, 'phone'))} /></FormControl><FormMessage /></FormItem>
+                 )} />
+                  <FormField control={control} name="confirmPhone" render={({ field }) => (
+                     <FormItem><FormLabel>Confirmar Telefone</FormLabel><FormControl><Input placeholder="(00) 00000-0000" {...field} onChange={(e) => field.onChange(handleMask(e.target.value, 'phone'))} /></FormControl><FormMessage /></FormItem>
+                 )} />
+             </div>
         </div>
     );
 };
 
-const Step2 = ({ control, setValue, setFocus }: { control: Control<DriverFormData>, setValue: any, setFocus: any }) => {
+// CORREÇÃO PRINCIPAL: O componente Step2 estava sendo fechado incorretamente
+const Step2 = () => {
+    const { control, setValue, setFocus } = useFormContext();
     const [isCepLoading, setIsCepLoading] = useState(false);
     const { toast } = useToast();
 
@@ -249,7 +467,7 @@ const Step2 = ({ control, setValue, setFocus }: { control: Control<DriverFormDat
     
     return (
         <div className="space-y-6">
-            <div className="grid md:grid-cols-3 gap-4">
+             <div className="grid md:grid-cols-3 gap-4">
                 <FormField control={control} name="cep" render={({ field }) => (
                     <FormItem><FormLabel>CEP</FormLabel><FormControl><div className="relative"><Input placeholder="00000-000" {...field} onBlur={() => handleCepBlur(field.value)} disabled={isManualAddress} />{isCepLoading && <Loader2 className="absolute right-2 top-2.5 h-4 w-4 animate-spin" />}</div></FormControl><FormMessage /></FormItem>
                 )} />
@@ -257,11 +475,11 @@ const Step2 = ({ control, setValue, setFocus }: { control: Control<DriverFormDat
                 <FormField control={control} name="cidade" render={({ field }) => (<FormItem><FormLabel>Cidade</FormLabel><FormControl><Input {...field} readOnly={!isManualAddress} /></FormControl><FormMessage /></FormItem>)} />
             </div>
             <FormField control={control} name="logradouro" render={({ field }) => (<FormItem><FormLabel>Logradouro</FormLabel><FormControl><Input {...field} readOnly={!isManualAddress} /></FormControl><FormMessage /></FormItem>)} />
-            <div className="grid md:grid-cols-3 gap-4">
+             <div className="grid md:grid-cols-3 gap-4">
                 <FormField control={control} name="bairro" render={({ field }) => (<FormItem className="col-span-2"><FormLabel>Bairro</FormLabel><FormControl><Input {...field} readOnly={!isManualAddress} /></FormControl><FormMessage /></FormItem>)} />
                 <FormField control={control} name="numero" render={({ field }) => (<FormItem><FormLabel>Número</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
             </div>
-            <FormField control={control} name="complemento" render={({ field }) => (<FormItem><FormLabel>Complemento (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+             <FormField control={control} name="complemento" render={({ field }) => (<FormItem><FormLabel>Complemento (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
             <FormField control={control} name="addressManual" render={({ field }) => (<FormItem className="flex flex-row items-center space-x-2"><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl><FormLabel>Não achei meu CEP, digitar manualmente</FormLabel></FormItem>)} />
             
             <Separator />
@@ -277,13 +495,14 @@ const Step2 = ({ control, setValue, setFocus }: { control: Control<DriverFormDat
             <FormField control={control} name="issuesInvoice" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-4"><div className="space-y-0.5"><FormLabel>Emite Nota Fiscal?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
             <FormField control={control} name="issuesCte" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-4"><div className="space-y-0.5"><FormLabel>Emite CT-e (Conhecimento de Transporte Eletrônico)?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
             <FormField control={control} name="hasAntt" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-4"><div className="space-y-0.5"><FormLabel>Possui ANTT (Agência Nacional de Transportes Terrestres)?</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
-            {hasAntt && <FormField control={control} name="rntrc" render={({ field }) => (<FormItem><FormLabel>RNTRC</FormLabel><FormControl><Input placeholder="Número do RNTRC" {...field} /></FormControl><FormMessage /></FormItem>)} />
+             {hasAntt && <FormField control={control} name="rntrc" render={({ field }) => (<FormItem><FormLabel>RNTRC</FormLabel><FormControl><Input placeholder="Número do RNTRC" {...field} /></FormControl><FormMessage /></FormItem>)} />}
         </div>
     );
-};
+}; // ✅ CORREÇÃO: Fechamento correto do componente Step2 (antes estava apenas com ")")
 
-const FileInput = ({ name, label, description, acceptedTypes, captureMode, control }: { name: any, label: string, description: string, acceptedTypes: string[], captureMode?: 'user' | 'environment', control: Control<DriverFormData> }) => {
-    const fileList = useWatch({ control, name });
+const FileInput = ({ name, label, description, acceptedTypes, captureMode }: { name: any, label: string, description: string, acceptedTypes: string[], captureMode?: 'user' | 'environment' }) => {
+    const { control, watch } = useFormContext();
+    const fileList = watch(name);
     const [preview, setPreview] = useState<string | null>(null);
 
     useEffect(() => {
@@ -294,7 +513,7 @@ const FileInput = ({ name, label, description, acceptedTypes, captureMode, contr
                 setPreview(objectUrl);
                 return () => URL.revokeObjectURL(objectUrl);
             } else {
-                 setPreview(null);
+                setPreview(null);
             }
         } else {
              setPreview(null);
@@ -349,13 +568,14 @@ const FileInput = ({ name, label, description, acceptedTypes, captureMode, contr
     );
 };
 
-const Step3 = ({ control }: { control: Control<DriverFormData> }) => {
+const Step3 = () => {
+    const { control } = useFormContext();
     const cnhCategories = ['A', 'B', 'C', 'D', 'E', 'AB', 'AC', 'AD', 'AE'];
 
     return (
         <div className="space-y-6">
-            <FileInput name="selfie" label="Selfie do Rosto" description="PNG, JPG, WEBP (MAX 5MB)" acceptedTypes={ACCEPTED_IMG_TYPES} captureMode="user" control={control} />
-            <FileInput name="cnhFile" label="Foto da CNH (Frente e Verso) ou PDF" description="PNG, JPG, PDF (MAX 5MB)" acceptedTypes={ACCEPTED_DOC_TYPES} control={control} />
+            <FileInput name="selfie" label="Selfie do Rosto" description="PNG, JPG, WEBP (MAX 5MB)" acceptedTypes={ACCEPTED_IMG_TYPES} captureMode="user" />
+            <FileInput name="cnhFile" label="Foto da CNH (Frente e Verso) ou PDF" description="PNG, JPG, PDF (MAX 5MB)" acceptedTypes={ACCEPTED_DOC_TYPES} />
             <FormField control={control} name="cnhCategory" render={({ field }) => (
                 <FormItem><FormLabel>Categoria da CNH</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione a categoria" /></SelectTrigger></FormControl><SelectContent>{cnhCategories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
             )} />
@@ -371,7 +591,8 @@ const Step3 = ({ control }: { control: Control<DriverFormData> }) => {
     );
 };
 
-const Step4 = ({ allVehicleTypes, allBodyTypes, control, formState: { errors } }: { allVehicleTypes: VehicleType[], allBodyTypes: BodyType[], control: Control<DriverFormData>, formState: any }) => {
+const Step4 = ({ allVehicleTypes, allBodyTypes }: { allVehicleTypes: VehicleType[], allBodyTypes: BodyType[] }) => {
+    const { control, formState: { errors } } = useFormContext();
     const { fields, append, remove } = useFieldArray({
         control,
         name: "vehicles",
@@ -405,9 +626,9 @@ const Step4 = ({ allVehicleTypes, allBodyTypes, control, formState: { errors } }
                              <FormField control={control} name={`vehicles.${index}.bodyTypeId`} render={({ field }) => (<FormItem><FormLabel>Tipo de Carroceria</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger></FormControl><SelectContent>{allBodyTypes.map(bt => <SelectItem key={bt.id} value={bt.id}>{bt.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                         </div>
                         <div className="mt-4 space-y-4">
-                             <FileInput name={`vehicles.${index}.crlvFile`} label="CRLV" description="Imagem ou PDF" acceptedTypes={ACCEPTED_DOC_TYPES} control={control} />
-                             <FileInput name={`vehicles.${index}.frontPhoto`} label="Foto Frontal" description="Imagem do veículo" acceptedTypes={ACCEPTED_IMG_TYPES} captureMode="environment" control={control} />
-                             <FileInput name={`vehicles.${index}.sidePhoto`} label="Foto Lateral" description="Imagem do veículo" acceptedTypes={ACCEPTED_IMG_TYPES} captureMode="environment" control={control} />
+                             <FileInput name={`vehicles.${index}.crlvFile`} label="CRLV" description="Imagem ou PDF" acceptedTypes={ACCEPTED_DOC_TYPES} />
+                             <FileInput name={`vehicles.${index}.frontPhoto`} label="Foto Frontal" description="Imagem do veículo" acceptedTypes={ACCEPTED_IMG_TYPES} captureMode="environment" />
+                             <FileInput name={`vehicles.${index}.sidePhoto`} label="Foto Lateral" description="Imagem do veículo" acceptedTypes={ACCEPTED_IMG_TYPES} captureMode="environment" />
                         </div>
                     </Card>
                 ))}
@@ -423,8 +644,11 @@ const Step4 = ({ allVehicleTypes, allBodyTypes, control, formState: { errors } }
     );
 };
 
-const Step5 = ({ control, getValues, toast }: { control: Control<DriverFormData>, getValues: any, toast: any }) => {
-    const handleCheckEmail = async () => {
+const Step5 = () => {
+    const { control, getValues } = useFormContext();
+     const { toast } = useToast();
+
+     const handleCheckEmail = async () => {
         const email = getValues('email');
         if (!email || !z.string().email().safeParse(email).success) {
             toast({ variant: 'destructive', title: 'Email inválido', description: 'Por favor, insira um email válido para verificar.' });
@@ -492,226 +716,3 @@ const Step5 = ({ control, getValues, toast }: { control: Control<DriverFormData>
         </div>
     );
 };
-
-// ==================================
-// FORM COMPONENT
-// ==================================
-export default function DriverRegisterForm({ allVehicleTypes, allBodyTypes }: { allVehicleTypes: VehicleType[], allBodyTypes: BodyType[] }) {
-  const [currentStep, setCurrentStep] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
-  const { toast } = useToast();
-
-  const methods = useForm<DriverFormData>({
-    resolver: zodResolver(formSchema),
-    mode: 'onBlur',
-    defaultValues: {
-      fullName: '',
-      cpf: '',
-      phone: '',
-      confirmPhone: '',
-      cep: '',
-      logradouro: '',
-      numero: '',
-      complemento: '',
-      bairro: '',
-      cidade: '',
-      uf: '',
-      addressManual: false,
-      hasCnpj: false,
-      cnpj: '',
-      issuesInvoice: false,
-      issuesCte: false,
-      hasAntt: false,
-      cnhCategory: undefined,
-      cnhNumber: '',
-      birthDate: undefined,
-      cnhExpiration: undefined,
-      selfie: undefined,
-      cnhFile: undefined,
-      vehicles: [],
-      email: '',
-      password: '',
-      confirmPassword: '',
-    }
-  });
-
-  const { handleSubmit, trigger, getValues, setError, control, formState, setValue, setFocus } = methods;
-
-  const uploadFile = async (file: File, path: string): Promise<{url: string, status: 'pending'}> => {
-    const fileRef = ref(storage, path);
-    await uploadBytes(fileRef, file);
-    const url = await getDownloadURL(fileRef);
-    return { url, status: 'pending' };
-  };
-
-  const processForm = async (data: DriverFormData) => {
-    setIsLoading(true);
-    try {
-        // 1. Create user in Auth
-        const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
-        const user = userCredential.user;
-
-        // 2. Upload files and create data structure with status
-        const selfieUrl = data.selfie?.[0] ? await uploadFile(data.selfie[0], `users/${user.uid}/selfie`) : null;
-        const cnhFileUrl = data.cnhFile?.[0] ? await uploadFile(data.cnhFile[0], `users/${user.uid}/cnh`) : null;
-
-        const vehicleUploadPromises = data.vehicles.map(async (vehicle, index) => {
-            const plate = vehicle.licensePlate.replace(/[^A-Z0-9]/g, '');
-            const crlvUrl = vehicle.crlvFile?.[0] ? await uploadFile(vehicle.crlvFile[0], `users/${user.uid}/vehicles/${plate}/crlv`) : null;
-            const frontPhotoUrl = vehicle.frontPhoto?.[0] ? await uploadFile(vehicle.frontPhoto[0], `users/${user.uid}/vehicles/${plate}/front`) : null;
-            const sidePhotoUrl = vehicle.sidePhoto?.[0] ? await uploadFile(vehicle.sidePhoto[0], `users/${user.uid}/vehicles/${plate}/side`) : null;
-            
-            return {
-                ...vehicle,
-                crlvFile: crlvUrl,
-                frontPhoto: frontPhotoUrl,
-                sidePhoto: sidePhotoUrl,
-            };
-        });
-        
-        const uploadedVehicles = await Promise.all(vehicleUploadPromises);
-
-        // 3. Prepare data for Firestore
-        const { confirmPassword, password, confirmPhone, ...formData } = data;
-        
-        const firestoreData = {
-            ...formData,
-            uid: user.uid,
-            email: user.email,
-            selfie: selfieUrl,
-            cnhFile: cnhFileUrl,
-            vehicles: uploadedVehicles,
-            role: 'driver',
-            status: 'pending', // Overall status starts as pending
-            createdAt: serverTimestamp(),
-        };
-
-        // 4. Save to Firestore
-        await setDoc(doc(db, 'users', user.uid), firestoreData);
-        
-        toast({
-            title: "Cadastro Finalizado!",
-            description: "Seu perfil foi enviado para análise. Você será notificado em breve.",
-        });
-        
-        router.push('/driver-dashboard');
-    } catch (error: any) {
-        toast({
-            variant: "destructive",
-            title: "Erro no Cadastro",
-            description: error.code === 'auth/email-already-in-use' ? 'Este e-mail já está em uso.' : error.message,
-        });
-    } finally {
-        setIsLoading(false);
-    }
-  };
-  
-  type FieldName = keyof DriverFormData;
-
-  const nextStep = async () => {
-    const fields = steps[currentStep].fields as FieldName[];
-    const output = await trigger(fields, { shouldFocus: true });
-    
-    if (!output) return;
-
-    if (currentStep === 0) {
-        setIsLoading(true);
-        const cpf = getValues('cpf');
-        const q = query(collection(db, "users"), where("cpf", "==", cpf));
-        const querySnapshot = await getDocs(q);
-        if (!querySnapshot.empty) {
-            setError('cpf', { type: 'manual', message: 'Este CPF já está cadastrado.' });
-            setIsLoading(false);
-            return;
-        }
-        setIsLoading(false);
-    }
-    
-     if (currentStep === 2) { // Document Step
-        if (!getValues('selfie') || getValues('selfie').length === 0) {
-            setError('selfie', { type: 'manual', message: 'A selfie é obrigatória.'});
-            return;
-        }
-         if (!getValues('cnhFile') || getValues('cnhFile').length === 0) {
-            setError('cnhFile', { type: 'manual', message: 'O arquivo da CNH é obrigatório.'});
-            return;
-        }
-    }
-    
-     if (currentStep === 3) { // Vehicle Step
-        const vehicles = getValues('vehicles');
-        let hasError = false;
-        vehicles.forEach((vehicle, index) => {
-            if (!vehicle.crlvFile || vehicle.crlvFile.length === 0) {
-                setError(`vehicles.${index}.crlvFile`, {type: 'manual', message: 'CRLV é obrigatório.'});
-                hasError = true;
-            }
-             if (!vehicle.frontPhoto || vehicle.frontPhoto.length === 0) {
-                setError(`vehicles.${index}.frontPhoto`, {type: 'manual', message: 'Foto frontal é obrigatória.'});
-                hasError = true;
-            }
-             if (!vehicle.sidePhoto || vehicle.sidePhoto.length === 0) {
-                setError(`vehicles.${index}.sidePhoto`, {type: 'manual', message: 'Foto lateral é obrigatória.'});
-                hasError = true;
-            }
-        });
-        if(hasError) return;
-    }
-
-    if (currentStep < steps.length - 1) {
-      setCurrentStep(step => step + 1);
-    } else {
-      await handleSubmit(processForm)();
-    }
-  };
-
-  const prevStep = () => {
-    if (currentStep > 0) {
-      setCurrentStep(step => step + 1);
-    }
-  };
-
-  const progress = ((currentStep + 1) / steps.length) * 100;
-
-  return (
-    <div className="flex min-h-[calc(100vh-128px)] items-center justify-center bg-muted/40 px-4 py-12">
-      <Card className="w-full max-w-2xl shadow-lg">
-        <CardHeader>
-          <div className="flex items-center gap-2 mb-2">
-            <Truck className="h-6 w-6 text-primary" />
-            <CardTitle className="text-2xl">Cadastro de Motorista</CardTitle>
-          </div>
-          <CardDescription>Siga as etapas para criar seu perfil de motorista.</CardDescription>
-          <Separator />
-           <div className="pt-4">
-                <p className="text-sm text-muted-foreground">Etapa {currentStep + 1} de {steps.length}: {steps[currentStep].name}</p>
-                <Progress value={progress} className="mt-2" />
-            </div>
-        </CardHeader>
-        <CardContent>
-          <FormProvider {...methods}>
-            <form onSubmit={handleSubmit(processForm)} className="space-y-6">
-              {currentStep === 0 && <Step1 control={control} />}
-              {currentStep === 1 && <Step2 control={control} setValue={setValue} setFocus={setFocus} />}
-              {currentStep === 2 && <Step3 control={control} />}
-              {currentStep === 3 && <Step4 allVehicleTypes={allVehicleTypes} allBodyTypes={allBodyTypes} control={control} formState={formState} />}
-              {currentStep === 4 && <Step5 control={control} getValues={getValues} toast={toast} />}
-            </form>
-          </FormProvider>
-          <div className="mt-8 flex justify-between">
-            <Button onClick={prevStep} variant="outline" disabled={currentStep === 0 || isLoading}>
-              Voltar
-            </Button>
-            <Button onClick={nextStep} disabled={isLoading}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {currentStep === steps.length - 1 ? 'Finalizar Cadastro' : 'Próximo'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-    
