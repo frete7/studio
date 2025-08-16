@@ -1,52 +1,37 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
-import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
-import { Loader2, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import CommonFreightForm from './common-freight-form'; // O novo formulário simplificado
+import CommonFreightForm from './common-freight-form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Box, CornerDownLeft } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
 
 export default function RequestFreightRouterPage() {
-    const [user, setUser] = useState<FirebaseUser | null>(null);
-    const [profile, setProfile] = useState<any | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
     const router = useRouter();
+    const { user, isAuthenticated, isLoading, role } = useAuth();
 
-    useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-            if (currentUser) {
-                setUser(currentUser);
-                const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-                if (userDoc.exists()) {
-                    setProfile(userDoc.data());
-                }
-            }
-            setIsLoading(false);
-        });
-        return () => unsubscribe();
-    }, []);
-
+    // Se estiver carregando, mostrar loading
     if (isLoading) {
         return (
             <div className="flex h-screen items-center justify-center">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                    <p className="text-muted-foreground">Carregando...</p>
+                </div>
             </div>
         );
     }
 
-    // Se o usuário não estiver logado, mostre diretamente o formulário comum.
-    if (!user) {
+    // Se o usuário não estiver logado, mostrar formulário para visitantes
+    if (!isAuthenticated || !user) {
         return (
             <div className="container mx-auto px-4 py-12">
                 <div className="max-w-3xl mx-auto">
-                     <div className="text-center mb-12">
+                    <div className="text-center mb-12">
                         <h1 className="text-4xl font-bold font-headline text-primary">Solicitar um Frete</h1>
                         <p className="mt-2 text-lg text-foreground/70">
                             Preencha os detalhes abaixo e encontre o transportador ideal para sua carga.
@@ -58,13 +43,13 @@ export default function RequestFreightRouterPage() {
         );
     }
 
-    // Se o usuário estiver logado, ofereça a escolha.
+    // Se o usuário estiver logado, oferecer escolha
     return (
         <div className="container mx-auto px-4 py-12">
             <div className="max-w-4xl mx-auto">
-                 <div className="mb-8">
-                     <Button asChild variant="outline">
-                        <Link href="/company-dashboard">
+                <div className="mb-8">
+                    <Button asChild variant="outline">
+                        <Link href={role === 'company' ? '/company-dashboard' : '/driver-dashboard'}>
                             <ArrowLeft className="mr-2 h-4 w-4" />
                             Voltar para o Painel
                         </Link>
@@ -77,7 +62,7 @@ export default function RequestFreightRouterPage() {
                     </p>
                 </div>
                 <div className="grid md:grid-cols-2 gap-8">
-                     <Card className="flex flex-col text-center hover:shadow-xl transition-shadow">
+                    <Card className="flex flex-col text-center hover:shadow-xl transition-shadow">
                         <CardHeader className="items-center">
                             <div className="p-3 bg-muted rounded-full mb-4">
                                 <Box className="h-10 w-10 text-green-500" />
@@ -90,29 +75,29 @@ export default function RequestFreightRouterPage() {
                             </CardDescription>
                         </CardContent>
                         <div className="p-6 pt-0">
-                             <Button asChild className="w-full bg-green-500 hover:bg-green-600">
+                            <Button asChild className="w-full bg-green-500 hover:bg-green-600">
                                 <Link href="/solicitar-frete/empresa?type=completo">Frete Completo</Link>
                             </Button>
                         </div>
-                     </Card>
-                      <Card className="flex flex-col text-center hover:shadow-xl transition-shadow">
+                    </Card>
+                    <Card className="flex flex-col text-center hover:shadow-xl transition-shadow">
                         <CardHeader className="items-center">
-                             <div className="p-3 bg-muted rounded-full mb-4">
+                            <div className="p-3 bg-muted rounded-full mb-4">
                                 <CornerDownLeft className="h-10 w-10 text-orange-500" />
                             </div>
-                            <CardTitle>Anunciar Frete de Retorno</CardTitle>
+                            <CardTitle>Frete Pessoal</CardTitle>
                         </CardHeader>
                         <CardContent className="flex-grow">
                             <CardDescription>
-                                Anuncie uma carga para um motorista que já está voltando para sua região.
+                                Solicite um frete para uso pessoal, sem vínculo com sua empresa.
                             </CardDescription>
                         </CardContent>
                         <div className="p-6 pt-0">
                             <Button asChild className="w-full bg-orange-500 hover:bg-orange-600">
-                                <Link href="/solicitar-frete/empresa?type=retorno">Frete de Retorno</Link>
+                                <Link href="/solicitar-frete/pessoal">Solicitar Frete Pessoal</Link>
                             </Button>
                         </div>
-                     </Card>
+                    </Card>
                 </div>
             </div>
         </div>

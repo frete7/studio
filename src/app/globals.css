@@ -2,8 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Otimizações de performance */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   font-family: Arial, Helvetica, sans-serif;
+  /* Otimizações de renderização */
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Otimizações de animações */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 @layer base {
@@ -84,5 +108,24 @@ body {
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* Otimizações de componentes específicos */
+@layer components {
+  /* Otimizar carregamento de imagens */
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+  
+  /* Otimizar transições */
+  .transition-optimized {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  /* Otimizar animações de loading */
+  .animate-pulse-optimized {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 }

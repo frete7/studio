@@ -25,7 +25,6 @@ import { Alert, AlertTitle } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 
-
 // =================================================================
 // Schemas e Funções de Validação
 // =================================================================
@@ -33,16 +32,32 @@ import { Badge } from '@/components/ui/badge';
 function validateCPF(cpf: string) {
     if (!cpf) return false;
     cpf = cpf.replace(/[^\d]+/g, '');
-    if (cpf.length !== 11 || !!cpf.match(/(\d)\1{10}/)) return false;
-    const digits = cpf.split('').map(Number);
-    const validator = (n: number) => (digits.slice(0, n).reduce((sum, digit, index) => sum + digit * (n + 1 - index), 0) * 10) % 11 % 10;
-    return validator(9) === digits[9] && validator(10) === digits[10];
+    if (cpf.length !== 11) return false;
+    
+    // Verificar se todos os dígitos são iguais
+    if (/^(\d)\1{10}$/.test(cpf)) return false;
+    
+    // Validação dos dígitos verificadores
+    let sum = 0;
+    for (let i = 0; i < 9; i++) {
+        sum += parseInt(cpf.charAt(i)) * (10 - i);
+    }
+    let remainder = 11 - (sum % 11);
+    let digit1 = remainder < 2 ? 0 : remainder;
+    
+    sum = 0;
+    for (let i = 0; i < 10; i++) {
+        sum += parseInt(cpf.charAt(i)) * (11 - i);
+    }
+    remainder = 11 - (sum % 11);
+    let digit2 = remainder < 2 ? 0 : remainder;
+    
+    return parseInt(cpf.charAt(9)) === digit1 && parseInt(cpf.charAt(10)) === digit2;
 }
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
 const ACCEPTED_DOCUMENT_TYPES = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
-
 
 const fileSchema = z.any()
   .refine((files) => !files || files.length === 0 || files?.[0]?.size <= MAX_FILE_SIZE, `Tamanho máximo é 5MB.`)
@@ -82,97 +97,91 @@ const steps = [
     { id: 5, name: 'Finalização', fields: ['isCarrier'] },
 ];
 
-const storage = getStorage(app);
-
-// =================================================================
-// Componente Principal
-// =================================================================
-export default function CompanyProfileForm({ profile }: { profile: any }) {
-    const [currentStep, setCurrentStep] = useState(profile.status === 'incomplete' ? 0 : 5); // Start at summary if active
+export default function CompanyProfileForm({ profile, onUpdate }: { profile: any, onUpdate: () => void }) {
+    const [currentStep, setCurrentStep] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
 
     const methods = useForm<ProfileFormData>({
         resolver: zodResolver(profileSchema),
-        mode: "onBlur",
         defaultValues: {
-            razaoSocial: profile.name || '',
-            nomeFantasia: profile.tradingName || '',
-            cep: profile.addressDetails?.cep || '',
-            logradouro: profile.addressDetails?.logradouro || '',
-            numero: profile.addressDetails?.numero || '',
-            complemento: profile.addressDetails?.complemento || '',
-            bairro: profile.addressDetails?.bairro || '',
-            cidade: profile.addressDetails?.cidade || '',
-            uf: profile.addressDetails?.uf || '',
-            companyLogo: null,
-            responsibleDocument: null,
-            cnpjCard: null,
-            isCarrier: profile.isCarrier ? 'yes' : 'no',
-        }
+            razaoSocial: profile.razaoSocial || '',
+            nomeFantasia: profile.nomeFantasia || '',
+            cep: profile.cep || '',
+            logradouro: profile.logradouro || '',
+            numero: profile.numero || '',
+            complemento: profile.complemento || '',
+            bairro: profile.bairro || '',
+            cidade: profile.cidade || '',
+            uf: profile.uf || '',
+            isCarrier: profile.isCarrier || 'no',
+        },
     });
 
-    const { handleSubmit, trigger, control, watch, formState: { errors } } = methods;
-
-    const uploadFile = async (file: File, path: string): Promise<{url: string, status: string}> => {
-        const fileRef = ref(storage, path);
-        await uploadBytes(fileRef, file);
-        const url = await getDownloadURL(fileRef);
-        return { url, status: 'pending' };
-    };
+    const { control, handleSubmit, watch, trigger, setValue, setError, clearErrors } = methods;
 
     const processForm = async (data: ProfileFormData) => {
         setIsLoading(true);
         try {
-            const userId = profile.uid;
-            let updateData: any = {
-                name: data.razaoSocial,
-                tradingName: data.nomeFantasia,
-                address: `${data.logradouro}, ${data.numero}, ${data.bairro}, ${data.cidade} - ${data.uf}`,
-                addressDetails: {
-                    cep: data.cep,
-                    logradouro: data.logradouro,
-                    numero: data.numero,
-                    complemento: data.complemento,
-                    bairro: data.bairro,
-                    cidade: data.cidade,
-                    uf: data.uf,
-                },
-                responsible: { // Preserve existing responsible data
-                    ...profile.responsible,
-                },
-                isCarrier: data.isCarrier === 'yes',
-                // Only change status if it was incomplete
-                status: profile.status === 'incomplete' ? 'pending' : profile.status 
-            };
+            const storage = getStorage(app);
+            const updates: any = {};
 
-            // Handle uploads
-            if (data.companyLogo && data.companyLogo[0]) {
-                updateData.photoURL = await uploadFile(data.companyLogo[0], `users/${userId}/logo`).then(res => res.url);
-            }
-             if (data.responsibleDocument && data.responsibleDocument[0]) {
-                updateData.responsible.document = await uploadFile(data.responsibleDocument[0], `users/${userId}/responsible_document`);
-            }
-            if (data.cnpjCard && data.cnpjCard[0]) {
-                updateData.cnpjCard = await uploadFile(data.cnpjCard[0], `users/${userId}/cnpj_card`);
+            // Upload company logo if provided
+            if (data.companyLogo?.[0]) {
+                const logoRef = ref(storage, `company-logos/${profile.id}/${data.companyLogo[0].name}`);
+                await uploadBytes(logoRef, data.companyLogo[0]);
+                updates.photoURL = await getDownloadURL(logoRef);
             }
 
-            const userDocRef = doc(db, 'users', userId);
-            await updateDoc(userDocRef, updateData);
+            // Upload responsible document if provided
+            if (data.responsibleDocument?.[0]) {
+                const docRef = ref(storage, `company-documents/${profile.id}/responsible/${data.responsibleDocument[0].name}`);
+                await uploadBytes(docRef, data.responsibleDocument[0]);
+                updates['responsible.document'] = {
+                    url: await getDownloadURL(docRef),
+                    status: 'pending',
+                    uploadedAt: new Date(),
+                };
+            }
+
+            // Upload CNPJ card if provided
+            if (data.cnpjCard?.[0]) {
+                const cnpjRef = ref(storage, `company-documents/${profile.id}/cnpj/${data.cnpjCard[0].name}`);
+                await uploadBytes(cnpjRef, data.cnpjCard[0]);
+                updates['cnpjCard'] = {
+                    url: await getDownloadURL(cnpjRef),
+                    status: 'pending',
+                    uploadedAt: new Date(),
+                };
+            }
+
+            // Update other fields
+            Object.keys(data).forEach(key => {
+                if (key !== 'companyLogo' && key !== 'responsibleDocument' && key !== 'cnpjCard') {
+                    updates[key] = data[key as keyof ProfileFormData];
+                }
+            });
+
+            // Update profile status
+            updates.status = 'pending';
+            updates.updatedAt = new Date();
+
+            // Update Firestore
+            const userRef = doc(db, 'users', profile.id);
+            await updateDoc(userRef, updates);
 
             toast({
-                title: "Perfil atualizado!",
-                description: profile.status === 'incomplete' 
-                    ? "Seus dados foram enviados para análise." 
-                    : "Suas informações foram salvas.",
+                title: 'Perfil atualizado com sucesso!',
+                description: 'Seu perfil foi enviado para análise.',
             });
-            setCurrentStep(5); // Move to summary/end view
-        } catch (error) {
-            console.error("Error updating profile:", error);
+
+            onUpdate();
+        } catch (error: any) {
+            console.error('Erro ao atualizar perfil:', error);
             toast({
                 variant: 'destructive',
-                title: "Erro ao atualizar",
-                description: "Não foi possível salvar suas informações. Tente novamente."
+                title: 'Erro ao atualizar perfil',
+                description: error.message || 'Ocorreu um erro inesperado.',
             });
         } finally {
             setIsLoading(false);
@@ -207,7 +216,6 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
         } else {
              if (!output) return;
         }
-
 
         if (currentStep < steps.length - 1) {
             setCurrentStep(step => step + 1);
@@ -344,7 +352,6 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
   const responsibleDocumentProps = getDocumentProps(profile.responsible?.document);
   const cnpjCardProps = getDocumentProps(profile.cnpjCard);
 
-    
     // Final view after completing the form or if profile is active
     if (currentStep === 5) {
         return (
@@ -380,6 +387,7 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
                             </div>
                         </div>
                      </div>
+
                       <Separator />
                      <div className="space-y-4">
                         <h3 className="text-lg font-semibold">Responsável Legal</h3>
@@ -482,7 +490,7 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
                                     </FormItem>
                                 )}
                             />
-                             <FormField
+                            <FormField
                                 control={control}
                                 name="nomeFantasia"
                                 render={({ field }) => (
@@ -494,69 +502,124 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
                                 )}
                             />
                         </div>
+
                         {/* ETAPA 2 */}
                         <div className={cn("space-y-6", currentStep !== 1 && "hidden")}>
-                            {/* Campos de endereço já estão no form, só precisam ser mostrados */}
-                             <div className="grid md:grid-cols-3 gap-4">
-                                <FormField control={control} name="cep" render={({ field }) => (<FormItem><FormLabel>CEP</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                <FormField control={control} name="uf" render={({ field }) => (<FormItem><FormLabel>UF</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                <FormField control={control} name="cidade" render={({ field }) => (<FormItem><FormLabel>Cidade</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <div className="grid md:grid-cols-2 gap-4">
+                                <FormField
+                                    control={control}
+                                    name="cep"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>CEP</FormLabel>
+                                            <FormControl><Input {...field} placeholder="00000-000" /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={control}
+                                    name="logradouro"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Logradouro</FormLabel>
+                                            <FormControl><Input {...field} placeholder="Rua, Avenida, etc." /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
                             </div>
-                            <FormField control={control} name="logradouro" render={({ field }) => (<FormItem><FormLabel>Logradouro</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                             <div className="grid md:grid-cols-3 gap-4">
-                                <FormField control={control} name="bairro" render={({ field }) => (<FormItem className="col-span-2"><FormLabel>Bairro</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                <FormField control={control} name="numero" render={({ field }) => (<FormItem><FormLabel>Número</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                <FormField
+                                    control={control}
+                                    name="numero"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Número</FormLabel>
+                                            <FormControl><Input {...field} placeholder="123" /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={control}
+                                    name="complemento"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Complemento</FormLabel>
+                                            <FormControl><Input {...field} placeholder="Apto, Sala, etc." /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={control}
+                                    name="bairro"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Bairro</FormLabel>
+                                            <FormControl><Input {...field} placeholder="Centro" /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
                             </div>
-                             <FormField
-                                control={control}
-                                name="complemento"
-                                render={({ field }) => (<FormItem><FormLabel>Complemento (Opcional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                                )}
-                            />
+                            <div className="grid md:grid-cols-2 gap-4">
+                                <FormField
+                                    control={control}
+                                    name="cidade"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Cidade</FormLabel>
+                                            <FormControl><Input {...field} placeholder="São Paulo" /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={control}
+                                    name="uf"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>UF</FormLabel>
+                                            <FormControl><Input {...field} placeholder="SP" maxLength={2} /></FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
                         </div>
-                         {/* ETAPA 3 */}
+
+                        {/* ETAPA 3 */}
                         <div className={cn("space-y-6", currentStep !== 2 && "hidden")}>
-                            <FileInput name="companyLogo" label="Logo da Empresa" description="PNG, JPG, WEBP (MAX. 5MB)" isLogo={true} existingFile={{url: profile.photoURL}} />
-                        </div>
-                         {/* ETAPA 4 */}
-                        <div className={cn("space-y-6", currentStep !== 3 && "hidden")}>
-                             <div className="space-y-2">
-                                <Label>Nome do Responsável</Label>
-                                <p className="text-sm text-muted-foreground p-3 border rounded-md">{profile.responsible?.name || 'Não informado'}</p>
-                            </div>
-                             <div className="space-y-2">
-                                <Label>CPF do Responsável</Label>
-                                <p className="text-sm text-muted-foreground p-3 border rounded-md">{profile.responsible?.cpf || 'Não informado'}</p>
-                            </div>
-                             <FileInput name="responsibleDocument" label="Documento do Responsável (Frente e Verso)" description="RG ou CNH. PNG, JPG, PDF (MAX. 5MB)" existingFile={profile.responsible?.document} />
-                             <FileInput name="cnpjCard" label="Cartão CNPJ" description="Cartão CNPJ da empresa. PNG, JPG, PDF (MAX. 5MB)" existingFile={profile.cnpjCard} />
-                        </div>
-                        {/* ETAPA 5 */}
-                         <div className={cn("space-y-6", currentStep !== 4 && "hidden")}>
-                             <FormField
+                            <FormField
                                 control={control}
-                                name="isCarrier"
+                                name="companyLogo"
                                 render={({ field }) => (
-                                    <FormItem className="space-y-3">
-                                        <FormLabel className="text-base">Sua empresa é uma Transportadora?</FormLabel>
-                                        <FormDescription>
-                                            Isso nos ajuda a entender melhor seu negócio para oferecer as melhores oportunidades.
-                                        </FormDescription>
+                                    <FormItem>
+                                        <FormLabel>Logo da Empresa</FormLabel>
                                         <FormControl>
-                                            <RadioGroup
-                                            onValueChange={field.onChange}
-                                            defaultValue={field.value}
-                                            className="flex items-center gap-6 pt-2"
-                                            >
-                                            <FormItem className="flex items-center space-x-3 space-y-0">
-                                                <FormControl><RadioGroupItem value="yes" /></FormControl>
-                                                <FormLabel className="font-normal">Sim</FormLabel>
-                                            </FormItem>
-                                            <FormItem className="flex items-center space-x-3 space-y-0">
-                                                <FormControl><RadioGroupItem value="no" /></FormControl>
-                                                <FormLabel className="font-normal">Não</FormLabel>
-                                            </FormItem>
-                                            </RadioGroup>
+                                            <div className="relative">
+                                                <label htmlFor="companyLogo" className={cn("relative flex flex-col items-center justify-center w-full border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted/75", profile.photoURL ? "h-48" : "h-32")}>
+                                                    {profile.photoURL ? (
+                                                        <Image src={profile.photoURL} alt="Logo atual" fill objectFit="contain" className="rounded-lg p-2" />
+                                                    ) : (
+                                                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                                            <UploadCloud className="w-8 h-8 mb-4 text-muted-foreground" />
+                                                            <p className="mb-2 text-sm text-muted-foreground"><span className="font-semibold">Clique para enviar</span> ou arraste e solte</p>
+                                                            <p className="text-xs text-muted-foreground">PNG, JPG até 5MB</p>
+                                                        </div>
+                                                    )}
+                                                    <Input 
+                                                        id="companyLogo" 
+                                                        type="file" 
+                                                        className="hidden"
+                                                        onBlur={field.onBlur}
+                                                        name={field.name}
+                                                        onChange={(e) => field.onChange(e.target.files)}
+                                                    />
+                                                </label>
+                                            </div>
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -564,6 +627,80 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
                             />
                         </div>
 
+                        {/* ETAPA 4 */}
+                        <div className={cn("space-y-6", currentStep !== 3 && "hidden")}>
+                            <div className="space-y-4">
+                                <h3 className="text-lg font-semibold">Documentos Necessários</h3>
+                                <p className="text-sm text-muted-foreground">Para garantir a segurança da plataforma, precisamos dos seguintes documentos:</p>
+                            </div>
+                            
+                            <FileInput 
+                                name="responsibleDocument" 
+                                label="Documento do Responsável Legal" 
+                                description="RG, CNH ou Passaporte (PDF, JPG, PNG até 5MB)"
+                                existingFile={profile.responsible?.document}
+                            />
+                            
+                            <FileInput 
+                                name="cnpjCard" 
+                                label="Cartão CNPJ" 
+                                description="Cartão CNPJ da empresa (PDF, JPG, PNG até 5MB)"
+                                existingFile={profile.cnpjCard}
+                            />
+                        </div>
+
+                        {/* ETAPA 5 */}
+                        <div className={cn("space-y-6", currentStep !== 4 && "hidden")}>
+                            <div className="space-y-4">
+                                <h3 className="text-lg font-semibold">Finalização</h3>
+                                <p className="text-sm text-muted-foreground">Últimas informações para completar seu perfil:</p>
+                            </div>
+                            
+                            <FormField
+                                control={control}
+                                name="isCarrier"
+                                render={({ field }) => (
+                                    <FormItem className="space-y-3">
+                                        <FormLabel className="text-base">Sua empresa atua como transportadora?</FormLabel>
+                                        <FormControl>
+                                            <RadioGroup
+                                                onValueChange={field.onChange}
+                                                defaultValue={field.value}
+                                                className="flex flex-col space-y-1"
+                                            >
+                                                <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                                    <FormControl>
+                                                        <RadioGroupItem value="yes" />
+                                                    </FormControl>
+                                                    <div className="space-y-1 leading-none">
+                                                        <FormLabel className="font-normal">
+                                                            Sim, somos transportadores
+                                                        </FormLabel>
+                                                        <FormDescription>
+                                                            Sua empresa oferece serviços de transporte de cargas
+                                                        </FormDescription>
+                                                    </div>
+                                                </FormItem>
+                                                <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                                    <FormControl>
+                                                        <RadioGroupItem value="no" />
+                                                    </FormControl>
+                                                    <div className="space-y-1 leading-none">
+                                                        <FormLabel className="font-normal">
+                                                            Não, somos apenas contratantes
+                                                        </FormLabel>
+                                                        <FormDescription>
+                                                            Sua empresa contrata serviços de transporte
+                                                        </FormDescription>
+                                                    </div>
+                                                </FormItem>
+                                            </RadioGroup>
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
                     </form>
                 </FormProvider>
                  <div className="mt-8 flex justify-between">
@@ -579,3 +716,4 @@ export default function CompanyProfileForm({ profile }: { profile: any }) {
         </Card>
     );
 }
+

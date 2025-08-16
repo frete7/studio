@@ -9,6 +9,15 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // Otimizações de performance
+  experimental: {
+    optimizeCss: true,
+    optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
+  },
+  // Compressão e otimizações
+  compress: true,
+  poweredByHeader: false,
+  // Otimizações de imagens
   images: {
     remotePatterns: [
       {
@@ -24,6 +33,25 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       }
     ],
+    formats: ['image/webp', 'image/avif'],
+    minimumCacheTTL: 60,
+  },
+  // Otimizações de bundle
+  webpack: (config, { dev, isServer }) => {
+    if (!dev && !isServer) {
+      // Otimizações para produção
+      config.optimization.splitChunks = {
+        chunks: 'all',
+        cacheGroups: {
+          vendor: {
+            test: /[\\/]node_modules[\\/]/,
+            name: 'vendors',
+            chunks: 'all',
+          },
+        },
+      };
+    }
+    return config;
   },
   env: {
     NEXT_PUBLIC_FIREBASE_PROJECT_ID: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,

@@ -5,10 +5,11 @@ import { Home, Users, Truck, Package, Settings, PanelLeft, CreditCard, Shapes, T
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
+import NotificationBell from '@/components/admin/notification-bell';
 
 const navItems = [
   { href: '/admin', label: 'Dashboard', icon: Home },
@@ -33,8 +34,22 @@ export default function AdminLayout({
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Memoizar itens de navegação para evitar recriações
+  const memoizedNavItems = useMemo(() => navItems, []);
+
+  // Memoizar título da página atual
+  const currentPageTitle = useMemo(() => 
+    memoizedNavItems.find(item => pathname.startsWith(item.href))?.label || 'Admin',
+    [pathname, memoizedNavItems]
+  );
+
+  // Otimizar verificação de autorização
   useEffect(() => {
+    let isMounted = true;
+    
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (!isMounted) return;
+      
       if (!currentUser) {
         router.push('/login');
         return;
@@ -44,20 +59,23 @@ export default function AdminLayout({
         const userDocRef = doc(db, 'users', currentUser.uid);
         const userDoc = await getDoc(userDocRef);
 
-        if (userDoc.exists() && userDoc.data().role === 'admin') {
+        if (isMounted && userDoc.exists() && userDoc.data().role === 'admin') {
           setIsAuthorized(true);
-        } else {
+        } else if (isMounted) {
           router.push('/');
         }
       } catch (error) {
         console.error("Authorization check failed:", error);
-        router.push('/');
+        if (isMounted) router.push('/');
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, [router]);
   
   if (isLoading) {
@@ -69,7 +87,6 @@ export default function AdminLayout({
   }
 
   if (!isAuthorized) {
-    // This can be a blank screen or a loader while redirecting
     return null;
   }
 
@@ -87,7 +104,7 @@ export default function AdminLayout({
                 </SidebarHeader>
                 <SidebarContent>
                     <SidebarMenu>
-                        {navItems.map((item) => (
+                        {memoizedNavItems.map((item) => (
                             <SidebarMenuItem key={item.href}>
                                 <Link href={item.href} passHref>
                                     <SidebarMenuButton
@@ -110,7 +127,12 @@ export default function AdminLayout({
                 <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
                      <div className="flex items-center">
                         <SidebarTrigger className="md:hidden" />
-                        <h1 className="text-xl font-semibold md:text-2xl ml-2">{navItems.find(item => pathname.startsWith(item.href))?.label || 'Admin'}</h1>
+                        <h1 className="text-xl font-semibold md:text-2xl ml-2">{currentPageTitle}</h1>
+                     </div>
+                     <div className="flex items-center gap-2">
+                        {isAuthorized && (
+                            <NotificationBell userId={auth.currentUser?.uid || ''} />
+                        )}
                      </div>
                 </header>
                 <main className="flex-1 overflow-y-auto p-4 md:p-6">

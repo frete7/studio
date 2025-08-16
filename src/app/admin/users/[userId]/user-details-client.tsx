@@ -1,19 +1,18 @@
 'use client';
 
 import { collection, doc, getDoc, getCountFromServer, query, updateDoc, where, onSnapshot } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 import { notFound } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator'; 
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog'; // Ensure these are imported
-import { AlertDialog, AlertDialogTrigger, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'; // Import AlertDialog components
-import { Mail, Phone, Calendar, User, ShieldCheck, Truck, FileText, ArrowLeft, Loader2, MoreVertical, Building, Landmark, CaseSensitive, Package, PackageSearch, PackageCheck, CreditCard, Pencil, ExternalLink, ThumbsUp, ThumbsDown, CircleHelp, GraduationCap, Briefcase, Sparkles, Edit, Trash2 } from 'lucide-react'; // Added icons
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogTrigger, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Mail, Phone, Calendar, User, ShieldCheck, Truck, FileText, ArrowLeft, Loader2, MoreVertical, Building, Landmark, CaseSensitive, Package, PackageSearch, PackageCheck, CreditCard, Pencil, ExternalLink, ThumbsUp, ThumbsDown, CircleHelp, GraduationCap, Briefcase, Sparkles, Edit, Trash2 } from 'lucide-react';
 import Link from 'next/link'; 
 import { Button, buttonVariants } from '@/components/ui/button';
 import { useEffect, useState, useMemo } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useForm, FormProvider } from 'react-hook-form';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -24,25 +23,21 @@ import { z } from 'zod';
 import {
   DropdownMenu,
   DropdownMenuContent,
- import DropdownMenuItem from '@radix-ui/react-dropdown-menu'; // Corrected import path for DropdownMenuItem
-
- // Adjusted imports for DropdownMenu items
- // Removed duplicate import for DropdownMenuItem
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger
 } from "@/components/ui/dropdown-menu"
-import { updateUserStatus, assignPlanToUser, getPlans, type Plan, updateDocumentStatus, updateUserByAdmin } from '@/app/actions';
-import { addResumeItem, updateResumeItem, deleteResumeItem } from '@/app/actions'; // Import resume actions
+import { updateUserStatus, assignPlanToUser, getPlans, type Plan, updateDocumentStatus, updateUserByAdmin, approveDocument, rejectDocument, updateUserStatusWithValidation } from '@/lib/actions';
+import { addResumeItem, updateResumeItem, deleteResumeItem } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { format, parseISO } from 'date-fns'; // Import date-fns
-import AcademicForm from '@/app/driver-dashboard/curriculo/components/academic-form'; // Import resume forms
-import ExperienceForm from '@/app/driver-dashboard/curriculo/components/experience-form'; // Import resume forms
-import QualificationForm from '@/app/driver-dashboard/curriculo/components/qualification-form'; // Import resume forms
-
+import { format, parseISO } from 'date-fns';
+import AcademicForm from '@/app/driver-dashboard/curriculo/components/academic-form';
+import ExperienceForm from '@/app/driver-dashboard/curriculo/components/experience-form';
+import QualificationForm from '@/app/driver-dashboard/curriculo/components/qualification-form';
 
 type DocumentData = {
     url: string;
@@ -61,24 +56,24 @@ type UserProfile = {
     birthDate?: string;
     cnh?: string;
     cnhCategory?: string;
-    academicFormation?: Array<{ // Added driver resume fields
-        id?: string; // ID is generated on save
+    academicFormation?: Array<{
+        id?: string;
         course: string;
         institution: string;
         startDate: string;
         endDate?: string;
         present?: boolean;
-        createdAt?: any; // Timestamps
+        createdAt?: any;
         updatedAt?: any;
     }>;
-    professionalExperience?: Array<{ // Added driver resume fields
-        id?: string; // ID is generated on save
+    professionalExperience?: Array<{
+        id?: string;
         position: string;
         company: string;
         startDate: string;
         endDate?: string;
         present?: boolean;
-        createdAt?: any; // Timestamps
+        createdAt?: any;
         updatedAt?: any;
     }>;
     // Company fields
@@ -91,15 +86,13 @@ type UserProfile = {
     responsible?: {
         name: string;
         cpf: string;
-        document?: DocumentData | string; // Can be old format 
+        document?: DocumentData | string;
     };
-    qualifications?: Array<{ // Added driver resume fields // Fixed typo
- // qualifications?: Array<{ // Corrected field name
-
+    qualifications?: Array<{
         id: string;
         name: string;
-    };
-    cnpjCard?: DocumentData | string; // Can be old format
+    }>;
+    cnpjCard?: DocumentData | string;
 };
 
 const editFormSchema = z.object({
@@ -113,13 +106,11 @@ const editFormSchema = z.object({
 
 type EditFormData = z.infer<typeof editFormSchema>;
 
-
 type CompanyStats = {
     activeFreights: number;
     requestedFreights: number;
     completedFreights: number;
 };
-
 
 const getInitials = (name: string) => {
     if (!name) return '';
@@ -180,7 +171,6 @@ const getDocStatusIcon = (status?: string) => {
 
 const userStatuses: (UserProfile['status'])[] = ['active', 'pending', 'blocked', 'suspended'];
 
-
 export default function UserDetailsClient({ initialUser, initialPlans, initialCompanyStats, userId }: { userId: string, initialUser: UserProfile, initialPlans: Plan[], initialCompanyStats: CompanyStats | null }) {
   const [user, setUser] = useState<UserProfile>(initialUser);
   const [companyStats, setCompanyStats] = useState<CompanyStats | null>(initialCompanyStats);
@@ -194,12 +184,12 @@ export default function UserDetailsClient({ initialUser, initialPlans, initialCo
   // State for resume item dialogs and deletion
   const [isResumeDialogOpen, setIsResumeDialogOpen] = useState(false);
   const [dialogContent, setDialogContent] = useState<'academic' | 'experience' | 'qualification' | null>(null);
-  const [editingItem, setEditingItem] = useState<any>(null); // Store item being edited
+  const [editingItem, setEditingItem] = useState<any>(null);
   const { toast } = useToast();
 
   const form = useForm<EditFormData>({
     resolver: zodResolver(editFormSchema),
-     defaultValues: {
+    defaultValues: {
         name: initialUser.name,
         tradingName: initialUser.tradingName,
         cnpj: initialUser.cnpj,
@@ -209,7 +199,6 @@ export default function UserDetailsClient({ initialUser, initialPlans, initialCo
     }
   });
 
-
   useEffect(() => {
     if (!userId) return;
     
@@ -218,7 +207,6 @@ export default function UserDetailsClient({ initialUser, initialPlans, initialCo
         if (doc.exists()) {
             const userData = { ...doc.data(), uid: doc.id } as UserProfile;
             setUser(userData);
-            // console.log("Fetched User Data with Resume:", userData); // Debugging
         }
     });
 
@@ -231,12 +219,21 @@ export default function UserDetailsClient({ initialUser, initialPlans, initialCo
     if (!user || !newStatus) return;
 
     try {
-        await updateUserStatus(user.uid, newStatus);
-        // The onSnapshot listener will update the UI automatically
-        toast({
-            title: "Sucesso!",
-            description: `Status do usuário atualizado para ${getStatusLabel(newStatus)}.`,
-        });
+        const adminId = auth.currentUser?.uid || 'admin';
+        const result = await updateUserStatusWithValidation(user.uid, newStatus, adminId);
+        
+        if (result.success) {
+            toast({
+                title: "Sucesso!",
+                description: result.message,
+            });
+        } else {
+            toast({
+                variant: "destructive",
+                title: "Ação não permitida",
+                description: result.message,
+            });
+        }
     } catch (error) {
         toast({
             variant: "destructive",
@@ -272,15 +269,39 @@ export default function UserDetailsClient({ initialUser, initialPlans, initialCo
 
   const handleDocumentStatusChange = async (docField: 'responsible.document' | 'cnpjCard', newStatus: 'approved' | 'rejected') => {
       if (!user) return;
+      
       try {
-          await updateDocumentStatus(user.uid, docField, newStatus);
-          toast({
-              title: "Sucesso!",
-              description: `Documento ${docField === 'cnpjCard' ? 'CNPJ' : 'do Responsável'} foi ${newStatus === 'approved' ? 'aprovado' : 'recusado'}.`,
-          });
+          let result;
+          const adminId = auth.currentUser?.uid || 'admin';
+          
+          if (newStatus === 'approved') {
+              result = await approveDocument(user.uid, docField, adminId);
+          } else {
+              result = await rejectDocument(user.uid, docField, adminId);
+          }
+          
+          if (result.success) {
+              toast({
+                  title: "Sucesso!",
+                  description: result.message,
+              });
+              
+              if (result.newUserStatus === 'active') {
+                  toast({
+                      title: "Usuário Ativado!",
+                      description: "Usuário foi ativado automaticamente após aprovação de todos os documentos.",
+                  });
+              }
+          } else {
+              toast({
+                  variant: "destructive",
+                  title: 'Ação não permitida',
+                  description: result.message,
+              });
+          }
       } catch (error) {
            toast({
-              variant: 'destructive',
+              variant: "destructive",
               title: 'Erro ao atualizar documento',
               description: error instanceof Error ? `Falha ao atualizar o status do documento: ${error.code || error.message}` : 'Ocorreu um erro desconhecido.',
           });
@@ -305,68 +326,66 @@ export default function UserDetailsClient({ initialUser, initialPlans, initialCo
     }
   }
 
-    // Resume Management Functions
-    const openResumeDialog = (type: 'academic' | 'experience' | 'qualification', item?: any) => {
-        setDialogContent(type);
-        setEditingItem(item);
-        setIsResumeDialogOpen(true);
-    };
+  // Resume Management Functions
+  const openResumeDialog = (type: 'academic' | 'experience' | 'qualification', item?: any) => {
+      setDialogContent(type);
+      setEditingItem(item);
+      setIsResumeDialogOpen(true);
+  };
 
-    const closeResumeDialog = () => {
-        setIsResumeDialogOpen(false);
-        setDialogContent(null);
-        setEditingItem(null);
-    };
+  const closeResumeDialog = () => {
+      setIsResumeDialogOpen(false);
+      setDialogContent(null);
+      setEditingItem(null);
+  };
 
-    const handleResumeSubmit = async (data: any) => {
-        try {
-            if (!userId) {
-                toast({ variant: 'destructive', title: 'Erro', description: 'ID do usuário não encontrado.' });
-                return;
-            }
+  const handleResumeSubmit = async (data: any) => {
+      try {
+          if (!userId) {
+              toast({ variant: 'destructive', title: 'Erro', description: 'ID do usuário não encontrado.' });
+              return;
+          }
 
-            if (editingItem) {
-                 // Update existing item
-                if (dialogContent === 'academic') {
-                    await updateResumeItem(userId, 'academicFormation', editingItem.id, data);
-                } else if (dialogContent === 'experience') {
-                    await updateResumeItem(userId, 'professionalExperience', editingItem.id, data);
-                } else if (dialogContent === 'qualification') {
-                    await updateResumeItem(userId, 'qualifications', editingItem.id, data);
-                }
-                toast({ title: 'Sucesso!', description: 'Item atualizado no currículo.' });
-            } else {
-                 // Add new item
-                 if (dialogContent === 'academic') {
-                    await addResumeItem(userId, 'academicFormation', data);
-                 } else if (dialogContent === 'experience') {
-                    await addResumeItem(userId, 'professionalExperience', data);
-                 } else if (dialogContent === 'qualification') {
-                    await addResumeItem(userId, 'qualifications', data);
-                 }
-                 toast({ title: 'Sucesso!', description: 'Item adicionado ao currículo.' });
-            }
+          if (editingItem) {
+               if (dialogContent === 'academic') {
+                   await updateResumeItem(userId, 'academicFormation', editingItem.id, data);
+               } else if (dialogContent === 'experience') {
+                   await updateResumeItem(userId, 'professionalExperience', editingItem.id, data);
+               } else if (dialogContent === 'qualification') {
+                   await updateResumeItem(userId, 'qualifications', editingItem.id, data);
+               }
+               toast({ title: 'Sucesso!', description: 'Item atualizado no currículo.' });
+          } else {
+               if (dialogContent === 'academic') {
+                   await addResumeItem(userId, 'academicFormation', data);
+               } else if (dialogContent === 'experience') {
+                   await addResumeItem(userId, 'professionalExperience', data);
+               } else if (dialogContent === 'qualification') {
+                   await addResumeItem(userId, 'qualifications', data);
+               }
+               toast({ title: 'Sucesso!', description: 'Item adicionado ao currículo.' });
+          }
 
-            closeResumeDialog();
-        } catch (error) {
-            toast({
-                variant: 'destructive',
-                title: 'Erro ao salvar',
-                description: error instanceof Error ? error.message : 'Ocorreu um erro ao salvar o item do currículo.',
-            });
-            console.error("Failed to save resume item:", error);
-        }
-    };
+          closeResumeDialog();
+      } catch (error) {
+          toast({
+              variant: 'destructive',
+              title: 'Erro ao salvar',
+              description: error instanceof Error ? error.message : 'Ocorreu um erro ao salvar o item do currículo.',
+          });
+          console.error("Failed to save resume item:", error);
+      }
+  };
 
-    const handleDeleteResumeItem = async (type: 'academicFormation' | 'professionalExperience' | 'qualifications', itemId: string) => {
-        try {
-            await deleteResumeItem(userId, type, itemId);
-            toast({ title: 'Sucesso!', description: 'Item removido do currículo.' });
-        } catch (error) {
-            toast({ variant: 'destructive', title: 'Erro ao excluir', description: 'Não foi possível excluir o item.' });
-            console.error("Failed to delete resume item:", error);
-        }
-    };
+  const handleDeleteResumeItem = async (type: 'academicFormation' | 'professionalExperience' | 'qualifications', itemId: string) => {
+      try {
+          await deleteResumeItem(userId, type, itemId);
+          toast({ title: 'Sucesso!', description: 'Item removido do currículo.' });
+      } catch (error) {
+          toast({ variant: 'destructive', title: 'Erro ao excluir', description: 'Não foi possível excluir o item.' });
+          console.error("Failed to delete resume item:", error);
+      }
+  };
 
   const isCompany = user.role === 'company';
   
@@ -379,7 +398,6 @@ export default function UserDetailsClient({ initialUser, initialPlans, initialCo
   
   const responsibleDocumentProps = getDocumentProps(user.responsible?.document);
   const cnpjCardProps = getDocumentProps(user.cnpjCard);
-
 
   return (
     <div className="space-y-6">
@@ -580,21 +598,21 @@ export default function UserDetailsClient({ initialUser, initialPlans, initialCo
                     </div>
                 )}
                  <Separator />
-                 <div className="space-y-4">
-                    <h3 className="text-lg font-semibold flex items-center gap-2">
-                        Dados do Responsável
-                    </h3>
-                    <div className="grid md:grid-cols-2 gap-6">
-                        <div className="flex items-center gap-3">
-                            <User className="h-5 w-5 text-muted-foreground" />
-                            <span><span className="font-semibold">Nome:</span> {user.responsible?.name || 'Não informado'}</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <FileText className="h-5 w-5 text-muted-foreground" />
-                            <span><span className="font-semibold">CPF:</span> {user.responsible?.cpf || 'Não informado'}</span>
-                        </div>
-                    </div>
-                 </div>
+                  <div className="space-y-4">
+                     <h3 className="text-lg font-semibold flex items-center gap-2">
+                         Dados do Responsável
+                     </h3>
+                     <div className="grid md:grid-cols-2 gap-6">
+                         <div className="flex items-center gap-3">
+                             <User className="h-5 w-5 text-muted-foreground" />
+                             <span><span className="font-semibold">Nome:</span> {user.responsible?.name || 'Não informado'}</span>
+                         </div>
+                         <div className="flex items-center gap-3">
+                             <FileText className="h-5 w-5 text-muted-foreground" />
+                             <span><span className="font-semibold">CPF:</span> {user.responsible?.cpf || 'Não informado'}</span>
+                         </div>
+                     </div>
+                  </div>
 
                 <Separator />
                 <div className="space-y-4">
@@ -695,214 +713,213 @@ export default function UserDetailsClient({ initialUser, initialPlans, initialCo
                             <Truck className="h-5 w-5" /> Veículos
                         </h3>
                         <p className="text-muted-foreground">Nenhum veículo cadastrado.</p>
-                        {/* Futuramente, listar os veículos aqui */}
                     </div>
                   </>
                 )}
 
-                 {!isCompany && ( // Resume sections for driver users
-                  <>
-                    <Separator />
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <CardTitle>Formação Acadêmica</CardTitle>
-                            <Button variant="outline" size="sm">Adicionar</Button> {/* Placeholder button */}
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            {(user.academicFormation && user.academicFormation.length > 0) ? (
-                                user.academicFormation.map((item, index) => (
-                                    <div key={item.id || index} className="border rounded-md p-4 space-y-2">
-                                        <div className="flex items-center justify-between">
-                                             <p className="font-semibold flex items-center gap-2"><GraduationCap className="h-4 w-4 text-primary"/> {item.course}</p>
-                                             <div className="flex items-center gap-1">
-                                                 <Button variant="ghost" size="icon" onClick={() => openResumeDialog('academic', item)}><Edit className="h-4 w-4"/></Button>
-                                                 <AlertDialog>
-                                                     <AlertDialogTrigger asChild>
-                                                        <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive"/></Button>
-                                                     </AlertDialogTrigger>
-                                                      <AlertDialogContent>
-                                                        <AlertDialogHeader>
-                                                            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
-                                                            <AlertDialogDescription>Tem certeza que deseja excluir este item de formação acadêmica?</AlertDialogDescription>
-                                                        </AlertDialogHeader>
-                                                        <AlertDialogFooter>
-                                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => handleDeleteResumeItem('academicFormation', item.id!)}>Excluir</AlertDialogAction>
-                                                        </AlertDialogFooter>
-                                                    </AlertDialogContent>
-                                                 </AlertDialog>
-                                             </div>
-                                        </div>
-                                        <p className="text-sm text-muted-foreground">{item.institution}</p>
-                                        <p className="text-xs text-muted-foreground">{format(parseISO(item.startDate), 'MM/yyyy')} - {item.present ? 'Presente' : item.endDate ? format(parseISO(item.endDate), 'MM/yyyy') : ''}</p>
-                                    </div>
-                                ))
-                            ) : (
-                                <p className="text-muted-foreground text-sm">Nenhuma formação acadêmica cadastrada.</p>
-                            )}
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <CardTitle>Experiência Profissional</CardTitle>
-                             <Button variant="outline" size="sm" onClick={() => openResumeDialog('experience')}>Adicionar</Button>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                           {(user.professionalExperience && user.professionalExperience.length > 0) ? (
-                                user.professionalExperience.map((item, index) => (
-                                    <div key={item.id || index} className="border rounded-md p-4 space-y-2">
+                 {!isCompany && (
+                   <>
+                     <Separator />
+                     <Card>
+                         <CardHeader className="flex flex-row items-center justify-between">
+                             <CardTitle>Formação Acadêmica</CardTitle>
+                             <Button variant="outline" size="sm" onClick={() => openResumeDialog('academic')}>Adicionar</Button>
+                         </CardHeader>
+                         <CardContent className="space-y-4">
+                             {(user.academicFormation && user.academicFormation.length > 0) ? (
+                                 user.academicFormation.map((item, index) => (
+                                     <div key={item.id || index} className="border rounded-md p-4 space-y-2">
                                          <div className="flex items-center justify-between">
-                                            <p className="font-semibold flex items-center gap-2"><Briefcase className="h-4 w-4 text-primary"/> {item.position}</p>
-                                             <div className="flex items-center gap-1">
-                                                 <Button variant="ghost" size="icon" onClick={() => openResumeDialog('experience', item)}><Edit className="h-4 w-4"/></Button>
+                                              <p className="font-semibold flex items-center gap-2"><GraduationCap className="h-4 w-4 text-primary"/> {item.course}</p>
+                                              <div className="flex items-center gap-1">
+                                                  <Button variant="ghost" size="icon" onClick={() => openResumeDialog('academic', item)}><Edit className="h-4 w-4"/></Button>
                                                   <AlertDialog>
-                                                     <AlertDialogTrigger asChild>
-                                                        <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive"/></Button>
-                                                     </AlertDialogTrigger>
-                                                      <AlertDialogContent>
-                                                        <AlertDialogHeader>
-                                                            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
-                                                            <AlertDialogDescription>Tem certeza que deseja excluir este item de experiência profissional?</AlertDialogDescription>
-                                                        </AlertDialogHeader>
-                                                        <AlertDialogFooter>
-                                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => handleDeleteResumeItem('professionalExperience', item.id!)}>Excluir</AlertDialogAction>
-                                                        </AlertDialogFooter>
-                                                    </AlertDialogContent>
-                                                 </AlertDialog>
-                                             </div>
-                                        </div>
-                                        <p className="text-sm text-muted-foreground">{item.company}</p>
-                                        <p className="text-xs text-muted-foreground">{format(parseISO(item.startDate), 'MM/yyyy')} - {item.present ? 'Presente' : item.endDate ? format(parseISO(item.endDate), 'MM/yyyy') : ''}</p>
-                                    </div>
-                                ))
-                            ) : (
-                                <p className="text-muted-foreground text-sm">Nenhuma experiência profissional cadastrada.</p>
-                            )}
-                        </CardContent>
-                    </Card>
+                                                      <AlertDialogTrigger asChild>
+                                                         <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive"/></Button>
+                                                      </AlertDialogTrigger>
+                                                       <AlertDialogContent>
+                                                         <AlertDialogHeader>
+                                                             <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+                                                             <AlertDialogDescription>Tem certeza que deseja excluir este item de formação acadêmica?</AlertDialogDescription>
+                                                         </AlertDialogHeader>
+                                                         <AlertDialogFooter>
+                                                             <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                             <AlertDialogAction onClick={() => handleDeleteResumeItem('academicFormation', item.id!)}>Excluir</AlertDialogAction>
+                                                         </AlertDialogFooter>
+                                                     </AlertDialogContent>
+                                                  </AlertDialog>
+                                              </div>
+                                         </div>
+                                         <p className="text-sm text-muted-foreground">{item.institution}</p>
+                                         <p className="text-xs text-muted-foreground">{format(parseISO(item.startDate), 'MM/yyyy')} - {item.present ? 'Presente' : item.endDate ? format(parseISO(item.endDate), 'MM/yyyy') : ''}</p>
+                                     </div>
+                                 ))
+                             ) : (
+                                 <p className="text-muted-foreground text-sm">Nenhuma formação acadêmica cadastrada.</p>
+                             )}
+                         </CardContent>
+                     </Card>
 
                      <Card>
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <CardTitle>Cursos e Qualificações</CardTitle>
-                             <Button variant="outline" size="sm" onClick={() => openResumeDialog('qualification')}>Adicionar</Button>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                           {(user.qualifications && user.qualifications.length > 0) ? (
-                                user.qualifications.map((item, index) => (
-                                    <div key={item.id || index} className="border rounded-md p-4 space-y-2">
-                                        <div className="flex items-center justify-between">
-                                            <p className="font-semibold flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary"/> {item.name}</p>
-                                             <div className="flex items-center gap-1">
-                                                 <Button variant="ghost" size="icon" onClick={() => openResumeDialog('qualification', item)}><Edit className="h-4 w-4"/></Button>
-                                                  <AlertDialog>
-                                                     <AlertDialogTrigger asChild>
-                                                        <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive"/></Button>
-                                                     </AlertDialogTrigger>
-                                                      <AlertDialogContent>
-                                                        <AlertDialogHeader>
-                                                            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
-                                                            <AlertDialogDescription>Tem certeza que deseja excluir esta qualificação?</AlertDialogDescription>
-                                                        </AlertDialogHeader>
-                                                        <AlertDialogFooter>
-                                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => handleDeleteResumeItem('qualifications', item.id!)}>Excluir</AlertDialogAction>
-                                                        </AlertDialogFooter>
-                                                    </AlertDialogContent>
-                                                 </AlertDialog>
-                                             </div>
-                                        </div>
-                                    </div>
-                                ))
-                           ) : (
+                         <CardHeader className="flex flex-row items-center justify-between">
+                             <CardTitle>Experiência Profissional</CardTitle>
+                              <Button variant="outline" size="sm" onClick={() => openResumeDialog('experience')}>Adicionar</Button>
+                         </CardHeader>
+                         <CardContent className="space-y-4">
+                            {(user.professionalExperience && user.professionalExperience.length > 0) ? (
+                                 user.professionalExperience.map((item, index) => (
+                                     <div key={item.id || index} className="border rounded-md p-4 space-y-2">
+                                          <div className="flex items-center justify-between">
+                                             <p className="font-semibold flex items-center gap-2"><Briefcase className="h-4 w-4 text-primary"/> {item.position}</p>
+                                              <div className="flex items-center gap-1">
+                                                  <Button variant="ghost" size="icon" onClick={() => openResumeDialog('experience', item)}><Edit className="h-4 w-4"/></Button>
+                                                   <AlertDialog>
+                                                      <AlertDialogTrigger asChild>
+                                                         <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive"/></Button>
+                                                      </AlertDialogTrigger>
+                                                       <AlertDialogContent>
+                                                         <AlertDialogHeader>
+                                                             <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+                                                             <AlertDialogDescription>Tem certeza que deseja excluir este item de experiência profissional?</AlertDialogDescription>
+                                                         </AlertDialogHeader>
+                                                         <AlertDialogFooter>
+                                                             <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                             <AlertDialogAction onClick={() => handleDeleteResumeItem('professionalExperience', item.id!)}>Excluir</AlertDialogAction>
+                                                         </AlertDialogFooter>
+                                                     </AlertDialogContent>
+                                                  </AlertDialog>
+                                              </div>
+                                         </div>
+                                         <p className="text-sm text-muted-foreground">{item.company}</p>
+                                         <p className="text-xs text-muted-foreground">{format(parseISO(item.startDate), 'MM/yyyy')} - {item.present ? 'Presente' : item.endDate ? format(parseISO(item.endDate), 'MM/yyyy') : ''}</p>
+                                     </div>
+                                 ))
+                             ) : (
+                                 <p className="text-muted-foreground text-sm">Nenhuma experiência profissional cadastrada.</p>
+                             )}
+                         </CardContent>
+                     </Card>
+
+                      <Card>
+                         <CardHeader className="flex flex-row items-center justify-between">
+                             <CardTitle>Cursos e Qualificações</CardTitle>
+                              <Button variant="outline" size="sm" onClick={() => openResumeDialog('qualification')}>Adicionar</Button>
+                         </CardHeader>
+                         <CardContent className="space-y-4">
+                            {(user.qualifications && user.qualifications.length > 0) ? (
+                                 user.qualifications.map((item, index) => (
+                                     <div key={item.id || index} className="border rounded-md p-4 space-y-2">
+                                         <div className="flex items-center justify-between">
+                                             <p className="font-semibold flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary"/> {item.name}</p>
+                                              <div className="flex items-center gap-1">
+                                                  <Button variant="ghost" size="icon" onClick={() => openResumeDialog('qualification', item)}><Edit className="h-4 w-4"/></Button>
+                                                   <AlertDialog>
+                                                      <AlertDialogTrigger asChild>
+                                                         <Button variant="ghost" size="icon"><Trash2 className="h-4 w-4 text-destructive"/></Button>
+                                                      </AlertDialogTrigger>
+                                                       <AlertDialogContent>
+                                                         <AlertDialogHeader>
+                                                             <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+                                                             <AlertDialogDescription>Tem certeza que deseja excluir esta qualificação?</AlertDialogDescription>
+                                                         </AlertDialogHeader>
+                                                         <AlertDialogFooter>
+                                                             <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                             <AlertDialogAction onClick={() => handleDeleteResumeItem('qualifications', item.id!)}>Excluir</AlertDialogAction>
+                                                         </AlertDialogFooter>
+                                                     </AlertDialogContent>
+                                                  </AlertDialog>
+                                              </div>
+                                         </div>
+                                     </div>
+                                 ))
+                            ) : (
                                 <p className="text-muted-foreground text-sm">Nenhum curso ou qualificação cadastrado.</p>
                             )}
-                        </CardContent>
-                    </Card>
-                  </>
-                )}
+                         </CardContent>
+                     </Card>
+                   </>
+                 )}
 
-                <Separator />
-                 <div className="space-y-4">
-                    <h3 className="text-lg font-semibold flex items-center gap-2">
-                        <FileText className="h-5 w-5" /> Documentos Enviados
-                    </h3>
-                    <div className="space-y-4">
-                        {responsibleDocumentProps.url ? (
-                             <div className="flex flex-wrap items-center justify-between gap-2 p-3 border rounded-md">
-                                <div className='flex items-center gap-2'>
-                                    {getDocStatusIcon(responsibleDocumentProps.status)}
-                                    <span className={cn('font-medium text-sm', {'text-muted-foreground line-through': responsibleDocumentProps.status === 'rejected'})}>
-                                        Documento do Responsável
-                                    </span>
-                                     <Badge variant="outline" className="capitalize">{getDocStatusLabel(responsibleDocumentProps.status)}</Badge>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <a href={responsibleDocumentProps.url} target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>
-                                        <ExternalLink className="mr-2 h-4 w-4" /> Ver
-                                    </a>
-                                     <DropdownMenu>
-                                        <DropdownMenuTrigger asChild><Button variant="ghost" size="sm">Ações</Button></DropdownMenuTrigger>
-                                        <DropdownMenuContent>
-                                            <DropdownMenuItem onSelect={() => handleDocumentStatusChange('responsible.document', 'approved')} disabled={responsibleDocumentProps?.status === 'approved'}>Aprovar</DropdownMenuItem>
-                                            <DropdownMenuItem onSelect={() => handleDocumentStatusChange('responsible.document', 'rejected')} disabled={responsibleDocumentProps?.status === 'rejected'}>Recusar</DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </div>
-                            </div>
-                        ) : (
-                            <p className="text-sm text-muted-foreground">Documento do Responsável não enviado.</p>
-                        )}
-                        {cnpjCardProps.url ? (
-                             <div className="flex flex-wrap items-center justify-between gap-2 p-3 border rounded-md">
+                 <Separator />
+                  <div className="space-y-4">
+                     <h3 className="text-lg font-semibold flex items-center gap-2">
+                         <FileText className="h-5 w-5" /> Documentos Enviados
+                     </h3>
+                     <div className="space-y-4">
+                         {responsibleDocumentProps.url ? (
+                              <div className="flex flex-wrap items-center justify-between gap-2 p-3 border rounded-md">
                                  <div className='flex items-center gap-2'>
-                                    {getDocStatusIcon(cnpjCardProps.status)}
-                                    <span className={cn('font-medium text-sm', {'text-muted-foreground line-through': cnpjCardProps.status === 'rejected'})}>
-                                        Cartão CNPJ
-                                    </span>
-                                     <Badge variant="outline" className="capitalize">{getDocStatusLabel(cnpjCardProps.status)}</Badge>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                     <a href={cnpjCardProps.url} target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>
-                                        <ExternalLink className="mr-2 h-4 w-4" /> Ver
-                                    </a>
-                                     <DropdownMenu>
-                                        <DropdownMenuTrigger asChild><Button variant="ghost" size="sm">Ações</Button></DropdownMenuTrigger>
-                                        <DropdownMenuContent>
-                                            <DropdownMenuItem onSelect={() => handleDocumentStatusChange('cnpjCard', 'approved')} disabled={cnpjCardProps?.status === 'approved'}>Aprovar</DropdownMenuItem>
-                                            <DropdownMenuItem onSelect={() => handleDocumentStatusChange('cnpjCard', 'rejected')} disabled={cnpjCardProps?.status === 'rejected'}>Recusar</DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </div>
-                            </div>
-                        ) : (
-                            <p className="text-sm text-muted-foreground">Cartão CNPJ não enviado.</p>
-                        )}
-                         {!responsibleDocumentProps.url && !cnpjCardProps.url && (
-                             <p className="text-muted-foreground text-sm">Nenhum documento enviado.</p>
+                                     {getDocStatusIcon(responsibleDocumentProps.status)}
+                                     <span className={cn('font-medium text-sm', {'text-muted-foreground line-through': responsibleDocumentProps.status === 'rejected'})}>
+                                         Documento do Responsável
+                                     </span>
+                                      <Badge variant="outline" className="capitalize">{getDocStatusLabel(responsibleDocumentProps.status)}</Badge>
+                                 </div>
+                                 <div className="flex items-center gap-2">
+                                     <a href={responsibleDocumentProps.url} target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>
+                                         <ExternalLink className="mr-2 h-4 w-4" /> Ver
+                                     </a>
+                                      <DropdownMenu>
+                                         <DropdownMenuTrigger asChild><Button variant="ghost" size="sm">Ações</Button></DropdownMenuTrigger>
+                                         <DropdownMenuContent>
+                                             <DropdownMenuItem onSelect={() => handleDocumentStatusChange('responsible.document', 'approved')} disabled={responsibleDocumentProps?.status === 'approved'}>Aprovar</DropdownMenuItem>
+                                             <DropdownMenuItem onSelect={() => handleDocumentStatusChange('responsible.document', 'rejected')} disabled={responsibleDocumentProps?.status === 'rejected'}>Recusar</DropdownMenuItem>
+                                         </DropdownMenuContent>
+                                     </DropdownMenu>
+                                 </div>
+                             </div>
+                         ) : (
+                             <p className="text-sm text-muted-foreground">Documento do Responsável não enviado.</p>
                          )}
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
+                         {cnpjCardProps.url ? (
+                              <div className="flex flex-wrap items-center justify-between gap-2 p-3 border rounded-md">
+                                  <div className='flex items-center gap-2'>
+                                     {getDocStatusIcon(cnpjCardProps.status)}
+                                     <span className={cn('font-medium text-sm', {'text-muted-foreground line-through': cnpjCardProps.status === 'rejected'})}>
+                                         Cartão CNPJ
+                                     </span>
+                                      <Badge variant="outline" className="capitalize">{getDocStatusLabel(cnpjCardProps.status)}</Badge>
+                                 </div>
+                                 <div className="flex items-center gap-2">
+                                      <a href={cnpjCardProps.url} target="_blank" rel="noopener noreferrer" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}>
+                                         <ExternalLink className="mr-2 h-4 w-4" /> Ver
+                                     </a>
+                                      <DropdownMenu>
+                                         <DropdownMenuTrigger asChild><Button variant="ghost" size="sm">Ações</Button></DropdownMenuTrigger>
+                                         <DropdownMenuContent>
+                                             <DropdownMenuItem onSelect={() => handleDocumentStatusChange('cnpjCard', 'approved')} disabled={cnpjCardProps?.status === 'approved'}>Aprovar</DropdownMenuItem>
+                                             <DropdownMenuItem onSelect={() => handleDocumentStatusChange('cnpjCard', 'rejected')} disabled={cnpjCardProps?.status === 'rejected'}>Recusar</DropdownMenuItem>
+                                         </DropdownMenuContent>
+                                     </DropdownMenu>
+                                 </div>
+                             </div>
+                         ) : (
+                             <p className="text-sm text-muted-foreground">Cartão CNPJ não enviado.</p>
+                         )}
+                          {!responsibleDocumentProps.url && !cnpjCardProps.url && (
+                              <p className="text-muted-foreground text-sm">Nenhum documento enviado.</p>
+                          )}
+                     </div>
+                 </div>
+             </CardContent>
+         </Card>
 
-        {/* Resume Item Dialog */}
-        <Dialog open={isResumeDialogOpen} onOpenChange={setIsResumeDialogOpen}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>{editingItem ? 'Editar' : 'Adicionar'} {dialogContent === 'academic' ? 'Formação' : dialogContent === 'experience' ? 'Experiência' : 'Qualificação'}</DialogTitle>
-                </DialogHeader>
-                {dialogContent === 'academic' && <AcademicForm onSubmit={handleResumeSubmit} initialData={editingItem} isSubmitting={false} adminMode userId={userId} />}
-                {dialogContent === 'experience' && <ExperienceForm onSubmit={handleResumeSubmit} initialData={editingItem} isSubmitting={false} adminMode userId={userId} />}
-                {dialogContent === 'qualification' && <QualificationForm onSubmit={handleResumeSubmit} initialData={editingItem} isSubmitting={false} adminMode userId={userId} />}
-                 <DialogFooter>
-                    <DialogClose asChild><Button type="button" variant="secondary">Cancelar</Button></DialogClose>
-                    {/* Submit button is inside the specific forms */}
-                 </DialogFooter>
-            </DialogContent>
-        </Dialog>
+         {/* Resume Item Dialog */}
+         <Dialog open={isResumeDialogOpen} onOpenChange={setIsResumeDialogOpen}>
+             <DialogContent>
+                 <DialogHeader>
+                     <DialogTitle>{editingItem ? 'Editar' : 'Adicionar'} {dialogContent === 'academic' ? 'Formação' : dialogContent === 'experience' ? 'Experiência' : 'Qualificação'}</DialogTitle>
+                 </DialogHeader>
+                 {dialogContent === 'academic' && <AcademicForm onSubmit={handleResumeSubmit} initialData={editingItem} isSubmitting={false} adminMode userId={userId} />}
+                 {dialogContent === 'experience' && <ExperienceForm onSubmit={handleResumeSubmit} initialData={editingItem} isSubmitting={false} adminMode userId={userId} />}
+                 {dialogContent === 'qualification' && <QualificationForm onSubmit={handleResumeSubmit} initialData={editingItem} isSubmitting={false} adminMode userId={userId} />}
+                  <DialogFooter>
+                     <DialogClose asChild><Button type="button" variant="secondary">Cancelar</Button></DialogClose>
+                     {/* Submit button is inside the specific forms */}
+                  </DialogFooter>
+             </DialogContent>
+         </Dialog>
 
-    </div>
-  );
-}
+     </div>
+   );
+ }

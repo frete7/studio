@@ -1,11 +1,213 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      // WARNING: These rules are completely open and are not secure.
-      // They are intended for initial development only.
-      // You MUST secure these rules before deploying to production.
-      allow read, write: if true;
+    // Função para verificar se o usuário está autenticado
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Função para verificar se o usuário é admin
+    function isAdmin() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    // Função para verificar se o usuário é dono do documento
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Função para verificar se o usuário é empresa
+    function isCompany() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'company';
+    }
+    
+    // Função para verificar se o usuário é motorista
+    function isDriver() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'driver';
+    }
+    
+    // Função para verificar se o usuário está ativo
+    function isActive() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'active';
+    }
+
+    // Regras para usuários
+    match /users/{userId} {
+      // Usuários podem ler e atualizar apenas seus próprios dados
+      allow read, write: if isOwner(userId);
+      
+      // Admins podem ler e atualizar todos os usuários
+      allow read, write: if isAdmin();
+      
+      // Usuários podem ler perfis públicos de outros usuários (apenas dados básicos)
+      allow read: if isAuthenticated() && 
+        resource.data.status == 'active' && 
+        resource.data.role in ['driver', 'company'];
+    }
+
+    // Regras para fretes
+    match /freights/{freightId} {
+      // Usuários autenticados podem ler fretes ativos
+      allow read: if isAuthenticated() && resource.data.status == 'active';
+      
+      // Empresas podem criar e gerenciar seus próprios fretes
+      allow create: if isCompany() && isActive();
+      allow update, delete: if isCompany() && isActive() && 
+        resource.data.companyId == request.auth.uid;
+      
+      // Admins podem gerenciar todos os fretes
+      allow read, write: if isAdmin();
+      
+      // Motoristas podem ler detalhes dos fretes para fazer propostas
+      allow read: if isDriver() && isActive();
+    }
+
+    // Regras para notificações
+    match /notifications/{notificationId} {
+      // Usuários podem ler apenas suas próprias notificações
+      allow read, write: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid;
+      
+      // Admins podem ler todas as notificações
+      allow read: if isAdmin();
+    }
+
+    // Regras para planos
+    match /plans/{planId} {
+      // Todos os usuários autenticados podem ler planos
+      allow read: if isAuthenticated();
+      
+      // Apenas admins podem criar/editar/deletar planos
+      allow write: if isAdmin();
+    }
+
+    // Regras para transações de pagamento
+    match /payment_transactions/{transactionId} {
+      // Usuários podem ler apenas suas próprias transações
+      allow read: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid;
+      
+      // Admins podem ler todas as transações
+      allow read: if isAdmin();
+      
+      // Apenas o sistema pode criar/atualizar transações
+      allow write: if false;
+    }
+
+    // Regras para assinaturas
+    match /subscriptions/{subscriptionId} {
+      // Usuários podem ler apenas suas próprias assinaturas
+      allow read: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid;
+      
+      // Admins podem ler todas as assinaturas
+      allow read: if isAdmin();
+      
+      // Apenas o sistema pode criar/atualizar assinaturas
+      allow write: if false;
+    }
+
+    // Regras para tipos de veículos
+    match /vehicle_types/{typeId} {
+      // Todos os usuários autenticados podem ler
+      allow read: if isAuthenticated();
+      
+      // Apenas admins podem modificar
+      allow write: if isAdmin();
+    }
+
+    // Regras para categorias de veículos
+    match /vehicle_categories/{categoryId} {
+      // Todos os usuários autenticados podem ler
+      allow read: if isAuthenticated();
+      
+      // Apenas admins podem modificar
+      allow write: if isAdmin();
+    }
+
+    // Regras para tipos de carrocerias
+    match /body_types/{bodyTypeId} {
+      // Todos os usuários autenticados podem ler
+      allow read: if isAuthenticated();
+      
+      // Apenas admins podem modificar
+      allow write: if isAdmin();
+    }
+
+    // Regras para veículos
+    match /vehicles/{vehicleId} {
+      // Usuários podem ler e gerenciar apenas seus próprios veículos
+      allow read, write: if isAuthenticated() && 
+        resource.data.ownerId == request.auth.uid;
+      
+      // Admins podem gerenciar todos os veículos
+      allow read, write: if isAdmin();
+    }
+
+    // Regras para chat de suporte
+    match /users/{userId}/supportChat/{messageId} {
+      // Usuários podem ler e escrever apenas em seu próprio chat
+      allow read, write: if isOwner(userId);
+      
+      // Admins podem ler todos os chats
+      allow read: if isAdmin();
+    }
+
+    // Regras para logs de admin
+    match /admin_logs/{logId} {
+      // Apenas admins podem ler e escrever logs
+      allow read, write: if isAdmin();
+    }
+
+    // Regras para estatísticas
+    match /statistics/{statId} {
+      // Usuários podem ler apenas suas próprias estatísticas
+      allow read: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid;
+      
+      // Admins podem ler todas as estatísticas
+      allow read: if isAdmin();
+    }
+
+    // Regras para colaboradores
+    match /collaborators/{collaboratorId} {
+      // Empresas podem gerenciar seus colaboradores
+      allow read, write: if isCompany() && isActive() && 
+        resource.data.companyId == request.auth.uid;
+      
+      // Admins podem gerenciar todos os colaboradores
+      allow read, write: if isAdmin();
+    }
+
+    // Regras para histórico de fretes
+    match /freight_history/{historyId} {
+      // Usuários podem ler apenas seu próprio histórico
+      allow read: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || 
+         resource.data.companyId == request.auth.uid);
+      
+      // Admins podem ler todo o histórico
+      allow read: if isAdmin();
+    }
+
+    // Regras para configurações da plataforma
+    match /platform_config/{configId} {
+      // Apenas admins podem ler e modificar configurações
+      allow read, write: if isAdmin();
+    }
+
+    // Regras para auditoria
+    match /audit_logs/{logId} {
+      // Apenas admins podem ler logs de auditoria
+      allow read: if isAdmin();
     }
   }
 }

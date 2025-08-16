@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, onSnapshot, collection, getCountFromServer, query, where, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { Loader2, ShieldCheck, User, Users, Package, PackageSearch, PackageCheck as PackageCheckIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,18 +27,25 @@ export default function AdminDashboardClient({ initialStats }: { initialStats: D
   const [stats, setStats] = useState<DashboardStats>(initialStats);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Memoizar stats para evitar re-renderizações desnecessárias
+  const memoizedStats = useMemo(() => stats, [stats]);
+
   useEffect(() => {
-    // The layout now handles authorization. We just need to fetch the user's name.
+    let isMounted = true;
+    
     const currentUser = auth.currentUser;
     if (currentUser) {
         const userDocRef = doc(db, 'users', currentUser.uid);
         const unsubscribe = onSnapshot(userDocRef, (doc) => {
-            if (doc.exists()) {
+            if (isMounted && doc.exists()) {
                 setUser(doc.data() as UserData);
             }
         });
         setIsLoading(false);
-        return () => unsubscribe();
+        return () => {
+          isMounted = false;
+          unsubscribe();
+        };
     } else {
         setIsLoading(false);
     }
@@ -68,7 +75,7 @@ export default function AdminDashboardClient({ initialStats }: { initialStats: D
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalUsers}</div>
+              <div className="text-2xl font-bold">{memoizedStats.totalUsers}</div>
               <p className="text-xs text-muted-foreground">Total de usuários cadastrados</p>
             </CardContent>
           </Card>
@@ -78,7 +85,7 @@ export default function AdminDashboardClient({ initialStats }: { initialStats: D
               <User className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">+{stats.newUsersToday}</div>
+              <div className="text-2xl font-bold">+{memoizedStats.newUsersToday}</div>
               <p className="text-xs text-muted-foreground">Usuários cadastrados hoje</p>
             </CardContent>
           </Card>
@@ -88,7 +95,7 @@ export default function AdminDashboardClient({ initialStats }: { initialStats: D
               <ShieldCheck className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.pendingVerifications}</div>
+              <div className="text-2xl font-bold">{memoizedStats.pendingVerifications}</div>
               <p className="text-xs text-muted-foreground">Perfis aguardando aprovação</p>
             </CardContent>
           </Card>
@@ -104,7 +111,7 @@ export default function AdminDashboardClient({ initialStats }: { initialStats: D
               <Package className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.activeFreights}</div>
+              <div className="text-2xl font-bold">{memoizedStats.activeFreights}</div>
               <p className="text-xs text-muted-foreground">Fretes disponíveis no momento</p>
             </CardContent>
           </Card>
@@ -114,7 +121,7 @@ export default function AdminDashboardClient({ initialStats }: { initialStats: D
               <PackageSearch className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.requestedFreights}</div>
+              <div className="text-2xl font-bold">{memoizedStats.requestedFreights}</div>
               <p className="text-xs text-muted-foreground">Negociações em andamento</p>
             </CardContent>
           </Card>
@@ -124,7 +131,7 @@ export default function AdminDashboardClient({ initialStats }: { initialStats: D
               <PackageCheckIcon className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.completedFreights}</div>
+              <div className="text-2xl font-bold">{memoizedStats.completedFreights}</div>
               <p className="text-xs text-muted-foreground">Total de fretes já realizados</p>
             </CardContent>
           </Card>

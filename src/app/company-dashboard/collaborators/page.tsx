@@ -1,49 +1,38 @@
 
-import { getCollaborators, type Collaborator } from '@/app/actions';
-import CollaboratorsClient from './collaborators-client';
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { Loader2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
-import { auth } from '@/lib/firebase';
-
-// Since we cannot get the user on the server without a proper auth library,
-// we must make this a client component to fetch data based on the logged-in user.
-// To optimize, we could pass a server-fetched list and have the client re-fetch if needed,
-// but for simplicity and correctness with Firebase Auth, client-side fetching is required here.
-'use client';
-import { useState, useEffect } from 'react';
-import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
-
+import CollaboratorsClient from './collaborators-client';
+import { useAuth } from '@/hooks/use-auth';
 
 export default function CollaboratorsPage() {
-    const [user, setUser] = useState<FirebaseUser | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
     const router = useRouter();
+    const { user, isAuthenticated, isLoading, role } = useAuth();
 
-    useEffect(() => {
-        const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-            if (currentUser) {
-                setUser(currentUser);
-            } else {
-                router.push('/login');
-            }
-            setIsLoading(false);
-        });
-
-        return () => unsubscribeAuth();
-    }, [router]);
-
+    // Se estiver carregando, mostrar loading
     if (isLoading) {
         return (
             <div className="flex h-screen items-center justify-center">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <div className="text-center">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+                    <p className="text-muted-foreground">Carregando...</p>
+                </div>
             </div>
         );
     }
-    
-    if (!user) {
+
+    // Verificar se o usuário tem acesso
+    if (!isAuthenticated || !user) {
+        router.push('/login');
+        return null;
+    }
+
+    // Verificar se o usuário é uma empresa
+    if (role !== 'company') {
+        router.push('/driver-dashboard');
         return null;
     }
 
@@ -51,7 +40,7 @@ export default function CollaboratorsPage() {
         <div className="container mx-auto px-4 py-12">
             <div className="max-w-6xl mx-auto">
                 <div className="mb-8">
-                     <Button asChild variant="outline" className="mb-4">
+                    <Button asChild variant="outline" className="mb-4">
                         <Link href="/company-dashboard">
                             <ArrowLeft className="mr-2 h-4 w-4" />
                             Voltar para o Painel

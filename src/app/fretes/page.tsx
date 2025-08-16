@@ -3,7 +3,10 @@ import type { Metadata } from 'next';
 import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { type BodyType, type Vehicle, type VehicleCategory, getFilteredFreights } from '@/app/actions';
-import FretesClient from './fretes-client';
+import { Suspense, lazy } from 'react';
+
+// Lazy load do componente cliente para melhorar performance inicial
+const FretesClient = lazy(() => import('./fretes-client'));
 
 export const metadata: Metadata = {
     title: 'Buscar Fretes | Frete7',
@@ -29,20 +32,30 @@ const serializeData = (data: any): any => {
     return data;
 };
 
+// Componente de loading para o cliente
+const FretesClientLoader = () => (
+  <div className="container mx-auto px-4 py-8">
+    <div className="space-y-6">
+      <div className="h-8 bg-muted rounded animate-pulse w-1/3"></div>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <div key={i} className="h-48 bg-muted rounded animate-pulse"></div>
+        ))}
+      </div>
+    </div>
+  </div>
+);
 
 async function getFretesInitialData() {
     try {
-        // Fetch initial freights (unfiltered)
-        const initialFreights = await getFilteredFreights({});
+        // Fetch initial freights (unfiltered) - limitar para melhorar performance
+        const initialFreights = await getFilteredFreights({ limit: 20 });
 
-        const bodyTypesQuery = query(collection(db, 'body_types'));
-        const vehicleTypesQuery = query(collection(db, 'vehicle_types'));
-        const vehicleCategoriesQuery = query(collection(db, 'vehicle_categories'));
-
+        // Carregar dados em paralelo para melhorar performance
         const [bodyTypesSnap, vehicleTypesSnap, vehicleCategoriesSnap] = await Promise.all([
-            getDocs(bodyTypesQuery),
-            getDocs(vehicleTypesQuery),
-            getDocs(vehicleCategoriesQuery),
+            getDocs(query(collection(db, 'body_types'))),
+            getDocs(query(collection(db, 'vehicle_types'))),
+            getDocs(query(collection(db, 'vehicle_categories'))),
         ]);
 
         const allBodyTypes = bodyTypesSnap.docs.map(doc => ({ ...doc.data(), id: doc.id } as BodyType));
@@ -59,18 +72,19 @@ async function getFretesInitialData() {
     }
 }
 
-
 export default async function FretesPage() {
     const initialData = await getFretesInitialData();
 
     return (
-        <div className="container mx-auto px-4 py-8">
-            <FretesClient 
-                initialFreights={initialData.initialFreights}
-                initialBodyTypes={initialData.allBodyTypes}
-                initialVehicleTypes={initialData.allVehicleTypes}
-                initialVehicleCategories={initialData.allVehicleCategories}
-            />
-        </div>
+        <Suspense fallback={<FretesClientLoader />}>
+            <div className="container mx-auto px-4 py-8">
+                <FretesClient 
+                    initialFreights={initialData.initialFreights}
+                    initialBodyTypes={initialData.allBodyTypes}
+                    initialVehicleTypes={initialData.allVehicleTypes}
+                    initialVehicleCategories={initialData.allVehicleCategories}
+                />
+            </div>
+        </Suspense>
     );
 }

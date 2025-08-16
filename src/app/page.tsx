@@ -4,6 +4,14 @@ import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ArrowRight, Building, PackageCheck, Route, Sparkles, User, Users } from 'lucide-react';
 import Link from 'next/link';
+import { Suspense, lazy } from 'react';
+
+// Lazy load do carrossel para melhorar performance inicial
+const LazyCarousel = lazy(() => import('@/components/ui/carousel').then(mod => ({ default: mod.Carousel })));
+const LazyCarouselContent = lazy(() => import('@/components/ui/carousel').then(mod => ({ default: mod.CarouselContent })));
+const LazyCarouselItem = lazy(() => import('@/components/ui/carousel').then(mod => ({ default: mod.CarouselItem })));
+const LazyCarouselNext = lazy(() => import('@/components/ui/carousel').then(mod => ({ default: mod.CarouselNext })));
+const LazyCarouselPrevious = lazy(() => import('@/components/ui/carousel').then(mod => ({ default: mod.CarouselPrevious })));
 
 const features = [
   {
@@ -49,6 +57,23 @@ const testimonials = [
         aiHint: 'male driver'
     },
 ];
+
+// Componente de loading para o carrossel
+const CarouselLoader = () => (
+  <div className="w-full max-w-4xl mx-auto">
+    <div className="grid md:grid-cols-2 gap-6">
+      {[1, 2].map((i) => (
+        <Card key={i} className="h-48 animate-pulse">
+          <CardContent className="p-6">
+            <div className="h-4 bg-muted rounded mb-4"></div>
+            <div className="h-3 bg-muted rounded mb-2"></div>
+            <div className="h-3 bg-muted rounded w-3/4"></div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  </div>
+);
 
 export default function Home() {
   return (
@@ -131,37 +156,39 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Testimonials Section */}
+      {/* Testimonials Section - Lazy Loaded */}
       <section className="py-20 bg-muted/40">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl font-bold text-center mb-12 font-headline">O que nossos usuários dizem</h2>
-          <Carousel opts={{ align: "start", loop: true }} className="w-full max-w-4xl mx-auto">
-            <CarouselContent>
-              {testimonials.map((testimonial, index) => (
-                <CarouselItem key={index} className="md:basis-1/2 lg:basis-1/2">
-                  <div className="p-1">
-                    <Card className="h-full flex flex-col justify-between">
-                      <CardContent className="p-6">
-                        <p className="text-foreground/80 italic mb-6">"{testimonial.comment}"</p>
-                        <div className="flex items-center">
-                          <Avatar>
-                            <AvatarImage src={testimonial.image} alt={testimonial.name} data-ai-hint={testimonial.aiHint} />
-                            <AvatarFallback>{testimonial.name.charAt(0)}</AvatarFallback>
-                          </Avatar>
-                          <div className="ml-4">
-                            <p className="font-semibold">{testimonial.name}</p>
-                            <p className="text-sm text-foreground/60">{testimonial.role}</p>
+          <Suspense fallback={<CarouselLoader />}>
+            <LazyCarousel opts={{ align: "start", loop: true }} className="w-full max-w-4xl mx-auto">
+              <LazyCarouselContent>
+                {testimonials.map((testimonial, index) => (
+                  <LazyCarouselItem key={index} className="md:basis-1/2 lg:basis-1/2">
+                    <div className="p-1">
+                      <Card className="h-full flex flex-col justify-between">
+                        <CardContent className="p-6">
+                          <p className="text-foreground/80 italic mb-6">"{testimonial.comment}"</p>
+                          <div className="flex items-center">
+                            <Avatar>
+                              <AvatarImage src={testimonial.image} alt={testimonial.name} data-ai-hint={testimonial.aiHint} />
+                              <AvatarFallback>{testimonial.name.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div className="ml-4">
+                              <p className="font-semibold">{testimonial.name}</p>
+                              <p className="text-sm text-foreground/60">{testimonial.role}</p>
+                            </div>
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-                </CarouselItem>
-              ))}
-            </CarouselContent>
-            <CarouselPrevious />
-            <CarouselNext />
-          </Carousel>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </LazyCarouselItem>
+                ))}
+              </LazyCarouselContent>
+              <LazyCarouselNext />
+              <LazyCarouselPrevious />
+            </LazyCarousel>
+          </Suspense>
         </div>
       </section>
 

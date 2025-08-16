@@ -1,15 +1,13 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
-import { onSnapshot, doc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { User, Clock, ShieldCheck, Loader2, Edit, Search, ArrowRight, FileText, Gift, MessageSquareWarning, LifeBuoy, ClipboardList, Map, Bell } from "lucide-react";
+import { User, Clock, ShieldCheck, Edit, Search, ArrowRight, FileText, Gift, MessageSquareWarning, LifeBuoy, ClipboardList, Map, Bell } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { useAuth } from '@/hooks/use-auth';
 
 type UserProfile = {
     uid: string;
@@ -78,90 +76,159 @@ const dashboardCards = [
 ]
 
 export default function DashboardClient({ initialProfile }: { initialProfile: UserProfile }) {
-    const [profile, setProfile] = useState<UserProfile>(initialProfile);
     const router = useRouter();
+    const { profile, isLoading, isAuthenticated, role, status } = useAuth();
 
-    useEffect(() => {
-        if (!profile?.uid) return;
+    // Usar o perfil do hook se disponível, senão usar o inicial
+    const currentProfile = profile || initialProfile;
 
-        const userDocRef = doc(db, 'users', profile.uid);
-        const unsubscribeSnapshot = onSnapshot(userDocRef, (doc) => {
-            if (doc.exists()) {
-                const userProfile = { ...doc.data(), uid: doc.id } as UserProfile;
-                setProfile(userProfile);
-            }
-        });
+    // Verificar se o usuário tem acesso
+    if (!isLoading && (!isAuthenticated || role !== 'driver')) {
+        router.push('/login');
+        return null;
+    }
 
-        return () => unsubscribeSnapshot();
-    }, [profile?.uid]);
-
-    if (!profile) {
+    // Verificar se o perfil está pendente de aprovação
+    if (status === 'pending') {
         return (
-            <div className="flex h-64 items-center justify-center">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <div className="text-center py-12">
+                <ShieldCheck className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
+                <h2 className="text-2xl font-bold mb-2">Aguardando Aprovação</h2>
+                <p className="text-muted-foreground mb-4">
+                    Seu perfil está sendo analisado pela nossa equipe. 
+                    Você receberá uma notificação assim que for aprovado.
+                </p>
+                <Button variant="outline" onClick={() => router.push('/profile')}>
+                    <Edit className="mr-2 h-4 w-4" />
+                    Completar Perfil
+                </Button>
             </div>
         );
     }
 
-
-    switch (profile.status) {
-        case 'pending':
-            return (
-                <Card>
-                    <CardHeader className="items-center text-center">
-                         <Clock className="h-12 w-12 text-yellow-500 mb-4" />
-                        <CardTitle className="text-2xl">Aguardando Verificação</CardTitle>
-                        <CardDescription className="max-w-md">
-                            Seus dados foram recebidos e estão em análise. Assim que seu perfil for aprovado, você poderá encontrar fretes e utilizar todas as funcionalidades.
-                        </CardDescription>
-                    </CardHeader>
-                </Card>
-            );
-        case 'active':
-             return (
-                <div className='space-y-8'>
-                    <div>
-                         <h1 className="text-3xl font-bold font-headline text-primary">Painel do Motorista</h1>
-                         <p className="text-foreground/70">Bem-vindo, {profile.name}! Tudo pronto para a estrada.</p>
-                    </div>
-
-                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {dashboardCards.map(card => (
-                            <Card key={card.title} className="flex flex-col">
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-3">
-                                        {card.icon}
-                                        <span>{card.title}</span>
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="flex-grow">
-                                    <CardDescription>{card.description}</CardDescription>
-                                </CardContent>
-                                <CardFooter>
-                                    <Button asChild variant="outline" className="w-full">
-                                        <Link href={card.href}>
-                                            Acessar <ArrowRight className="ml-2 h-4 w-4"/>
-                                        </Link>
-                                    </Button>
-                                </CardFooter>
-                            </Card>
-                        ))}
-                    </div>
-                </div>
-            );
-        default:
-            return (
-                 <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <User className="h-5 w-5 text-primary" />
-                            Status do Perfil: {profile.status}
-                        </CardTitle>
-                         <CardDescription>
-                            Há um problema com seu perfil. Entre em contato com o suporte.
-                         </CardDescription>
-                    </CardHeader>
-                 </Card>
-            )
+    // Verificar se o perfil está bloqueado
+    if (status === 'blocked' || status === 'suspended') {
+        return (
+            <div className="text-center py-12">
+                <ShieldCheck className="h-16 w-16 text-red-500 mx-auto mb-4" />
+                <h2 className="text-2xl font-bold mb-2">Conta Bloqueada</h2>
+                <p className="text-muted-foreground mb-4">
+                    Sua conta foi bloqueada. Entre em contato com o suporte para mais informações.
+                </p>
+                <Button variant="outline" onClick={() => router.push('/support')}>
+                    <LifeBuoy className="mr-2 h-4 w-4" />
+                    Contatar Suporte
+                </Button>
+            </div>
+        );
     }
+
+    // Verificar se o perfil está incompleto
+    if (status === 'incomplete') {
+        return (
+            <div className="text-center py-12">
+                <Edit className="h-16 w-16 text-blue-500 mx-auto mb-4" />
+                <h2 className="text-2xl font-bold mb-2">Perfil Incompleto</h2>
+                <p className="text-muted-foreground mb-4">
+                    Complete seu perfil para começar a usar a plataforma.
+                </p>
+                <Button onClick={() => router.push('/profile')}>
+                    <Edit className="mr-2 h-4 w-4" />
+                    Completar Perfil
+                </Button>
+            </div>
+        );
+    }
+
+    if (isLoading) {
+        return (
+            <div className="flex h-64 items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                    <p className="text-muted-foreground">Carregando...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!currentProfile) {
+        return (
+            <div className="text-center py-12">
+                <p className="text-muted-foreground">Perfil não encontrado.</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-8">
+            {/* Header do Dashboard */}
+            <div className="text-center">
+                <h1 className="text-3xl font-bold font-headline text-primary mb-2">
+                    Bem-vindo, {currentProfile.name}!
+                </h1>
+                <p className="text-foreground/70">
+                    Gerencie seus fretes, rotas e perfil profissional
+                </p>
+                {currentProfile.status === 'active' && (
+                    <div className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-green-50 text-green-700 rounded-full">
+                        <ShieldCheck className="h-4 w-4" />
+                        <span className="text-sm font-medium">Conta Ativa</span>
+                    </div>
+                )}
+            </div>
+
+            {/* Cards do Dashboard */}
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {dashboardCards.map((card, index) => (
+                    <Card key={`${card.href}-${index}`} className="hover:shadow-lg transition-all duration-300">
+                        <CardHeader className="pb-3">
+                            <div className="flex items-center gap-3">
+                                {card.icon}
+                                <CardTitle className="text-lg">{card.title}</CardTitle>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="pb-4">
+                            <CardDescription className="text-sm leading-relaxed">
+                                {card.description}
+                            </CardDescription>
+                        </CardContent>
+                        <CardFooter>
+                            <Button asChild className="w-full" variant="outline">
+                                <Link href={card.href}>
+                                    Acessar
+                                    <ArrowRight className="ml-2 h-4 w-4" />
+                                </Link>
+                            </Button>
+                        </CardFooter>
+                    </Card>
+                ))}
+            </div>
+
+            {/* Seção de Status Rápido */}
+            <Card className="bg-muted/50">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Clock className="h-5 w-5" />
+                        Status Rápido
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid gap-4 md:grid-cols-3">
+                        <div className="text-center">
+                            <div className="text-2xl font-bold text-primary">0</div>
+                            <div className="text-sm text-muted-foreground">Fretes Ativos</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="text-2xl font-bold text-green-600">0</div>
+                            <div className="text-sm text-muted-foreground">Fretes Concluídos</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="text-2xl font-bold text-blue-600">0</div>
+                            <div className="text-sm text-muted-foreground">Propostas Enviadas</div>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
 }

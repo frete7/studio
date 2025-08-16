@@ -7,7 +7,7 @@ import {
   type OptimizeRouteOutput,
 } from '@/ai/flows/optimize-route';
 import { db } from '@/lib/firebase';
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, updateDoc, writeBatch, where, getCountFromServer, serverTimestamp, Timestamp, collectionGroup, startAt, endAt, orderBy, arrayUnion, arrayRemove, setDoc } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, updateDoc, writeBatch, where, getCountFromServer, serverTimestamp, Timestamp, collectionGroup, startAt, endAt, orderBy, arrayUnion, arrayRemove, setDoc, runTransaction } from 'firebase/firestore';
 
 export async function getOptimizedRoute(
   input: OptimizeRouteInput
@@ -28,9 +28,17 @@ export async function updateUserStatus(uid: string, status: string) {
   const userDocRef = doc(db, 'users', uid);
   try {
     await updateDoc(userDocRef, { status: status });
-  } catch (error: any) {
+  } catch (error: unknown) {
      console.error("Error updating user status: ", error);
-     throw new Error(`Falha ao atualizar o status do usuário: ${error.code || error.message}`);
+     
+     let errorMessage = 'Erro desconhecido';
+     if (error instanceof Error) {
+         errorMessage = error.message;
+     } else if (typeof error === 'object' && error !== null && 'code' in error) {
+         errorMessage = String(error.code);
+     }
+     
+     throw new Error(`Falha ao atualizar o status do usuário: ${errorMessage}`);
   }
 }
 
@@ -71,9 +79,17 @@ export async function updateDocumentStatus(userId: string, docField: 'responsibl
         
         await updateDoc(userDocRef, updatePayload);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Error updating document status: ", error);
-        throw new Error(`Falha ao atualizar o status do documento: ${error.code || error.message}`);
+        
+        let errorMessage = 'Erro desconhecido';
+        if (error instanceof Error) {
+            errorMessage = error.message;
+        } else if (typeof error === 'object' && error !== null && 'code' in error) {
+            errorMessage = String(error.code);
+        }
+        
+        throw new Error(`Falha ao atualizar o status do documento: ${errorMessage}`);
     }
 }
 
@@ -94,10 +110,83 @@ export async function assignPlanToUser(userId: string, planId: string, planName:
   }
 }
 
+// ✅ CORRETO: Tipo definido para validação
+export type UserUpdateData = {
+    name?: string;
+    tradingName?: string;
+    cnpj?: string;
+    address?: {
+        cep?: string;
+        logradouro?: string;
+        numero?: string;
+        complemento?: string;
+        bairro?: string;
+        cidade?: string;
+        uf?: string;
+    };
+    responsible?: {
+        name?: string;
+        cpf?: string;
+        phone?: string;
+        email?: string;
+        document?: {
+            url?: string;
+            status?: string;
+        };
+    };
+};
+
+// ✅ CORRETO: Validação dos dados antes de atualizar
+function validateUserUpdateData(data: any): Partial<UserUpdateData> {
+    const validatedData: Partial<UserUpdateData> = {};
+    
+    if (data.name && typeof data.name === 'string' && data.name.trim().length > 0) {
+        validatedData.name = data.name.trim();
+    }
+    
+    if (data.tradingName && typeof data.tradingName === 'string' && data.tradingName.trim().length > 0) {
+        validatedData.tradingName = data.tradingName.trim();
+    }
+    
+    if (data.cnpj && typeof data.cnpj === 'string' && data.cnpj.trim().length > 0) {
+        validatedData.cnpj = data.cnpj.trim();
+    }
+    
+    if (data.address && typeof data.address === 'object') {
+        validatedData.address = {};
+        if (data.address.cep && typeof data.address.cep === 'string') validatedData.address.cep = data.address.cep;
+        if (data.address.logradouro && typeof data.address.logradouro === 'string') validatedData.address.logradouro = data.address.logradouro;
+        if (data.address.numero && typeof data.address.numero === 'string') validatedData.address.numero = data.address.numero;
+        if (data.address.complemento && typeof data.address.complemento === 'string') validatedData.address.complemento = data.address.complemento;
+        if (data.address.bairro && typeof data.address.bairro === 'string') validatedData.address.bairro = data.address.bairro;
+        if (data.address.cidade && typeof data.address.cidade === 'string') validatedData.address.cidade = data.address.cidade;
+        if (data.address.uf && typeof data.address.uf === 'string') validatedData.address.uf = data.address.uf;
+    }
+    
+    if (data.responsible && typeof data.responsible === 'object') {
+        validatedData.responsible = {};
+        if (data.responsible.name && typeof data.responsible.name === 'string') validatedData.responsible.name = data.responsible.name;
+        if (data.responsible.cpf && typeof data.responsible.cpf === 'string') validatedData.responsible.cpf = data.responsible.cpf;
+        if (data.responsible.phone && typeof data.responsible.phone === 'string') validatedData.responsible.phone = data.responsible.phone;
+        if (data.responsible.email && typeof data.responsible.email === 'string') validatedData.responsible.email = data.responsible.email;
+        if (data.responsible.document && typeof data.responsible.document === 'object') {
+            validatedData.responsible.document = {};
+            if (data.responsible.document.url && typeof data.responsible.document.url === 'string') validatedData.responsible.document.url = data.responsible.document.url;
+            if (data.responsible.document.status && typeof data.responsible.document.status === 'string') validatedData.responsible.document.status = data.responsible.document.status;
+        }
+    }
+    
+    return validatedData;
+}
+
 export async function updateUserByAdmin(userId: string, data: any): Promise<void> {
     if (!userId) {
         throw new Error('ID do usuário é obrigatório.');
     }
+    
+    // ✅ CORRETO: Validar dados antes de atualizar
+    const validatedData = validateUserUpdateData(data);
+    
     try {
         const userDocRef = doc(db, 'users', userId);
         const userDoc = await getDoc(userDocRef);
@@ -110,20 +199,26 @@ export async function updateUserByAdmin(userId: string, data: any): Promise<void
         
         // Create the update object safely
         const updateData = {
-            name: data.name,
-            tradingName: data.tradingName,
-            cnpj: data.cnpj,
-            address: data.address,
+            ...validatedData,
             // Safely merge responsible data
             responsible: {
-                ...(userData.responsible || {}), // Start with existing data or an empty object
+                ...(userData.responsible || {}),
+                ...(validatedData.responsible || {}),
             }
         };
 
         await updateDoc(userDocRef, updateData);
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Error updating user by admin: ", error);
-        throw new Error(`Falha ao atualizar os dados do usuário: ${error.code || error.message}`);
+        
+        let errorMessage = 'Erro desconhecido';
+        if (error instanceof Error) {
+            errorMessage = error.message;
+        } else if (typeof error === 'object' && error !== null && 'code' in error) {
+            errorMessage = String(error.code);
+        }
+        
+        throw new Error(`Falha ao atualizar os dados do usuário: ${errorMessage}`);
     }
 }
 
@@ -446,7 +541,7 @@ export type Freight = {
     createdAt: any;
     companyId: string;
     companyName?: string;
-    status: 'ativo' | 'concluido' | 'pendente' | 'cancelado';
+    status: 'active' | 'completed' | 'pending' | 'cancelled'; // ✅ CORRETO: Status padronizado
     collaboratorId?: string; // Add collaboratorId
     responsibleCollaborators?: { id: string; name: string; phone: string }[];
     [key: string]: any; // Allow other properties
@@ -455,36 +550,37 @@ export type Freight = {
 export async function addAggregationFreight(companyId: string, companyName: string, data: any): Promise<string[]> {
     if (!companyId) throw new Error("ID da empresa é obrigatório.");
 
-    const freightsCollection = collection(db, 'freights');
-    const generatedIds: string[] = [];
+    // ✅ CORRETO: Usar transação para garantir atomicidade
+    return await runTransaction(db, async (transaction) => {
+        const freightsCollection = collection(db, 'freights');
+        const generatedIds: string[] = [];
 
-    const { destinations, ...baseFreightData } = data;
+        const { destinations, ...baseFreightData } = data;
 
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const nums = '0123456789';
+        for (const destination of destinations) {
+            // ✅ CORRETO: Usar timestamp + random para garantir unicidade
+            const timestamp = Date.now().toString(36);
+            const random = Math.random().toString(36).substring(2, 7);
+            const generatedId = `#AG-${timestamp}-${random}`;
 
-    for (const destination of destinations) {
-        const randomValues = new Uint32Array(5);
-        crypto.getRandomValues(randomValues);
-        const randomChar = (index: number) => chars[randomValues[index] % chars.length];
-        const randomNum = (index: number) => nums[randomValues[index] % nums.length];
-        const generatedId = `#AG-${randomNum(0)}${randomNum(1)}${randomChar(2)}${randomChar(3)}${randomChar(4)}`;
-
-        const freightDoc = {
-            ...baseFreightData,
-            id: generatedId,
-            destinations: [destination], // Each freight has a single destination from the list
-            companyId: companyId,
-            companyName: companyName,
-            freightType: 'agregamento',
-            status: 'ativo',
-            createdAt: serverTimestamp(),
-        };
-        await addDoc(freightsCollection, freightDoc);
-        generatedIds.push(generatedId);
-    }
-    
-    return generatedIds;
+            const freightDoc = {
+                ...baseFreightData,
+                id: generatedId,
+                destinations: [destination], // Each freight has a single destination from the list
+                companyId: companyId,
+                companyName: companyName,
+                freightType: 'agregamento',
+                status: 'active', // ✅ CORRETO: Padronizar status
+                createdAt: serverTimestamp(),
+            };
+            
+            const docRef = doc(freightsCollection);
+            transaction.set(docRef, freightDoc);
+            generatedIds.push(generatedId);
+        }
+        
+        return generatedIds;
+    });
 }
 
 export async function addCompleteFreight(companyId: string | null, companyName: string | null, freightType: 'completo' | 'retorno' | 'comum', data: any): Promise<string> {
@@ -498,15 +594,12 @@ export async function addCompleteFreight(companyId: string | null, companyName: 
     }
 
     const prefix = prefixes[freightType];
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const nums = '0123456789';
 
     try {
-        const randomValues = new Uint32Array(5);
-        crypto.getRandomValues(randomValues);
-        const randomChar = (index: number) => chars[randomValues[index] % chars.length];
-        const randomNum = (index: number) => nums[randomValues[index] % nums.length];
-        const generatedId = `${prefix}-${randomNum(0)}${randomNum(1)}${randomChar(2)}${randomChar(3)}${randomChar(4)}`;
+        // ✅ CORRETO: Usar timestamp + random para garantir unicidade
+        const timestamp = Date.now().toString(36);
+        const random = Math.random().toString(36).substring(2, 7);
+        const generatedId = `${prefix}-${timestamp}-${random}`;
 
         const freightDoc = {
             ...data,
@@ -514,7 +607,7 @@ export async function addCompleteFreight(companyId: string | null, companyName: 
             companyId: companyId, // Can be null for unauthenticated users
             companyName: companyName, // Can be "Visitante"
             freightType: freightType,
-            status: 'ativo',
+            status: 'active', // ✅ CORRETO: Padronizar status
             createdAt: serverTimestamp(),
         };
 
@@ -581,7 +674,7 @@ export async function getFreightsByCompany(companyId: string): Promise<Freight[]
                 id: data.id, 
                 firestoreId: doc.id,
                 createdAt: serializableCreatedAt,
-            } as Freight;
+            } as unknown as Freight;
         });
 
     } catch (error) {
@@ -600,7 +693,7 @@ type FreightFilters = {
 
 export async function getFilteredFreights(filters: FreightFilters): Promise<any[]> {
     try {
-        let q = query(collection(db, 'freights'), where('status', '==', 'ativo'));
+        let q = query(collection(db, 'freights'), where('status', '==', 'active')); // ✅ CORRETO: Status padronizado
 
         if (filters.originCities && filters.originCities.length > 0) {
             q = query(q, where('origin.city', 'in', filters.originCities));
@@ -633,7 +726,7 @@ export async function getFilteredFreights(filters: FreightFilters): Promise<any[
 
              // Client-side filter for destinations if Firestore query is not precise enough
             if (filters.destinationCities && filters.destinationCities.length > 0) {
-                if(freightData.destinations.some((d: any) => filters.destinationCities?.includes(d.city))) {
+                if((freightData as any).destinations?.some((d: any) => filters.destinationCities?.includes(d.city))) {
                      freights.push(freightData);
                 }
             } else {
@@ -735,11 +828,11 @@ export async function getCollaboratorStats(companyId: string, collaboratorId: st
         const totalSnapshot = await getCountFromServer(baseQuery);
 
         // Get active freights
-        const activeQuery = query(baseQuery, where('status', '==', 'ativo'));
+        const activeQuery = query(baseQuery, where('status', '==', 'active')); // ✅ CORRETO: Status padronizado
         const activeSnapshot = await getCountFromServer(activeQuery);
         
         // Get completed freights
-        const completedQuery = query(baseQuery, where('status', '==', 'concluido'));
+        const completedQuery = query(baseQuery, where('status', '==', 'completed')); // ✅ CORRETO: Status padronizado
         const completedSnapshot = await getCountFromServer(completedQuery);
 
         return {
@@ -787,7 +880,7 @@ export async function getFreightsByCollaborator(companyId: string, collaboratorI
                 id: data.id, // Use the custom ID from the document data
                 firestoreId: doc.id, // Keep the firestore id if needed
                 createdAt: serializableCreatedAt,
-            } as Freight;
+            } as unknown as Freight;
         });
 
     } catch (error) {
@@ -814,9 +907,9 @@ export async function getCompanyStats(companyId: string): Promise<CompanyStats> 
         const baseQuery = query(freightsCollection, where('companyId', '==', companyId));
 
         const totalSnapshot = await getCountFromServer(baseQuery);
-        const activeSnapshot = await getCountFromServer(query(baseQuery, where('status', '==', 'ativo')));
-        const completedSnapshot = await getCountFromServer(query(baseQuery, where('status', '==', 'concluido')));
-        const canceledSnapshot = await getCountFromServer(query(baseQuery, where('status', '==', 'cancelado')));
+        const activeSnapshot = await getCountFromServer(query(baseQuery, where('status', '==', 'active'))); // ✅ CORRETO: Status padronizado
+        const completedSnapshot = await getCountFromServer(query(baseQuery, where('status', '==', 'completed'))); // ✅ CORRETO: Status padronizado
+        const canceledSnapshot = await getCountFromServer(query(baseQuery, where('status', '==', 'cancelled'))); // ✅ CORRETO: Status padronizado
         
         return {
             totalFreights: totalSnapshot.data().count,
@@ -862,10 +955,10 @@ export async function getMonthlyFreightStats(companyId: string) {
           monthlyData[month] = { total: 0, concluido: 0, cancelado: 0 };
         }
         monthlyData[month].total++;
-        if (data.status === 'concluido') {
+        if (data.status === 'completed') { // ✅ CORRETO: Status padronizado
           monthlyData[month].concluido++;
         }
-        if (data.status === 'cancelado') {
+        if (data.status === 'cancelled') { // ✅ CORRETO: Status padronizado
             monthlyData[month].cancelado++;
         }
       }
@@ -977,7 +1070,7 @@ export async function getReturnTripsByDriver(driverId: string): Promise<ReturnTr
                 ...data,
                 id: doc.id,
                 departureDate: serializableDepartureDate,
-            } as ReturnTrip;
+            } as unknown as ReturnTrip;
         });
     } catch (error) {
         console.error("Error fetching return trips: ", error);
@@ -1065,6 +1158,9 @@ export async function saveNotificationSettings(userId: string, cities: string[])
 export async function savePushSubscription(userId: string, subscription: PushSubscriptionJSON) {
   if (!userId) {
     throw new Error('ID do usuário é obrigatório.');
+  }
+  if (!subscription.endpoint) {
+    throw new Error('Endpoint da inscrição é obrigatório.');
   }
   const subDocRef = doc(db, 'users', userId, 'push_subscriptions', subscription.endpoint.slice(-10));
   try {

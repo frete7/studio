@@ -4,11 +4,8 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Menu, Truck, LogOut, User as UserIcon, Cog, Sparkles, LayoutDashboard } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
-import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
-import { useRouter, usePathname } from 'next/navigation';
+import React, { useState, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +17,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/hooks/use-auth';
 
 const navLinks = [
   { href: '/fretes', label: 'Buscar Fretes' },
@@ -29,59 +27,27 @@ const navLinks = [
 ];
 
 export default function Header() {
-  const [isOpen, setIsOpen] = React.useState(false);
-  const [user, setUser] = useState<User | null>(null);
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
   const router = useRouter();
-  const pathname = usePathname();
   const { toast } = useToast();
+  const { 
+    user, 
+    profile, 
+    isLoading, 
+    isAuthenticated, 
+    role, 
+    status, 
+    logout 
+  } = useAuth();
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser) {
-        setUser(currentUser);
-        const userDocRef = doc(db, 'users', currentUser.uid);
-        const userDoc = await getDoc(userDocRef);
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          setUserRole(userData.role);
-
-        } else {
-          setUserRole('user');
-        }
-      } else {
-        setUser(null);
-        setUserRole(null);
-      }
-      setIsAuthLoading(false);
-    });
-    return () => unsubscribe();
-  }, [pathname, router]);
-  
-  const handleLogout = () => {
-    router.push('/login');
-    signOut(auth).then(() => {
-        toast({
-            title: 'Você saiu!',
-            description: 'Até a próxima!',
-        });
-    }).catch((error) => {
-        toast({
-            variant: 'destructive',
-            title: 'Erro ao sair',
-            description: 'Não foi possível fazer o logout. Tente novamente.',
-        });
-    });
-  };
-  
-  const getInitials = (email?: string | null) => {
+  // Memoizar funções para evitar recriações
+  const getInitials = useCallback((email?: string | null) => {
     if (!email) return 'U';
     return email.substring(0, 2).toUpperCase();
-  }
+  }, []);
   
-  const getDashboardLink = () => {
-    switch (userRole) {
+  const getDashboardLink = useCallback(() => {
+    switch (role) {
       case 'admin':
         return '/admin';
       case 'company':
@@ -91,9 +57,9 @@ export default function Header() {
       default:
         return '/profile';
     }
-  }
+  }, [role]);
   
-  const getRoleBadgeVariant = (role: string | null): "default" | "secondary" | "destructive" | "outline" => {
+  const getRoleBadgeVariant = useCallback((role: string | null): "default" | "secondary" | "destructive" | "outline" => {
     switch (role) {
       case 'admin':
         return 'destructive';
@@ -104,14 +70,31 @@ export default function Header() {
       default:
         return 'default';
     }
-  }
+  }, []);
 
-  const renderAuthSection = () => {
-    if (isAuthLoading) {
+  const handleLogout = useCallback(async () => {
+    try {
+      await logout();
+      toast({
+        title: 'Você saiu!',
+        description: 'Até a próxima!',
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao sair',
+        description: 'Não foi possível fazer o logout. Tente novamente.',
+      });
+    }
+  }, [logout, toast]);
+
+  // Memoizar seções renderizadas
+  const renderAuthSection = useMemo(() => {
+    if (isLoading) {
       return <div className="h-10 w-10 rounded-full bg-muted animate-pulse" />;
     }
 
-    if (user) {
+    if (isAuthenticated && user && profile) {
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -130,12 +113,20 @@ export default function Header() {
                     <p className="text-xs leading-none text-muted-foreground truncate">
                     {user.email}
                     </p>
-                    {userRole && (
-                        <Badge variant={getRoleBadgeVariant(userRole)} className="capitalize text-xs">
-                            {userRole === 'driver' ? 'Motorista' : userRole === 'company' ? 'Empresa' : userRole}
+                    {role && (
+                        <Badge variant={getRoleBadgeVariant(role)} className="capitalize text-xs">
+                            {role === 'driver' ? 'Motorista' : role === 'company' ? 'Empresa' : role}
                         </Badge>
                     )}
                 </div>
+                {status && status !== 'active' && (
+                  <Badge variant="outline" className="text-xs">
+                    {status === 'pending' ? 'Aguardando Aprovação' : 
+                     status === 'incomplete' ? 'Perfil Incompleto' : 
+                     status === 'blocked' ? 'Bloqueado' : 
+                     status === 'suspended' ? 'Suspenso' : status}
+                  </Badge>
+                )}
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -147,7 +138,7 @@ export default function Header() {
               <LayoutDashboard className="mr-2 h-4 w-4" />
               <span>Meu Painel</span>
             </DropdownMenuItem>
-             {userRole === 'admin' && (
+             {role === 'admin' && (
               <DropdownMenuItem onClick={() => router.push('/admin')}>
                 <Cog className="mr-2 h-4 w-4" />
                 <span>Painel Admin</span>
@@ -173,14 +164,14 @@ export default function Header() {
           </Button>
         </div>
     );
-  };
+  }, [isLoading, isAuthenticated, user, profile, role, status, getInitials, getRoleBadgeVariant, getDashboardLink, handleLogout, router]);
   
-  const renderMobileAuthSection = () => {
-    if (isAuthLoading) {
+  const renderMobileAuthSection = useMemo(() => {
+    if (isLoading) {
       return null;
     }
     
-    if (user) {
+    if (isAuthenticated && profile) {
        return (
          <>
           <Button variant="outline" asChild onClick={() => setIsOpen(false)}>
@@ -203,9 +194,13 @@ export default function Header() {
           </Button>
         </div>
     )
-  }
+  }, [isLoading, isAuthenticated, profile, getDashboardLink, handleLogout]);
 
-  const solicitRequestLink = userRole === 'company' ? "/fretes/solicitar" : "/solicitar-frete";
+  // Memoizar link de solicitação
+  const solicitRequestLink = useMemo(() => 
+    role === 'company' ? "/fretes/solicitar" : "/solicitar-frete", 
+    [role]
+  );
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -228,12 +223,12 @@ export default function Header() {
                     <Sparkles className="ml-2 h-4 w-4" />
                 </Link>
             </Button>
-          {renderAuthSection()}
+          {renderAuthSection}
         </div>
         <div className="md:hidden flex items-center">
-         {!isAuthLoading && user && (
+         {!isLoading && isAuthenticated && (
             <div className="mr-2">
-              {renderAuthSection()}
+              {renderAuthSection}
             </div>
           )}
           <Sheet open={isOpen} onOpenChange={setIsOpen}>
@@ -261,7 +256,7 @@ export default function Header() {
                   </Link>
                 </nav>
                 <div className="mt-auto flex flex-col gap-4 pt-6 border-t">
-                  {renderMobileAuthSection()}
+                  {renderMobileAuthSection}
                 </div>
               </div>
             </SheetContent>
